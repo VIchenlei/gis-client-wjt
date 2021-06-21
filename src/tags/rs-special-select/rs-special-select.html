@@ -1,0 +1,145 @@
+<!-- <rs-special-select class="rs-special-select"> -->
+<rs-special-select class="rs-special-select {getShowClass()}">
+  <div class="special-select-content-warp">
+    <div>
+      <img src="/img/addactive.png" alt="" onclick={addData}>
+    </div>
+    <div class="special-select-content-inner" each={ items, index in lists }>
+      <rs-select-field 
+        data={getSelectRows(items.shift_id)} 
+        data-name='dat_leave'
+        ref="shift_id{index}"
+        isshowdefault='true'>
+      </rs-select-field>
+      <div data-is="rs-date" 
+        type='TIME'
+        ref='leave_time{index}'
+        text='离开时间'
+        value={items.leave_time} 
+        isshowsecond='true'
+        enablenull='false'>
+      </div>
+      <span class='deleteIcon' onclick={deleteData} data-index={index}>
+        <img src="/img/mergeDelete.png" alt="">
+      </span>
+    </div>
+  </div>
+  <script>
+    import './rs-special-select.sass'
+    import '../rs-select-field/rs-select-field.html'
+    import '../rs-date/tags/rs-date.html'
+    import { clone, isRepeat } from '../../js/utils/utils.js'
+
+    this.getSql = (areaID) => {
+      let sql = null
+      let {isChange, repeat} = this.checkIsChange()
+      let tips = repeat ? '存在相同班次！' : ''
+      let length = this.lists && this.lists.length
+      if (isChange && length > 0) {
+        let values = []
+        for(let i = 0; i < length; i++) {
+          let shiftID = this.refs['shift_id'+ i].refs['shift_id'].getAttribute('name')
+          let time = this.refs['leave_time'+ i].refs['leave_time'+ i].value
+          values.push(`(${areaID}, ${shiftID}, '${time}')`)
+        }
+        sql = `insert into dat_leave (area_id,shift_id, leave_time) values ${values.join(',')}`
+      }
+      return {
+        sql,
+        tips
+      }
+    }
+
+    this.checkIsChange = () => {
+      let isChange = false
+      let oldLength = this.oldValueLists && this.oldValueLists.length
+      let length = this.lists && this.lists.length
+      let shiftArr = []
+      if (!oldLength && !length) {
+        isChange = false
+      } else {
+        if (oldLength !== length) {
+          isChange = true
+        }
+        for(let i = 0; i < length; i++) {
+          let list = this.lists[i]
+          let oldShiftID = list.shift_id
+          let oldLeaveTime = list.leave_time
+          let shiftID = this.refs['shift_id'+ i].refs['shift_id'].getAttribute('name')
+          shiftArr.push(shiftID)
+          let time = this.refs['leave_time'+ i].refs['leave_time'+ i].value
+          if (oldShiftID != shiftID || oldLeaveTime != time) {
+            isChange = true
+          }
+        }
+      }
+      let repeat = isRepeat(shiftArr)
+      return {
+        isChange,
+        repeat
+      }
+    }
+
+
+    this.getShowClass = () => {
+      let className = 'hide'
+      let rows = this.parent && this.parent.rows
+      let isWorkAreaObj = rows && rows[11]
+      if ( isWorkAreaObj && isWorkAreaObj.field_name === 'is_work_area' && isWorkAreaObj.field_value === 1) className = ''
+      return className
+    }
+
+    this.getSelectRows = (id) => {
+      return {
+        field_label: '班次',
+        field_name: 'shift_id',
+        field_value: id,
+        field_enableNull: true
+      }
+    }
+
+    this.toTextByMoreSelect = (data, name, topicName) => {
+      let chooseData = []
+      if (data) {
+        let areaLeave = Array.from(xdata.metaStore.data.leave.values())
+        chooseData = areaLeave.filter(item => item.area_id === data)
+      }
+      return chooseData
+    }
+
+    this.addData = () => {
+      if (this.lists && this.lists.length >= 3) {
+        return window.xMessage.open({
+          type: 'error',
+          message: '最多可绑定三条班次！'
+        })
+      }
+      let lists = this.lists || []
+      let shift_id = 1
+      let shiftObj = xdata.metaStore.data.shift && xdata.metaStore.data.shift.get(shift_id)
+      let leave_time = shiftObj ? shiftObj.end_time : new Date().format('hh:mm:ss')
+      lists.push({
+        shift_id,
+        leave_time
+      })
+      this.lists = lists
+    }
+
+    // 执行删除
+    this.deleteData = (evt) => {
+      let target = evt.target.parentNode
+      let index = target.dataset.index
+      index = Number(index)
+      this.lists.splice(index,1) 
+      this.update()
+    }
+
+    this.init = (opts) => {
+      const { field_name, field_enableNull, field_value, field_label } = opts.data
+      this.lists = this.toTextByMoreSelect(field_value)
+      this.oldValueLists = this.lists && clone(this.lists)
+    }
+
+    this.init(opts)
+  </script>
+</rs-special-select>

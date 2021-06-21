@@ -1,0 +1,291 @@
+<basic-list class="basic-list">
+  <div class="title">
+    <span>{ opts.dataTitle }</span>
+    <rs-more></rs-more>
+  </div>
+  <div data-is="rs-table-icon-btn" 
+    rows={ lists } 
+    key={ key } 
+    fields={ fields } 
+    operate={operate} 
+    selectall={selectall} 
+    selectallname={selectallname}>
+  </div>
+  <div class="pagination" 
+    data-is="rs-pagination" 
+    if={hasdata} 
+    totalpage={ totalPage} 
+    pageindex={ pageIndex } 
+    tablename={ name } 
+    showpagenum={true}>
+  </div>
+  <div if={ !hasdata } data-is="rs-blank-message" message="没有符合条件的记录！" class="rs-blank-message" ></div>
+  <script>
+    import '../sass/basic-list.sass'
+    import '../../tags/rs-table/tags/rs-table-icon-btn.html'
+    import '../../tags/rs-pagination/rs-pagination.html'
+    import '../../tags/rs-more/rs-more.html'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import { allMt, anyMt, anyMsg, allMsg, basicMsg } from '../js/basic-message-def.js'
+    import { initPagination, copySubRows, getIdent } from '../../js/utils/utils.js'
+
+    //点击别表数据右侧展示详细的基本、业务信息
+    this.switchData = (target) => {
+      const table = this.tags['rs-table-icon-btn']
+      const lists = table && table.root.querySelectorAll('tr')
+      lists.forEach(el => {
+        el.classList.remove('active')
+      })
+      target.classList.add('active')
+      const index = target.rowIndex
+      const id = this.lists[index-1][`${opts.name}_id`]
+      this.parent.updateList(id)
+    }
+
+    //点击列表删除图标
+    this.delete = (target) => {
+      let idname = parseInt(target.getAttribute('name'), 10)
+      this.parent.delete(idname)
+    }
+
+    //人员、车辆列表展示全部
+    this.showDown = (showMore) => {
+      this.parent.root.querySelector('.basic-right').classList.toggle('hide')
+      const rsTable = this.tags['rs-table-icon-btn']
+      const name = opts.name
+      if (showMore) {
+        this.fields = this.dealBasicMsg(basicMsg[name].table, xdata.isCheck)
+      } else {
+        this.fields = xdata.isCheck ? anyMsg[name].table : allMsg[name].table
+      }
+      this.update()
+      if (rsTable) {
+        rsTable.labels = this.fields.labels
+        rsTable.names = this.fields.names
+        rsTable.types = this.fields.types
+        rsTable.selectall = !rsTable.selectall
+        rsTable.isCheckbox = !rsTable.isCheckbox
+        rsTable.operate = !rsTable.operate
+        rsTable.updateRows(this.lists)
+      }
+    }
+
+    // 电源设备展示添加reader_id字段
+    this.addFieldView = (rows) => {
+      if (opts.name === 'device_power') {
+        rows && rows.forEach(item => {
+          item['reader_id'] = item.device_id
+        })
+      }
+      return rows
+    }
+
+    this.getRows = () => {
+      let rows = null
+      if (['staff', 'vehicle'].includes(opts.name)) {
+        rows = xdata.metaStore[`${opts.name}s`] && Array.from(xdata.metaStore[`${opts.name}s`].values())
+        if (xdata && (xdata.objRange === 1 || xdata.isCheck === 1)){
+          rows = rows.filter(item => item.need_display === 1)
+        }
+        if (xdata.depts) {
+          rows = rows.filter(item => xdata.depts.includes(item.dept_id))
+        }
+        rows = xdata.depts ? rows.filter(item => xdata.depts.includes(item.dept_id)) : rows
+        rows && rows.forEach(e => {
+          e['ident'] = getIdent(e, `${opts.name}s`)
+        })
+      } else {
+        rows = xdata.metaStore.data[opts.name] && Array.from(xdata.metaStore.data[opts.name].values())
+        rows = this.addFieldView(rows)
+      }
+      return rows
+    }
+
+    //获取分页数据
+    this.getPages = (pageIndex) => {
+      let pages = initPagination(this.rows, pageIndex)
+      this.total = pages.total
+      this.totalPage = pages.totalPage
+      this.pageIndex = pages.pageIndex
+    }
+
+    // 右侧数据修改后更新左侧列表
+    this.updateData = () => {
+      let datas = null
+      if (['staff', 'vehicle'].includes(opts.name)) {
+        datas = Array.from(xdata.metaStore[`${opts.name}s`].values())
+      } else {
+        datas = Array.from(xdata.metaStore.data[opts.name].values())
+      }
+      this.rows = this.getSearchRows(datas, 'update')
+
+      this.hasdata = this.rows.length > 0 ? true : false
+      this.getPages(this.pageIndex)
+      this.lists = copySubRows(this.rows, this.pageIndex)
+      this.update()
+      this.tags['rs-table-icon-btn'] && this.tags['rs-table-icon-btn'].updateRows(this.lists)
+    }
+
+    xbus.on('META-DATA-UPDATE', (msg) => {
+      if (msg.def && (msg.def.name === `${opts.name}` || msg.def.name === `${opts.name}_extend`)) {
+        this.updateData()
+        
+        //执行更新搜索集函数
+        const basicSearch = this.parent.tags['basic-search']
+        basicSearch && basicSearch.updateSearchList()
+      }
+    })
+
+    this.clearSelectInput = () => {
+      let self = this
+      this.rows.forEach(item => self.selectInputs.delete(item[opts.name + '_id']))
+      self.update()
+    }
+
+    // 根据检索条件过滤对应的信息
+    this.getSearchRows = (rows, type) => {
+      rows = rows || this.getRows()
+      rows = this.addFieldView(rows)
+      let basicSearchTag = this.parent.tags["basic-search"]
+      if (['staff', 'vehicle'].includes(opts.name)) {
+        let staff = basicSearchTag.refs['staffs'] && basicSearchTag.refs['staffs'].refs['staffs'].getAttribute(
+        'data-type')
+        let deptname = basicSearchTag.refs['dept'].refs['dept'].getAttribute('data-type')
+        let cardname = basicSearchTag.refs['select_card'].refs['select_card'].value
+        let vehicle = basicSearchTag.refs['vehicles'] && basicSearchTag.refs['vehicles'].refs['vehicles'].value
+
+        if (staff) rows = rows.filter(item => item.staff_id === parseInt(staff))
+        if (vehicle) rows = rows.filter(item => item.name === vehicle)
+        if (deptname) rows = rows.filter(item => item.dept_id === parseInt(deptname))
+        if (cardname) {
+          let cards = xdata.metaStore.data.card && Array.from(xdata.metaStore.data.card.values())
+          let card = opts.name === 'staff' ? cards.filter(item => item.card_id === cardname && item.card_type_id ===
+            1) : cards.filter(item => item.card_id === cardname && item.card_type_id !== 1)
+          let arr = []
+          for (let i = 0; i < card.length; i++) {
+            let cardID = card[i].card_id
+            let result = rows.find(item => item.card_id === cardID)
+            result && arr.push(result) 
+          }
+          rows = arr
+        }
+        if (!staff && !deptname && !vehicle && !cardname) rows = this.getRows()  
+      } else {
+        let refName = this.key.replace('_id', '')
+        let searchValue = basicSearchTag.refs[refName] && basicSearchTag.refs[refName].refs[refName].getAttribute(
+        'data-type')
+        rows = searchValue ? rows.filter(item => item[this.key] === parseInt(searchValue)) : this.getRows()
+      }
+      if ((staff || deptname || vehicle || cardname || searchValue) && !type) this.pageIndex = 0
+      this.pageIndex = rows.length === 1 ? 0 : this.pageIndex
+      this.rows = rows
+      this.hasdata = this.rows.length > 0
+      this.getPages(this.pageIndex)
+      this.lists = copySubRows(this.rows, this.pageIndex)
+      this.update()
+      this.tags['rs-table-icon-btn'] && this.tags['rs-table-icon-btn'].updateRows(this.lists)
+      return rows
+    }
+
+    //全选
+    this.handleSelectAll = (handleID, checked) => {
+      this.checked = checked
+      this.isSelectAll = checked
+      this.rows.forEach(item => this.checked ? this.selectInputs.set(item[opts.name + '_id'], true) : this
+        .selectInputs.delete(item[opts.name + '_id']))
+    }
+
+    //选中单个
+    this.handleSelect = (data, checked) => {
+      let key = data[opts.name + '_id']
+      checked ? this.selectInputs.set(key, true) : this.selectInputs.delete(key)
+      if (this.isSelectAll) {
+        this.checked = !checked ? false : this.checked
+        !checked ? this.notChecked.set(key, true) : this.notChecked.delete(key)
+        if (this.notChecked.size === 0) this.checked = true
+        this.update()
+      }
+      let selectAll = this.tags['rs-table-icon-btn'].refs[this.selectallname]
+      selectAll && (selectAll.checked = this.checked)
+    }
+
+    //是否选中状态
+    this.isChecked = (data) => {
+      return this.selectInputs.get(data)
+    }
+
+    //设置操作中编辑、删除显示隐藏
+    this.setOperate = (msg) => {
+      msg['name'] = opts.name
+      typeof this.parenTag.setOperate === 'function' && this.parenTag.setOperate(msg)
+    }
+
+    this.initChecked = () => {
+      this.selectInputs = new Map()
+      this.checked = false
+      this.notChecked = new Map()
+      this.isSelectAll = false
+    }
+
+    this.on('mount', () => {
+      this.initChecked()
+    })
+
+    this.dealBasicMsg = (table, isCheck) => {
+      if (isCheck) {
+        let data = {}
+        for (const key in table) {
+          let obj = table[key]
+          data[key] = obj.slice(0, 4)
+        }
+        table = data
+      }
+      return table
+    }
+
+    this.getKey = (isCheck) => {
+      let key = null
+      if (['staff', 'vehicle'].includes(opts.name)) {
+        key = isCheck ? anyMt[`${opts.name}_${opts.name}_extend`].fields.names[0] : allMt[`${opts.name}_${opts.name}_extend`].fields.names[0]
+      } else {
+        key = basicMsg[opts.name].table.names[0]
+      }
+      return key
+    }
+
+    this.init = (opts) => {
+      this.name = opts.name
+      this.parenTag = opts.parentag
+      this.operate = true
+      this.selectall = false
+      this.selectallname = `#selectAll${opts.name}`
+      let msg = basicMsg[opts.name]
+      let isCheck = xdata.isCheck === 1
+      let key = this.getKey(isCheck)
+      this.key = key
+      this.fields = this.dealBasicMsg(msg.table, isCheck)
+      this.start = 0
+      this.end = PAGE_SIZE
+      this.rows = this.getRows()
+      if (this.rows && this.rows.length > 0) {
+        this.lists = this.rows.slice(0, PAGE_SIZE)
+        this.hasdata = true
+      } else {
+        this.hasdata = false
+      }
+      this.getPages(this.pageIndex)
+    }
+
+    this.init(opts)
+
+    this.on('PAGEINDEX-CHANGE', (msg) => {
+      this.pageIndex = msg.pageIndex
+      this.start = this.pageIndex * PAGE_SIZE
+      this.end = this.start + PAGE_SIZE
+      this.lists = this.rows && this.rows.slice(this.start, this.end)
+      this.tags['rs-table-icon-btn'].updateRows(this.lists)
+      window.xhint.close()
+      this.update()
+    })
+  </script>
+</basic-list>

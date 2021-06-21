@@ -1,0 +1,156 @@
+<rs-efficiency-detail>
+  <button class="hide-on-mb" onclick={ goOverView }>返回</button>
+  <div class="detail-title">{ deptname }</div>
+  <div class="echarts-detail">
+    <span class="split">开机率</span>
+    <div class="eff-warp">
+      <div class="boot-eff" data-is="boot-eff"></div>
+    </div>
+    <span class="split">工时利用率</span>
+    <div class="eff-warp">
+      <div class="worktime-eff" data-is="worktime-eff"></div>
+    </div>
+    <span class="split">正规循环率</span>
+    <div class="eff-warp">
+      <div class="rugular-eff" data-is="rugular-eff"></div>
+    </div>
+  </div>
+  <script>
+    import { clone } from '../../../js/utils/utils.js'
+    import { getDeptName, detailSql, getTimeObj } from "../js/rs_efficiency_defs.js"
+    import './boot-eff.html'
+    import './worktime-eff.html'
+    import './rugular-eff.html'
+    this.time = null
+    this.turnOffID = null
+
+    /*处理传感器数据*/
+    this.splitGasData = (rows) => {
+      this.gasMsgData = new Map()
+      rows && rows.forEach(row => {
+        const type = row.sensor_type_id
+        if (!this.gasMsgData.get(type)) this.gasMsgData.set(type, new Map())
+        const gasMsg = this.gasMsgData.get(type)
+        let sensorID = row.sensor_id
+        let [stime, data] = row.switch_data.split(',')
+        if (type === 8) {
+          this.turnOffID = sensorID
+          sensorID = data
+          data = 0.05
+        } 
+        if (!gasMsg.get(sensorID)) gasMsg.set(sensorID, new Map())
+        const gas = gasMsg.get(sensorID)
+        gas.set(stime, [stime, data])
+      })
+    }
+
+    /*处理开机率数据*/
+    this.splitBootswitch = (rows) =>{
+      this.bootswitch = new Map()
+      rows && rows.forEach((row, index)=> {
+        const [bootStime, sdata] = row.open_data.split(',')
+        const [bootEndtime, edata] = row.close_data.split(',')
+        const bootStimeFormat = new Date(bootStime).format('yyyy-MM-dd')
+        const realTime = bootStimeFormat === new Date().format('yyyy-MM-dd') 
+                        ? new Date().format('yyyy-MM-dd hh:mm:ss') 
+                        : `${bootStimeFormat} 23:59:59`
+        const bootNextStime = rows[index + 1] && rows[index + 1].open_data.split(',')[0] 
+                              ? rows[index + 1].open_data.split(',')[0] 
+                              : realTime
+        if (!this.bootswitch.get(sdata)) this.bootswitch.set(sdata, new Map())
+        if (!this.bootswitch.get(edata)) this.bootswitch.set(edata, new Map())
+
+        const openSwitch= this.bootswitch.get(sdata)
+        openSwitch.set(bootStime, [bootStime, bootEndtime, sdata / 20])
+        const closeSwitch = this.bootswitch.get(edata)
+        if (index === 0) {
+          const compareStime = `${bootStimeFormat} 00:00:00`
+          if(bootStime > compareStime) closeSwitch.set(compareStime, [compareStime, bootStime, '0.05'])
+        }
+        closeSwitch.set(bootEndtime, [bootEndtime, bootNextStime, '0.05'])
+      })
+    }
+
+    /*处理worktime数据*/
+    this.filterData = (rows) => {
+      const faceworktime = []
+      const roadworktime = []
+      rows && rows.forEach((row) => {
+        const deptID = row.dept_id
+        if (deptID !== this.deptID) return
+        const worktime = Number(row.overWorktime.toFixed(2))
+        const roadtime = Number((row.overChecktime).toFixed(2))
+        const stime = row.stime
+        faceworktime.push({
+          stime: stime,
+          worktime: worktime
+        })
+        roadworktime.push({
+          stime: stime,
+          worktime: roadtime
+        })
+      })
+      return {
+        faceworktime,
+        roadworktime
+      }
+    }
+
+    /*处理三率详情的数据*/
+    this.splitData = (rows) => {
+      const {displacement, gasment, bootswitch, rugularAverage, bootAnalysis = [], rugularAnalysis = [], worktimeAnalysis = []} = rows
+
+      let wholeworktime = this.parent.deptMap.get(this.deptID) && this.parent.deptMap.get(this.deptID).get('wholeworktime')
+      wholeworktime = wholeworktime && this.filterData(Array.from(wholeworktime.values()))
+      const {faceworktime, roadworktime} = wholeworktime
+
+      this.splitGasData(gasment)
+      this.splitBootswitch(bootswitch)
+      this.deptShift = rows && rows['deptshift']
+      if (!this.deptRows) return
+      this.tags['boot-eff'].init(this.deptRows.get('dept_boot'), bootAnalysis)
+      this.tags['worktime-eff'].init(this.deptRows.get('dept_worktime'), faceworktime, roadworktime, worktimeAnalysis)
+      this.tags['rugular-eff'].init(this.deptRows.get('dept_rugular'), displacement, rugularAverage, rugularAnalysis)
+      this.update()
+    }
+
+    /*获取三率详情的sql*/
+    this.getSql = (deptID, time) => {
+      let sql = clone(detailSql)
+      let defaultTime = this.parent.time
+      let sqlKeys = Object.keys(sql)
+      let timeObj = getTimeObj(time, defaultTime)
+      let {timeString, rugularAverageTime} = timeObj
+      this.time = timeObj && timeObj.time
+      for (let i = 0; i < sqlKeys.length; i++) {
+        let sqlName = sqlKeys[i]
+        let itemSql = sql[sqlName]
+        if (sqlName === 'rugularAverage') timeString = rugularAverageTime
+        sql[sqlName] = itemSql.replace('{workfaceID}', this.workfaceID)
+        if (sql[sqlName].indexOf('{deptID}') > -1) sql[sqlName] = sql[sqlName].replace('{deptID}', deptID)
+        if (sql[sqlName].indexOf('{timeString}') > -1) sql[sqlName] = sql[sqlName].replace('{timeString}', timeString)
+      }
+      this.parent.query('efficiency-detail', sql, '', deptID)
+    }
+
+    /*初始化函数*/
+    this.init = (deptID, vehicleID, workfaceID) => {
+      this.deptID = deptID
+      this.vehicleID = vehicleID
+      this.workfaceID = workfaceID
+      this.deptname = getDeptName(deptID)
+      this.deptRows = this.parent.deptMap.get(deptID)
+      this.d_name = xdata.metaStore.getNameByID('user_id', xdata.userName)
+      this.getSql(deptID)
+    } 
+
+    /*返回三率图表主界面*/
+    this.goOverView = () => {
+      this.parent.deptID = null
+      this.root.parentNode.querySelector('.detail').classList.add('hide')
+      this.root.parentNode.querySelector('.overview').classList.remove('hide')
+      this.parent.initoverviewcharts()
+      this.parent.initdeptcharts()
+    }
+  </script>
+</rs-efficiency-detail>

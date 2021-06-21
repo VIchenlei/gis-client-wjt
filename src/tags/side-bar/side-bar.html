@@ -1,0 +1,81 @@
+<side-bar>
+  <article>
+    <div class="menu grey-scroll" onclick={ activateItem }>
+        <side-menu each={ menu in menus } def={ menu } if={ isShow(menu) } name= { name } class="side-menu"></side-menu>
+    </div>
+  </article>
+  <script>
+    import '../side-menu/side-menu.html'
+    import './side-bar.sass'
+    const destortTcpNames = ['device_net_params', 'device_params', 'device_software_update']
+    this.isShow = (menu) => {
+      let menuID = menu.menuID
+      let isShow = false
+      let result = xdata.menus.find(item =>{
+        return item.includes(menuID)
+      })
+      if (!xdata.hasMenus || result) isShow = true
+      if (xdata.isCheck === 1 && menuID === 'CF-G') return false
+      return isShow
+    }
+
+    this.activateItem = (evt, isHandle) => {
+      let name = null
+      let msg = null
+      let sideBarName = this.activeItem && this.activeItem.getAttribute('name')
+      if (sideBarName && destortTcpNames.includes(sideBarName)) {
+        xbus.trigger('SEND-DESTORY-TCP')
+      }
+
+      if (evt.cardID) {
+        msg = evt
+        name = evt.report
+        this.name = 'REPT'
+      } else {
+        this.name = this.root.getAttribute('name')
+        if (evt.target && evt.target.nodeName !== 'LI') return
+        if (this.activeItem) this.activeItem.classList.remove('active')
+        this.activeItem = evt.target
+        this.activeItem && this.activeItem.classList.add('active')
+        name = this.activeItem && this.activeItem.getAttribute('name')
+      }
+      if (name) {
+        xbus.trigger(`${this.name}-SWITCH-MENU`, {
+          menuname: name,
+          msg: msg
+        })
+      }
+    }
+
+    xbus.on('REPORT-ACTIVE-ITEM', (tabName) => {
+      if (!tabName) return
+      let target = null
+      let arr = this.tags["side-menu"]
+      for (let i = 0; i < arr.length; i++) {
+        if (arr[i].refs[tabName]) {
+          target = arr[i].refs[tabName]
+          arr[i].update({showItems: true})
+        }
+      }
+      this.activateItem({target}, true)
+    })
+
+    xbus.on('SHOW-REPORT', (msg) => {
+      this.activateItem(msg)
+    })
+    
+    xbus.on('REST-DEVICE-TABLE', () => {
+      let sideBarName = this.activeItem && this.activeItem.getAttribute('name')
+      if (sideBarName && destortTcpNames.includes(sideBarName)) {
+        this.activateItem({target: this.activeItem})
+      }
+    })
+
+    this.init = () => {
+      this.name = opts.name
+      this.menus = opts.menus
+      this.activeItem = null
+    }
+    this.init()
+  </script>
+</side-bar>

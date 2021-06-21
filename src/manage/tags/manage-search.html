@@ -1,0 +1,140 @@
+<manage-search class="manage-search {opts.name}-search">
+  <div>
+    <rs-select-field ref={rows.field_name} data={ rows } data-name={ tableName } isshowdefault='true'></rs-select-field>
+    <rs-select-field if={opts.name === 'sanlv_schedule'} ref={sanlvRows.field_name} data={ sanlvRows } data-name={ sanlvTableName } isshowdefault='true'></rs-select-field>
+    <rs-date type='MONTH' ref="search-time" value={dateValue}></rs-date>
+  </div>
+  <div class="search">
+    <button class="search-button" onclick={doSearch}>查询</button>
+  </div>
+  <script>
+    import '../sass/manage-search.sass'
+    import '../../tags/rs-select-field/rs-select-field.html'
+    import '../../tags/rs-date/tags/rs-date.html'
+    import { manageSearch } from '../js/manage_search_def.js'
+    import { inquireDB, messageTip } from '../../js/utils/utils.js'
+
+    let monthValue = null //月份
+    
+    // 处理sql替换faceID、sMonth、lMonth
+    this.dealString = (sql, msg) => {
+      const replaceNames = ['faceID', 'sMonth', 'lMonth']
+      replaceNames.forEach(name => {
+        sql = sql.replace(`{${name}}`, msg[name])
+      })
+      return sql
+    }
+
+    //执行查询
+    this.doSearch = () => {
+      monthValue = this.refs['search-time'].refs['search-time'].value
+      if (monthValue) {
+        const { field_name } = this.rows
+        let faceID = parseInt(this.refs[field_name].refs[field_name].getAttribute('name'))
+        this.faceID = faceID
+        let sMonth = `${monthValue}-1`
+        let [y, m] = monthValue.split('-')
+        let lMonth = `${new Date(new Date(y, m, 0).getTime()).format('yyyy-MM-dd')}`
+        this.fullDate = new Date(y, m, 0).getDate()
+        let sql = null
+        let scheduleSql = manageSearch['schedule_date'].sql
+        scheduleSql = this.dealString(scheduleSql, {faceID, sMonth, lMonth})
+        if (opts.name === 'sanlv_schedule') {
+          let workfaces = Array.from(xdata.metaStore.data.work_face.values())
+          this.faceTypeID = workfaces.filter(item => item.work_face_id === faceID)[0].work_face_type
+          let lv = this.refs['sanlv'].refs['sanlv'].getAttribute('name')
+          lv = lv && lv === 'startup' ? 'his_startup_detail' : 'his_regular_cycle_detail'
+          this.name = lv
+          let workface = this.faceTypeID === 1 ? xdata.metaStore.data.coalface_vehicle : xdata.metaStore.data.drivingface_vehicle
+          workface = workface && workface.get(faceID)
+          let vehicleID = workface && workface.vehicle_id
+          this.vehicleID = vehicleID
+          if (!vehicleID) {
+            let tips = '该工作面没有绑定车辆！'
+            let type = 'warning'
+            messageTip(tips, type)
+            return
+          }
+          let startupSql = manageSearch['his_startup_detail'].sql
+          startupSql = this.dealString(startupSql, {faceID, sMonth, lMonth})
+          let regularSql = manageSearch['his_regular_cycle_detail'].sql
+          regularSql = this.dealString(regularSql, {faceID, sMonth, lMonth})
+          sql = {
+            actual_data: lv === 'his_startup_detail' ? startupSql : regularSql,
+            schedule_date: scheduleSql
+          }
+        } else {
+          sql = scheduleSql
+        }
+        let name = 'workface_scheduling_echarts'
+        inquireDB(name, sql)
+      } else {
+        let tips = '请选择具体的查询时间！'
+        let type = 'warning'
+        messageTip(tips, type)
+      }
+    }
+
+    this.splitData = (rows) => {
+      if (!rows) return
+      let data = []
+      let time = monthValue
+      let scheduleNumName = this.faceTypeID === 1 ? 'schedule_mine_times' : 'schedule_tunnelling_times'
+      let datas = opts.name === 'sanlv_schedule' ? rows['actual_data'] : rows
+      let scheduleDatas = opts.name === 'sanlv_schedule' ? rows['schedule_date'] : null
+      for (let i = 1; i <= this.fullDate; i++) {
+        let t = `${time}-${i} 00:00:00`
+        let row = datas && datas.filter(item => new Date(item.stime).getTime() === new Date(t).getTime())
+        let scheduledata = 0
+        if (scheduleDatas) {
+          let scheduleRow = scheduleDatas.filter(item => new Date(item.stime).getTime() === new Date(t).getTime())
+          if (scheduleRow && scheduleRow.length > 0) {
+            scheduledata = this.name === 'his_startup_detail' ? scheduleRow[0].schedule_startup_time : scheduleRow[0][
+              scheduleNumName
+            ]
+          }
+        }
+        let scheduleTime = 0
+        let scheduleNum = 0
+        if (row && row.length > 0) {
+          scheduleTime = opts.name === 'sanlv_schedule' ? row[0].svalue && (row[0].svalue).toFixed(2) : row[0]
+            .schedule_startup_time
+          scheduleNum = row[0][scheduleNumName]
+        }
+        if (opts.name === 'sanlv_schedule') {
+          scheduleNum = scheduledata
+        }
+        if (!scheduleNum) scheduleNum = 0
+        data.push([t, 1, scheduleTime, scheduleNum])
+      }
+      this.parent.initEcharts(data, monthValue, this.faceID, this.vehicleID)
+    }
+
+    this.getSelectItem = (fieldName) => {
+      let items = null
+      if (fieldName === 'sanlv') {
+        items = [
+         { label: '开机率', value: 'startup' },
+         { label: '正规循环率', value: 'regular' }
+        ]
+      }
+      return items
+    }
+
+    this.init = (opts) => {
+      this.parenTag = this.parent.parenTag
+      this.tableName = manageSearch[opts.name].tableName
+      this.rows = manageSearch[opts.name].rows
+      this.faceTypeID = this.parent.faceTypeID
+      if (opts.name === 'sanlv_schedule') {
+        this.sanlvRows = manageSearch[opts.name].sanlv.rows
+        this.sanlvTableName = manageSearch[opts.name].sanlv.tableName
+      }
+
+      let date = new Date()
+      this.dateValue = `${date.getFullYear()}-${date.getMonth()+1}`
+    }
+
+    this.init(opts)
+  </script>
+</manage-search>

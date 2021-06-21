@@ -1,0 +1,78 @@
+<device-net-dialog>
+  <div class="dlg-bg animated">
+    <div class="dlg-window device-net-dialog animated zoomIn">
+      <rs-title title={ title }></rs-title>
+      <div class="dlg-body grey-scroll">
+        <div id="device-dialog" class="dialog-table"></div>
+      </div>
+      <div class="dlg-foot" onclick={handleEvt}>
+        <button class="btn-sure" ref="btnSure" data-name="save">{saveText}</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/device-net-dialog.sass'
+    import '../tags//scan-device-table.html'
+    const BODYDEF = {
+      device_net_params: {
+        name: 'scan-device',
+        title: '扫描设备'
+      } 
+    }
+
+    const MAPPING = {
+      device_params: 'deviceParamsStore',
+      device_net_params: 'deviceNetStore',
+      device_software_update: 'deviceParamsStore'
+    }
+
+    const MAPPINGSTORE = {
+      device_params: 'paramsStore',
+      device_net_params: 'netStore',
+      device_software_update: 'paramsStore'
+    }
+
+    this.handleEvt = (evt) => {
+      let target = evt.target
+      let name = target.getAttribute('data-name')
+      if (name === 'save') this.save()
+      if (name === 'cancel') this.close()
+    }
+
+    this.save = () => {
+      this.bodyTable.doSave(this.tableName)
+      MAPPING[this.tableName] && xdata.deviceUpdateStore[MAPPING[this.tableName]].clear()
+      MAPPINGSTORE[this.tableName] && xdata.deviceUpdateStore[MAPPINGSTORE[this.tableName]].clear()
+    }
+
+    this.close = () => {
+      this.unmount(true)
+    }
+
+    this.on('mount', () => {
+      window.setDialogDraggable(this.root)
+      if (this.bodyTable) {
+        this.bodyTable.unmount(true)
+      }
+      let pTag = this
+      let data = this.data
+      // data-is模板字符串不解析
+      this.bodyTable = riot.mount('#device-dialog', `${this.bodyName}-table`, {data, pTag})[0]
+    })
+
+    this.init = (opts) => {
+      let message = opts.message
+      let { name, cmd, rows } = message
+      this.tableName = message.tableName
+      let msg = BODYDEF[name]
+      this.bodyName = msg.name
+      this.title = msg.title
+      this.data = rows
+      this.saveText = '扫描' 
+      this.parenTag = opts.parenTag
+    }
+
+    this.init(opts)
+  </script>
+</device-net-dialog>

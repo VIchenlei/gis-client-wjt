@@ -1,0 +1,40 @@
+@import '../../style/defs'
+
+.user-profile
+  @include absolute-right-top(0, .5rem)
+  font-size: $font-m
+  width: 1.2rem
+  background: $color-light-grey
+  z-index: 99
+  .user-dropmenu
+    li
+      &:hover
+        background: #09F
+        color: #FFF
+  @media screen and (max-width: $width-medium)
+    left: 0
+    top: 0
+    width: 100%
+    height: calc(100% - 0.48rem)
+    display: flex
+    flex-flow: column nowrap
+    .user-banner
+      flex: 0 0 38%
+      background: linear-gradient(30deg, #7cf, #09f)
+      display: flex
+      flex-flow: column nowrap
+      justify-content: center
+      align-items: center
+      img
+        height: 0.8rem
+      span
+        margin-top: 0.16rem
+        color: #fff
+        font-weight: bolder
+    .user-dropmenu
+      padding: 0.32rem
+      li 
+        border-bottom: 1px dotted #ddd
+  @media screen and (max-width: $width-medium) and (orientation: landscape)
+    flex-flow: row nowrap
+    height: 100%

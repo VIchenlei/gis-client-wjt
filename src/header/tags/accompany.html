@@ -1,0 +1,191 @@
+<!-- 
+  /**
+    * 陪同人员检索
+  */
+ -->
+<accompany class="accompany">
+  <div class="dlg-bg animated">
+    <div class="dlg-window accompany-dialog animated zoomIn">
+      <rs-title title="陪同"></rs-title>
+      <div class="dlg-body grey-scroll">
+        <div each={row in searchLists}>
+          <div if={row.field_name === 'area_id'} class="change-area">
+            <input type="checkbox" onchange={ change } checked={checked}>
+            <span>陪同区域（可选）</span>
+          </div>
+          <rs-text-field
+            data={row} 
+            ref={row.field_name} 
+            data-name='accompany' 
+            if={isShow(row)}>
+          </rs-text-field>
+          <rs-select-field 
+            data={row} 
+            ref={row.field_name} 
+            data-name='accompany' 
+            if={row.field_type==='SELECT'}
+            isshowdefault='true'>
+          </rs-select-field>
+          <div data-is="rs-date" 
+            type={row.field_type} 
+            ref={row.field_name} 
+            text={row.field_label}
+            if={row.field_type==='DATETIME' } 
+            isshowsecond='true'>
+          </div>
+        </div>
+      </div>
+      <div class="dlg-foot" onclick={handleEvt}>
+        <button class="btn-sure" ref="btnSearch" data-name="search">陪同检索</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/accompany.sass'
+    import '../js/accompany_def.js'
+    import accompanySearch from '../js/accompany_def.js'
+    import { messageTip, inquireDB } from '../../js/utils/utils.js'
+
+    xbus.on('REPT-SHOW-RESULT', (ds) => {
+      if (['accompany_staff', 'guest_staff', 'TrackData'].includes(ds.def.name)) {
+        window.xhint.close()
+        this.close()
+        const staffs = xdata.metaStore.staffs
+        if (ds && ds.def.name === 'accompany_staff') {
+          let rows = ds.rows && ds.rows.filter(item => {
+            if (!item.begin_time && !item.last_time) return false
+            if (!item.begin_time) item.begin_time = item.last_time
+            if (!item.last_time) item.last_time = item.begin_time
+            return item
+          })
+          if (!rows || rows.length < 1) {
+            return messageTip('未查询到数据', 'warning')
+          }
+          rows.sort(function (a, b) {
+            return Date.parse(a.begin_time) < Date.parse(b.begin_time)
+          })
+          let area = this.area ? this.area : ''
+          let startTime = rows[0].begin_time
+          let endTime = rows[rows.length -1].last_time
+          let sql = `SELECT id, obj_id, card_type_id, area_id, speed, ident, DATE_FORMAT(begin_time,"%Y-%m-%d %H:%i:%s") AS begin_time, DATE_FORMAT(last_time,"%Y-%m-%d %H:%i:%s") AS last_time, begin_pt FROM his_location_staff_ WHERE begin_time >= "${startTime}" AND begin_time <= "${endTime}" {exprString} ORDER BY begin_time`
+          sql = sql.replace('{exprString}', area)
+          inquireDB('guest_staff', sql)
+        }
+        if (ds.def.name === 'guest_staff') {
+          let staffIdArray = []
+          let guestRows = ds && ds.rows.filter(item => {
+            if (!item.begin_time && !item.last_time) return false
+            if (!item.begin_time) item.begin_time = item.last_time
+            if (!item.last_time) item.last_time = item.begin_time
+            staffIdArray.push(item.obj_id)
+            return item
+          })
+          guestRows.sort(function (a, b) {
+            return Date.parse(a.begin_time) < Date.parse(b.begin_time)
+          })
+          staffIdArray = staffIdArray.filter(item => {
+            if (staffs.get(item) && staffs.get(item).is_vip === 1) return item
+          })
+          staffIdArray = Array.from(new Set(staffIdArray))
+          let staffID = staffIdArray.length ? ` and obj_id in (${staffIdArray.join(',')})` : ''
+          if (!staffID) return messageTip('未查询到来宾数据', 'warning')
+          let area = this.area ? this.area : ''
+          let startTime = guestRows[0].begin_time
+          let endTime = guestRows[guestRows.length -1].last_time
+          opts.papa.gotoPage('sp_history', null)
+          staffIdArray.unshift(parseInt(this.staffID, 10))
+          let msg = {
+            startTime: startTime,
+            endTime: endTime,
+            objID: staffIdArray,
+            name: xdata.metaStore.getNameByID('staff_id', this.staffID),
+            staffID: parseInt(this.staffID, 10)
+          }
+          xbus.trigger('ACCOMPANY-TRACK-DATA-UPDATE', (msg))
+        }
+      }
+    })
+
+    this.change = (evt) => {
+      let areas = xdata.metaStore.data.area && Array.from(xdata.metaStore.data.area.values())
+      if (!areas || (areas && areas.length === 0)) {
+        evt.target.checked = false
+        return messageTip('未配置区域无法选择', 'warning')
+      }
+      let checked = evt.target.checked
+      this.checked = checked
+      this.isShowArea()
+    }
+
+    this.isShow = (row) => {
+      if (row.field_type === 'SELECT') return false
+      if (row.field_type === 'DATETIME') return false
+      return true
+    }
+
+    this.handleEvt = (evt) => {
+      let target = evt.target
+      let name = target.getAttribute('data-name')
+      if (name === 'search') this.search()
+      if (name === 'cancel') this.close()
+    }
+
+    // 陪同检索
+    this.search = () => {
+      let tips = ''
+      let staffID = this.refs['staffs'] && this.refs['staffs'].refs['staffs'].getAttribute('data-type')
+      let startTime = this.refs['start_time'] && this.refs['start_time'].refs['start_time'].value
+      let endTime = this.refs['end_time'] && this.refs['end_time'].refs['end_time'].value
+      let area = ''
+      if (this.checked) {
+        let areaID = this.refs['area_id'] && this.refs['area_id'].refs['area_id'].getAttribute('name')
+        area = `AND area_id = ${areaID}`
+        this.area = area
+      }
+
+      if (!staffID || !startTime || !endTime) {
+        tips = '陪同人员开始结束时间不能为空！'
+        return messageTip(tips, 'warning')
+      }
+      this.staffID = staffID
+      if (new Date(startTime).getTime() > new Date(endTime).getTime()) {
+        tips = '开始时间不能大于结束时间'
+        return messageTip(tips, 'warning')
+      }
+      let sql = `SELECT id, obj_id, card_type_id, area_id, ident, DATE_FORMAT(begin_time,"%Y-%m-%d %H:%i:%s") AS begin_time, DATE_FORMAT(last_time,"%Y-%m-%d %H:%i:%s") AS last_time, begin_pt FROM his_location_staff_ WHERE obj_id =${staffID} AND begin_time >= "${startTime}" AND begin_time <= "${endTime}" {exprString} ORDER BY begin_time`
+      sql = sql.replace('{exprString}', area)
+      inquireDB('accompany_staff', sql)
+    }
+
+    //关闭对话框
+    this.close = () => {
+      this.unmount(true)
+    }
+    
+    this.isSearch = () => {
+      return true
+    }
+
+    this.on('mount', () => {
+      this.isShowArea()
+      window.setDialogDraggable(this.root)
+    })
+
+    this.isShowArea = () => {
+      if (this.checked) {
+        this.refs['area_id'] && this.refs['area_id'].root.classList.remove('hide')
+      } else {
+        this.refs['area_id'] && this.refs['area_id'].root.classList.add('hide')
+      }
+    }
+
+    this.init = (opts) => {
+      this.searchLists = accompanySearch
+      this.parenTag = this
+      this.checked = false
+    }
+
+    this.init(opts)
+  </script>
+</accompany>

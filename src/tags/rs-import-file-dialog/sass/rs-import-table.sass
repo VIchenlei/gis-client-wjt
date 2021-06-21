@@ -1,0 +1,22 @@
+@import '../../../style/defs'
+.rs-import-table
+  @include wh(100%, 100%)
+  text-align: center
+  font-size: $font-s
+  color: #333333
+  overflow-y: auto
+  table
+    height: auto
+    thead, tbody
+      tr
+        height: .44rem
+        border-bottom: 1px solid $color-border
+        th, td
+          padding: 0.12rem .02rem
+        th
+          cursor: pointer
+        td
+          width: 1.14rem
+          overflow: hidden
+          text-overflow: ellipsis
+          white-space: nowrap

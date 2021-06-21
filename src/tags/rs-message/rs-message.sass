@@ -1,0 +1,20 @@
+@import '../../style/defs'
+.rs-message
+  font-size: $font-m
+  padding: .15rem 1rem
+  // @include absolute-right-top(40%, -.52rem, 999)
+  position: absolute
+  margin-top: -.52rem
+  z-index: 999
+  // transform: translateX(50%)
+  border-radius: 5px
+.success
+  background: #e1f3d8
+.warning
+  background: #faecd8
+.error
+  background: #fde2e2
+@media screen and (max-width: $width-medium)
+  .rs-message
+    width: 90%
+    left: 50%

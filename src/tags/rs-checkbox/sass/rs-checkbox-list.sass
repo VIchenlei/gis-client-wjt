@@ -1,0 +1,44 @@
+@import '../../../style/defs'
+.rs-checkbox-list
+  border: 1px dashed rgba(0,153,255,0.50)
+  border-radius: .1rem
+  margin: .1rem 0
+  display: block
+  padding: .1rem
+  .list
+    max-height: 2rem
+    overflow-y: auto
+    li
+      @include flex-align-center
+      display: inline-flex
+      width: 33%
+      padding: .05rem 0
+      div#checkbox
+        height: .14rem
+        position: relative
+        input
+          @include wh(.14rem, .14rem)
+        .checkbox-input +label
+          @include wh(.14rem, .14rem)
+          cursor: pointer
+          position: absolute
+          left: 0
+          border-radius: 2px
+        .selected
+          background: $color-main
+        .unselected
+          background: #e3e3e3
+          border: 1px solid $color-ccc
+        .selected::before
+          display: block
+          content: "\2714"
+          text-align: center
+          font-size: .1rem
+          color: white
+      .checkbox-text
+        margin-left: .05rem
+        cursor: pointer
+      .red
+        color: #ff6057
+      .green
+        color: #25ac28

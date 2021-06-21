@@ -1,0 +1,173 @@
+<sp-rate class="sp-rate">
+  <div class="mb-three-rate">
+    <div class="btn-warp">
+      <button data-name="rept-efficiency-manage" onclick={gotoSanlv}>调度日报</button>
+      <button class="sanlv-btn" data-name="rs-efficiency-overview" onclick={gotoSanlv}>三率详情</button>
+    </div>
+    <div class="mb-overview">
+      <span class="mb-overview-title">全矿三率分析</span>
+      <div class="overview-echarts">
+        <div each={ overViewRate, i in rateDefs.overViewRates } class={overViewRate.warpName}>
+          <div class={overViewRate.className} style="width:100px;height:100px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="mb-dept">
+      <div class="rate-dept" each={ deptRate, i in rateDefs.deptRates }>
+        <div class={deptRate.warpName} style="width:100%;height:100px;"></div>
+      </div>
+    </div>
+  </div>
+  <div class="mb-efficiency hide">
+    <div class="efficiency-control">
+      <img onclick={goback} src="/img/angle-double-left.png">
+      <div class="input-warp">
+        <input type="month" ref="efficiency-month" if={isMonth}>
+        <input type="date" ref="efficiency-month" if={!isMonth}>
+        <img onclick={searchMonth} src="/img/search.png">
+      </div>
+    </div>
+    <div class="mb-efficiency-overview"></div>
+  </div>
+  <script>
+    import echarts from 'echarts'
+    import '../sass/sp-rate.sass'
+    import {mrateBar,mgauge} from '../../js/def/graph_def.js'
+    import {getDeptID} from '../../js/utils/utils.js'
+    import {tabDefs, TITLENAME, rateDefs} from '../js/sp_rate_defs'
+    import './rept-efficiency-manage.html'
+    import '../../tags/rs-efficiency/tags/rs-efficiency-overview.html'
+    const DEPTARR = [12, 13, 22, 46, 56, 57, 61, 68, 69, 100, 62]
+
+    this.on('mount', () => {
+      this.initDate(opts.msg)
+    })
+
+    this.goback = () => {
+      this.efficiency && this.efficiency.unmount(true)
+      this.root.querySelector('.mb-three-rate').classList.remove('hide')
+      this.root.querySelector('.mb-efficiency').classList.add('hide')
+    }
+
+    this.searchMonth = () => {
+      let time = this.refs['efficiency-month'].value
+      if (time) this.queryDB(time)
+    }
+
+    this.queryDB = (time) => {
+      let tabDef = this.isMonth ? tabDefs['rs_efficiency_overview'] : tabDefs['rept_efficiency_manage']
+      this.efficiency.doQuery(tabDef, time)
+    }
+
+    this.gotoSanlv = (evt) => {
+      let target = evt.currentTarget
+      let name = target.getAttribute('data-name')
+      this.isMonth = name === 'rs-efficiency-overview' ? true : false
+      this.root.querySelector('.mb-three-rate').classList.add('hide')
+      this.root.querySelector('.mb-efficiency').classList.remove('hide')
+      let def = {reptIndex: new Date().getTime()}
+      if (this.efficiency) {
+        this.efficiency.unmount(true)
+      } else {
+        this.efficiency = riot.mount('.mb-efficiency-overview', name, { def })[0]
+      }  
+      let time = this.isMonth ? new Date().format('yyyy-MM') : new Date().format('yyyy-MM-dd')
+      this.queryDB(time)
+    }
+
+    this.initOverCharts = (row, name, title) => {         
+      row = row || [0]
+      name = `.${name}`
+      let initdom = this.root.querySelector(name)
+      if (!initdom) return
+      echarts.dispose(initdom)
+      let chart = echarts.init(initdom)
+      let msg = {
+        title: title,
+        data: [{value: row[0] && row[0].worktime, name: ``}],
+        max: name == '.overview-WD' ? 14 : 100
+      }
+      let option = mgauge(msg)
+      chart.setOption(option)
+    }
+
+    this.initdeptCharts = () => {
+      let keys = Array.from(this.deptMap.keys())
+      keys.forEach(key => {
+        let series = []
+        let xAxis = []
+        let yAxis = []
+        let data = Array.from(this.deptMap.get(key).values())
+        let domname = `.rate-${key}`
+        let initdom = this.root.querySelector(domname)
+        if (!initdom) return
+        echarts.dispose(initdom)
+        let chart = echarts.init(initdom)
+        data.forEach(item => {
+          xAxis.push(item[0])
+          yAxis.push(item[1])
+        })
+        let msg = {
+          title: TITLENAME[key],
+          xAxis: xAxis,
+          yAxis: yAxis,
+          key: key
+        }
+        let option = mrateBar(msg)
+        chart.setOption(option)
+      })
+    }
+
+    this.splitDeptData = (rows, name) => {
+      rows.forEach(row => {
+        if (!this.deptMap.get(name)) {
+          let ret = new Map()
+          this.deptMap.set(name, ret)
+        }
+        let deptData = this.deptMap.get(name)
+        let deptID = Number(row.dept_id)
+        if (name === 'dept_worktime' || name === 'dept_boot') {
+          deptID = getDeptID(row)
+        }
+        if (DEPTARR.includes(deptID)) {
+          let depts = xdata.metaStore.data.dept
+          let deptname = depts && depts.get(deptID) && depts.get(deptID).abbr
+          deptname = deptname || xdata.metaStore.getNameByID('dept_id', deptID)
+          deptData.set(deptID, [deptname, row.worktime])
+        } else {
+        console.warn('该队组已被过滤:', deptID)
+        }                
+      })
+    }
+
+    this.initDate = (rows) => {
+      if (!rows) return
+      this.deptMap = new Map()
+      let overDatasArr = [rows['overview-boot'], rows['overview-worktime'], rows['overview-rugular']]
+      let deptDatasArr = [rows['dept_boot'], rows['dept_worktime'], rows['dept_rugular']]
+      for (let i = 0; i < overDatasArr.length; i++) {
+        let overViewRate = this.rateDefs.overViewRates[i]
+        this.initOverCharts(overDatasArr[i], overViewRate.className, overViewRate.title)
+      }
+      for (let i = 0; i < overDatasArr.length; i++) {
+        let deptRate = this.rateDefs.deptRates[i]
+        this.splitDeptData(deptDatasArr[i], deptRate.className)
+      }
+      this.initdeptCharts()
+    }
+
+    /*接受查询回来的信息*/
+    xbus.on('REPT-SHOW-RESULT', (ds) => {
+      this.efficiency && this.efficiency.updateDs(ds)
+      window.xhint.close()
+    })
+
+    this.init = (opts) => {
+      this.rateDefs = rateDefs
+      this.deptMap = new Map()
+      this.isMonth = true
+    }
+
+    this.init(opts)
+  </script>
+</sp-rate>

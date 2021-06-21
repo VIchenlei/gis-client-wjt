@@ -1,0 +1,30 @@
+@import '../../style/defs'
+
+.user-bar
+  @include wh(1.2rem, 100%)
+  cursor: pointer
+  @include flex-around-center
+  position: relative
+  &:hover
+    background: #0082d9
+    .user-list
+      display: flex
+    li
+      &:hover
+        background: #0082d9
+        color: #FFF
+  .usertitle
+    display: flex
+    flex: auto
+    justify-content: space-around
+    .user-icon
+      @include wh(.2rem, .2rem)
+      display: flex
+      background: url('/img/icon.png') no-repeat -1.35rem -2.29rem
+  .user-list
+    display: none
+    position: absolute
+    top: 0.5rem
+    right: 0
+
+    

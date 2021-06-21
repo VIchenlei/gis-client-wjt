@@ -1,0 +1,55 @@
+@import '../../style/defs'
+
+.tool-tips
+  position: absolute
+  min-width: 3.6rem
+  max-width: 4.6rem
+  height: auto
+  background: $color-white
+  font-size: $font-s
+  color: $font-default
+  z-index: 999
+  @media screen and (max-width: $width-medium)
+    min-width: 3.4rem
+  .tool-tips-container
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5)
+    .op-panel
+      height: .4rem
+      background: $color-grey-xs
+      @include flex-around-center
+      padding: 0 .05rem
+      .tab-icon
+        @include flex-center-center
+        flex: auto
+        height: 100%
+        cursor: pointer
+        color: $color-main
+        svg
+          display: inline-block
+          @include wh(.24rem, .24rem)
+          fill: $color-main
+      .active
+        border-bottom: 2px solid $color-main
+        color: #009fff
+        svg
+          fill: $color-main
+    .tool-tips-content
+      padding: 0 .1rem
+      max-height: 4rem
+      overflow: auto
+      .tool-tips-info
+        @include flex-around-center
+        line-height: .26rem
+        .lable
+          white-space: nowrap
+        .value
+          flex: auto
+          text-align: right
+          overflow: hidden
+          text-overflow: ellipsis
+          white-space: nowrap
+    .tool-foot
+      @include flex-around-center
+      width: 100%
+      flex: 0 0 .6rem
+      padding: .02rem

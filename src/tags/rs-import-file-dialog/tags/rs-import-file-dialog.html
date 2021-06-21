@@ -1,0 +1,406 @@
+<rs-import-file-dialog>
+  <div class="dlg-bg animated">
+    <div class="dlg-window import-dialog animated zoomIn">
+      <rs-title title={ title }></rs-title>
+      <div class="dlg-body">
+        <div class="file-box">
+          <rs-choose-file if={ !isPreviewFile }></rs-choose-file>
+          <rs-import-table if={ isPreviewFile } data={ data }></rs-import-table>
+        </div>
+      </div>
+      <div class="dlg-foot" onclick={ handleEvt }>
+        <button class="btn-sure" ref="btnImport" data-name="save" if={ isPreviewFile }>导入</button>
+        <button class="btn-cancel" ref="btnDelete" data-name="delete" if={ isPreviewFile }>删除</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import Papa from 'papaparse'
+    import XLSX from 'xlsx'
+    import '../sass/rs-import-file-dialog.sass'
+    import '../../rs-title/tags/rs-title.html'
+    import './rs-choose-file.html'
+    import './rs-import-table.html'
+    import { objKeySort, composeUpdateDBReq, noTurnTxt, trim, formatString, messageTip } from '../../../js/utils/utils.js'
+    import { dealNegateValue, getDelBlankId, getImportFieldValue } from '../../../manage/js/utils.js'
+
+    let self = this
+    this.isPreviewFile = false //控制列表、导入、删除按钮显示隐藏
+    this.selectedFile = null
+    this.labels = opts.def.fields.labels //列表展示title
+    this.fileData = null //导入数据
+    this.data = null //rs-table组件需要传入数据
+    this.isRepeat = false //判断有无重复name
+    this.total = 0
+    this.countDone = 0
+    this.countOK = 0
+    this.countFail = 0
+
+    this.on('mount', () => {
+      this.registerGlobalEventHandlers()
+      window.setDialogDraggable(this.root)
+    })
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        let keyID = res.data.id
+        if (typeof keyID === 'string') keyID = keyID.slice(1, keyID.length - 1)
+        let cell = this.tags['rs-import-table'].root.querySelector(`[data-id="${keyID}"]`)
+        let state = ''
+        this.countDone++
+        if (res.code === 0) {
+          this.countOK++
+          if (cell) cell.style = 'color: green'
+          state = '成功'
+          this.fileState = '已导入'
+        } else {
+          this.countFail++
+          if (cell) cell.style = 'color: red'
+          state = '失败'
+          console.log('导入失败：' + res.msg)
+        }
+        if (cell) cell.innerHTML = state
+        if (this.countDone >= this.total) {
+          this.countDone = 0
+          this.refs['btnImport'].style = 'display: none'
+          this.refs['btnDelete'].style = 'display: none'
+          this.refs['btnCancel'].innerText = '关闭'
+          this.setButtonsDisabled(false, 'import')
+        }
+      })
+    }
+
+    this.setButtonsDisabled = (flag, type) => {
+      let foot = this.root.querySelector('.dlg-foot')
+      let buttons = foot.querySelectorAll('button')
+      for (let i = 0; i < buttons.length; i++) {
+        buttons[i].disabled = flag
+      }
+      if (type) {
+        xbus.trigger('PULL-IMPORT-FILE', this.tableName)
+      }
+    }
+
+    this.fileChosen = (evt) => {
+      let file = evt.currentTarget.files[0]
+      let name = file.name
+      name = name.split('.')
+      let fileType = name[name.length - 1]
+      fileType === 'csv' ? this.fileChosenCsv(evt) : this.fileChosenExcel(file)
+    }
+
+    /*解析csv文件*/
+    this.fileChosenCsv = (evt) => {
+      let files = evt.target.files || evt.dataTransfer.files
+      this.selectedFile = files[0]
+      if (this.selectedFile) {
+        Papa.parse(this.selectedFile, {
+          header: true,
+          complete: function(results) {
+            let tooFewFieldIndex = []
+            let errors = results.errors
+            for (let item of errors) {
+              if (item.code === 'TooFewFields') tooFewFieldIndex.push(item.row)
+            }
+            let data = []
+            for (let i = 0; i < results.data.length; i++) {
+              if (!tooFewFieldIndex.includes(i)) data.push(results.data[i])
+            }
+            self.previewData(data)
+          },
+          encoding: 'GB2312'
+        })
+      }
+    }
+
+    /*解析Excel文件*/
+    this.fileChosenExcel = (file) => {
+      let reader = new FileReader()
+      reader.onload = function(e) {
+        let data = e.target.result
+        let wb = XLSX.read(data, {
+          type: 'binary',
+          cellDates: true
+        })
+        let values = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]])
+        self.previewData(values)
+      }
+      reader.readAsBinaryString(file)
+    }
+
+    /*展示导入文件*/
+    this.previewData = (msg) => {
+      this.fileData = this.getFileData(msg)
+      this.isPreviewFile = true
+      this.checkName(this.tableName)
+      this.data = {
+        def: this.def,
+        maxid: this.maxid,
+        rows: this.fileData
+      }
+      this.update()
+    }
+
+    /*获取数据*/
+    this.getFileData = (msg) => {
+      let fileData = []
+      for (let i = 0; i < msg.length; i++) {
+        let objValue = objKeySort(msg[i], this.labels)
+        if (objValue) fileData.push(objValue)
+      }
+      return fileData
+    }
+
+    this.checkName = (tableName) => {
+      if (/^dat_/ig.test(tableName)) {
+        let def = this.def
+        const { labels, names } = def.fields
+        if (typeof opts.cb === 'function') {
+          let msg = {
+            labels: labels,
+            names: names,
+            fileData: this.fileData
+          }
+          this.isRepeat = opts.cb('check', msg)
+        } else {
+          let name = labels[names.indexOf('name')]
+          if (!name) return
+          let storeName = def.name
+          let fileDataName = this.fileData.map(item => item[name])
+          let table = null
+          table = Array.from(xdata.metaStore.data[storeName].values()) 
+          !this.isRepeat && fileDataName.length > 0 && fileDataName.forEach(it => {
+            this.isRepeat = table && Array.from(table.values()).some(item => item.name === it)
+          })
+          this.tips = name
+        }
+      }
+    }
+
+    this.showTips = (evt) => {
+      if (typeof opts.cb === 'function') {
+        let msg = {
+          name: 'doImportData',
+          currentTag: self,
+          evt: evt
+        }
+        opts.cb('show', msg)
+      } else {
+        const xmsg = `存在重复${this.tips}！`
+        return messageTip(xmsg, 'warning')
+      }
+    }
+
+    this.formatFieldValue = (type, value, name) => {
+      let ret = null, row = null
+      if (this.names.includes(name)) {
+        return getImportFieldValue(type, value, name)
+      } else {
+        switch (type) {
+          case 'SELECT':
+            let isnum = !isNaN(value)
+            if (/_id$/.test(name) && !isnum) {
+              let tablename = name.replace('_id', '')
+              let table = xdata.metaStore.data[tablename]
+              row = table && Array.from(table.values()).filter(item => item.name == value || item.detail == value)[0]
+              ret = row && +row[name]
+            } else {
+              ret = +noTurnTxt(this.name, name, value, 'key')
+            }
+            break
+          case 'NUMBER':
+            ret = +value
+            break
+          default:
+            ret = value ? `"${formatString(value.toString())}"` : value // String
+            break
+        }
+      }
+      return ret
+    }
+
+    // 补全默认数据
+    this.completDefaultData = (fields, values) => {
+      if (typeof this.parenTag.completRtData === 'function') {
+        return this.parenTag.completRtData(this.tableName, fields, values)
+      } else {
+        return {fields, values}
+      }
+    }
+
+    // 处理特殊数据
+    this.dealSpecialData = (specialDeal, fields, values, keyValue) => {
+      let sql = `REPLACE into ${this.tableName} (${fields}) VALUES(${values})`
+      if (Object.keys(specialDeal).length !== 0) {
+        let tableName = /^dat_/.test(this.tableName) ? this.tableName.slice(4) : this.tableName
+        let datas = xdata.metaStore.data[tableName]
+        let datasArray = datas && Array.from(datas.values())
+        if (!datas || datas.length <= 0) return sql
+        let staffID = specialDeal.staff_id
+        if (this.tableName === 'dat_credentials_staff') {
+          let credentialsID = specialDeal.credentials_id
+          let isExist = datasArray.find(item => item.staff_id === staffID && item.credentials_id === credentialsID)
+          if (isExist) return `UPDATE ${this.tableName} SET credentials_number = ${specialDeal.credentials_number}, get_credentials_time = ${specialDeal.get_credentials_time || null}, warn_id = ${specialDeal.warn_id}, expire_time = ${specialDeal.expire_time} where staff_id = ${staffID} and credentials_id = ${credentialsID}`
+          return sql
+        } else if (this.tableName === 'dat_vehicle_type') {
+          let vehicleTypeId = specialDeal.vehicle_type_id
+          if (specialDeal && specialDeal.att_rule_id) {
+            let updateSql = `replace into dat_att_rule_vehicle_type (att_rule_id, vehicle_type_id) values (${specialDeal.att_rule_id},${vehicleTypeId})`
+            let req = composeUpdateDBReq('UPDATE', 'att_rule_vehicle_type', keyValue, updateSql)
+            xbus.trigger('META-UPDATE-DB', {
+              req: req
+            })
+          }
+        }
+      }
+      return sql
+    }
+
+    /*导入*/
+    this.doImportData = (evt) => {
+      let rows = this.fileData
+      this.total = rows.length
+      this.countOK = 0
+      this.countFail = 0
+
+      let def = this.def
+      let fields = def.fields
+      const { names, labels, types, enableNull } = fields
+      let fieldCount = names.length
+      let opType = 'INSERT'
+
+      for (let i = 0; i < this.total; i++) {
+        let req = null
+        if (typeof opts.cb === 'function') {
+          let msg = {
+            def: this.def,
+            name: this.name,
+            rows: rows[i],
+            currentTag: self
+          }
+          req = opts.cb('import', msg)
+        } else {
+          let fields = ''
+          let values = ''
+          let keyValue = null,
+            notify = null,
+            specialDeal = {}
+          let row = rows[i]
+
+          for (let j = 0; j < fieldCount; j++) { // 不包括最后一列：lastUpdate
+            let fieldName = names[j]
+            let fieldLabel = labels[names.indexOf(fieldName)]
+            let fieldNull = enableNull[names.indexOf(fieldName)]
+            let fieldtype = types[names.indexOf(fieldName)]
+            let fieldValue = row[fieldLabel]
+            if (!fieldValue && fieldValue !== 0) fieldValue = row[fieldName]
+            if (fieldtype === 'TIME') {
+              if (typeof fieldValue !== 'string') {
+                fieldValue = new Date(new Date(fieldValue).getTime()-300*1000).format('hh:mm:ss')
+              }
+            }
+            if (fieldtype === 'DATE') {
+              if (typeof fieldValue !== 'string') {
+                fieldValue = new Date(fieldValue).getTime() - fieldValue.getTimezoneOffset() * 60 * 1000
+              }
+              fieldValue = new Date(fieldValue).format('yyyy-MM-dd')
+            }
+            fieldValue = dealNegateValue(fieldValue, fieldName, 'IMPORT')
+            fieldValue = this.formatFieldValue(types[j], fieldValue, fieldName)
+            if (typeof this.parenTag.jumpCycle === 'function') {
+              if (this.parenTag.jumpCycle(fieldName, this.tableName)) continue
+            }
+            if (fieldName === this.keyId) keyValue = fieldValue
+            if (this.tableName === 'dat_credentials_staff' || this.tableName === 'dat_vehicle_type') {
+              specialDeal[fieldName] = fieldValue
+            }
+            if (this.tableName === 'dat_vehicle_type' && fieldName === 'att_rule_id') {
+              continue
+            }
+            if (fieldValue || fieldValue === 0) {
+              if (j !== 0) {
+                fields += ','
+                values += ','
+              }
+              fields += fieldName
+              values += fieldValue
+            }
+          }
+          let judgeCompletDefaultData = this.completDefaultData(fields, values)
+          fields = judgeCompletDefaultData.fields
+          values = judgeCompletDefaultData.values
+          let sql = this.dealSpecialData(specialDeal, fields, values, keyValue)
+          // let sql = `REPLACE into ${this.tableName} (${fields}) VALUES(${values})`
+          req = composeUpdateDBReq(opType, this.name, keyValue, sql)
+          if (notify) req.data['notify'] = notify
+          req['import'] = 'importfile'
+        }
+        if (req) {
+          console.log('req', req)
+          xbus.trigger('META-UPDATE-DB', {req: req})
+        }
+      }
+    }
+
+    this.delBlank = (key) => {
+      return getDelBlankId(key, this.keyId)
+    }
+
+    this.handleEvt = (evt) => {
+      let name = evt.target.getAttribute('data-name')
+      if (name === 'save') this.importData(evt)
+      if (name === 'delete') this.deleteData()
+      if (name === 'cancel') this.close()
+    }
+
+    /*执行导入*/
+    this.importData = (evt) => {
+      this.setButtonsDisabled(false)
+      this.isRepeat ? this.showTips(evt) : this.doImportData(evt)
+    }
+
+
+    /*执行删除*/
+    this.deleteData = () => {
+      this.isPreviewFile = false
+      this.selectedFile = null
+      this.fileData = null
+      this.data = null
+      opts.cb instanceof Function && opts.cb('delete', null)
+    }
+
+    /*关闭对话框*/
+    this.close = () => {
+      this.unmount(true)
+      xbus.off('META-UPDATE-DB-RES')
+      opts.cb instanceof Function && opts.cb('delete', null)
+    }
+
+    this.getName = (value, fieldName, fieldType) => {
+      if (this.parenTag.getImportName instanceof Function) {
+        let msg = {
+          fieldName: fieldName,
+          fieldType: fieldType,
+          value: value,
+          tableName: this.tableName
+        }
+        value = this.parenTag.getImportName(msg)
+      }
+      return value
+    }
+
+    this.init = (opts) => {
+      this.title = `批量添加 - ${opts.def.label}`
+      this.def = opts.def
+      this.name = this.def.name
+      this.tableName = this.def.table
+      this.keyName = this.def.fields.labels[this.def.keyIndex]
+      this.keyId = this.def.fields.names[this.def.keyIndex]
+      this.parenTag = opts.parenTag
+      this.names = this.parenTag.names || []
+    }
+
+    this.init(opts)
+  </script>
+</rs-import-file-dialog>

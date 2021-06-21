@@ -1,0 +1,101 @@
+<map-side-bar class="map-side-bar map-side-bar-full hide-on-mb">
+  <div class="nav-bar">
+    <span class="panel-switcher" onclick={switchPanel}>
+      <span class="icon { isShowPanel ? 'icon-caret-left' : 'icon-caret-right'} "></span>
+    </span>
+    <map-side-nav class="map-side-nav" papa={papa}></map-side-nav>
+  </div>
+  <div class="topic-main" ref="topic-main" name="topic-main">
+    <div class="topic-title" ref="topictitle">{ activeTopic ? activeTopic.label : '' }</div>
+    <div id="topic_panel"></div>
+  </div>
+
+  <script>
+    import { TOPIC, TopicDef } from '../js/topic_def.js'
+    import './map-side-nav.html'
+    import '../sass/map-side-bar.sass'
+    import './group-list.html'
+    import './call-person-list.html'
+    import './reader-list.html'
+    import './help-side-list.html'
+
+    this.on('mount', () => {
+      this.refs.topictitle.innerHTML = this.activeTopic ? this.activeTopic.label : ''
+      this.activeTag = riot.mount('div#topic_panel', this.activeTopic.tagName, {})[0]
+    })
+
+    this.on('update', () => {
+      let cl = this.root.querySelector('.topic-main').classList
+      let rootEle = this.root.classList
+      if (this.isShowPanel) {
+        rootEle.remove('map-side-bar-narrow')
+        rootEle.add('map-side-bar-full')
+      } else {
+        rootEle.remove('map-side-bar-full')
+        rootEle.add('map-side-bar-narrow')
+      }
+      if (this.needUpdateMap) {
+        xbus.trigger('MAP-UPDATE-SIZE', {})
+        this.needUpdateMap = false
+      }
+    })
+
+    this.switchPanel = (evt) => {
+      this.isShowPanel = !this.isShowPanel
+      this.needUpdateMap = true
+    }
+
+    // 分站编辑覆盖范围时，重置地图左边分站列表状态，同时隐藏左边分站列表
+    xbus.on('CHANGE-SWITCH-PANEL', (msg) => {
+      this.isEdit = msg.isEdit
+      if (this.activeTopic && this.activeTag && this.activeTopic.name === 'readerList') {
+        this.selectInputs = new Map()
+        this.activeTag.update()
+      }
+    })
+
+    this.showPanel = () => {
+      if (!this.isShowPanel) {
+        this.isShowPanel = true
+        this.needUpdateMap = true
+        this.update()
+      }
+    }
+
+    this.switchToItem = (topicName) => {
+      let self = this
+      if (topicName !== this.activeTopic.name) {
+        let topic = TopicDef[topicName]
+        if (topic.tagName !== this.activeTopic.tagName) {
+          this.activeTag.unmount(true)
+          this.activeTag = riot.mount('div#topic_panel', topic.tagName, {parenTag:self})[0]
+        }
+        this.activeTopic = topic
+        this.refs.topictitle.innerHTML = this.activeTopic.label
+        this.activeTag.update(topicName)
+      }
+    }
+
+    this.isChecked = (id) => {
+      return this.selectInputs.get(id)
+    }
+
+    this.handleSelect = (msg) => {
+      let id = Number(msg.name)
+      let checked = msg.checked
+      checked ? this.selectInputs.set(id, checked) : this.selectInputs.delete(id)
+    }
+
+    this.init = (opts) => {
+      this.activeTopic = null
+      this.isShowPanel = true
+      this.needUpdateMap = false
+      this.papa = this
+      this.isEdit = false
+      this.selectInputs = new Map()
+      this.activeTopic = TopicDef[TOPIC.VEHICLE_BY_AREA]
+    }
+
+    this.init(opts)
+  </script>
+</map-side-bar>

@@ -1,0 +1,94 @@
+@import '../../style/defs.sass'
+
+.pagination
+  flex: 0 0 0.32rem
+  margin: 0.16rem 0
+  @include align-center-middle
+
+  .pagination-bar
+    flex: auto
+    @include align-center-middle
+    color: #333333
+    font-size: 14px
+
+    .page-tag-group
+      display: flex
+      padding: 0
+      margin: 0 0.06rem
+      cursor: pointer
+      border: none
+
+      .page-tag
+        @include align-center-middle
+        border: 1px solid #e3e3e3
+        cursor: pointer
+      .page-tag-jump
+        margin-right: 4px
+        text-align: center
+        padding: 2px 8px
+        border-radius: 2px
+        .icon
+          @include wh(0.2rem,0.2rem)
+          border-radius: 50%
+          padding: 0.032rem
+          background-image: url('/img/page.png')
+          display: inline-block
+          fill: #fff
+          cursor: pointer
+      .page-tag-jump-1
+        .icon-first_page
+          background-position: -150px -6px
+        &:hover
+          .icon-first_page
+            background-position: -187px -6px
+      .page-tag-jump-2
+        .icon-navigate_before
+          background-position: -6px -6px
+        &:hover
+          .icon-navigate_before
+            background-position: -42px -6px
+      .page-tag-jump-3
+        .icon-navigate_next
+          background-position: -77px -6px
+        &:hover
+          .icon-navigate_next
+            background-position: -113px -6px
+      .page-tag-jump-4
+        .icon-last_page
+          background-position: -221px -6px
+        &:hover
+          .icon-last_page
+            background-position: -256px -6px
+      .page-tag-index
+        padding: 0.032rem
+        margin: 0 0.064rem
+
+      .selected-tag
+        cursor: auto
+        background: #09F
+        color: #FFF
+    
+    .page-tag-describe
+      font-weight: bold
+      input
+        width: 0.5rem
+        height: auto
+        text-align: center
+        opacity: 0.5
+        border: 1px solid #979797
+        border-radius: 4px
+        margin: 0 5px
+        &:focus
+          outline: none
+          border-color: #409eff
+      span
+        margin-right: 4px
+        &:nth-child(1)
+          margin-right: 15px
+      .page-tag-square
+        opacity: 0.5
+        border: 1px solid #979797
+        border-radius: 4px
+        width: auto
+        text-align: center
+        padding: 0 7px

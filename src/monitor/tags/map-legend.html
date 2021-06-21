@@ -1,0 +1,28 @@
+<map-legend class="legend-container">
+  <img class="legend-img animate rotateOutDownRight" src="/img/legend.png" ref="legendImg">
+  <div class="legend-switcher" onclick={toggleSwitch}>
+    <svg class="icon"><use xlink:href="/icons/icons.svg#icon-legend"></use></svg>
+  </div>
+
+  <script>
+    import '../sass/map-legend.sass'
+    this.toggleSwitch = (evt) => {
+      this.isOn = !this.isOn
+      let legend = this.refs.legendImg.classList
+      if (this.isOn) {
+        legend.remove('rotateInUpRight')
+        legend.add('rotateOutDownRight')
+      } else {
+        legend.add('rotateInUpRight')
+        legend.remove('rotateOutDownRight')
+      }
+    }
+
+    this.init = (opts) => {
+      this.isOn = true
+      this.switcher = 'left'
+    }
+
+    this.init(opts)
+  </script>
+</map-legend>

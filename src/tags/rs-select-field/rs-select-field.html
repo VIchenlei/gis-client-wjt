@@ -1,0 +1,163 @@
+<rs-select-field class="rs-select-field" show={isShow}>
+  <fieldset class="select-field">
+    <legend>
+      <span class="select-field-label">{text}</span>
+      <span class="select-field-tips">{tips}</span>
+    </legend>
+    <div class="select-field-text" onclick={change}>
+      <input type="text" 
+        ref={fieldName} 
+        name={index} 
+        oldValue={fieldValue} 
+        value={value} 
+        disabled={opts.disabled} 
+        readonly="readonly">
+      <span if={isShowResult} ref="selectdown" class="select-down-icon" disabled={opts.disabled}></span>
+      <span if={!isShowResult} ref="selectup" class="select-up-icon" disabled={opts.disabled} ></span>
+    </div>
+  </fieldset>
+  <span class={info ? 'info' : ''}>{ info }</span>
+  <rs-select if={!isShowResult} message={message} parentag={parenTag}></rs-select>
+  <script>
+    import '../rs-select/rs-select.html'
+    import './rs-select-field.sass'
+    import numberTurnText from '../../js/def/number_turn_text_def.js'
+    import { compare, filterItem, changeCheckBox, getRecName } from '../../js/utils/utils.js'
+    let self = this
+
+    this.updateSelect = (businesses) => {
+      this.isShow = businesses === 6 ? true : false
+      this.update()
+    }
+
+    //执行选择结果
+    this.chooseItem = (result) => {
+      this.isShowResult = !this.isShowResult
+      this.index = Array.from(result)[0][1].value
+      this.refs[this.fieldName].value = Array.from(result)[0][1].label
+      this.update()
+      let target = this.root.querySelector('input')
+      typeof this.parent.chooseItem === 'function' && this.parent.chooseItem(this.fieldName, this.index, target)
+      changeCheckBox(self)
+    } 
+
+    //点击显示下拉结果框
+    this.change = (evt) => {
+      if (this.disabled) return
+      let rsSelect = this.parent.tags['rs-select-field']
+      if (Array.isArray(rsSelect)) {
+        rsSelect.forEach(e => {
+          if (e.fieldName !== this.fieldName) {
+            e.isShowResult = true
+          } else {
+            this.info = !e.items || (e.items && e.items.length === 0) ? `请先配置${e.text}数据` : ''
+            if (this.info) e.isShowResult = false
+          }
+          e.update()
+        })
+      } else {
+        this.info = !rsSelect.items || (rsSelect.items && rsSelect.items.length === 0) ? `请先配置${rsSelect.text}数据` : ''
+        if (this.info) rsSelect.isShowResult = false
+        rsSelect.update()
+      }
+      this.isShowResult = !this.isShowResult
+      this.update()
+      if (!this.isShowResult) this.tags['rs-select'] && this.tags['rs-select'].position(evt.target)
+    }
+
+    //获取rows
+    this.getItems = () => {
+      let items = []
+      if (/^(\S*\.)*(\S*)_id$/.test(this.fieldName)) {
+        let topicName = RegExp.$2
+        let tableFieldName = `${topicName}_id`
+
+        if ( this.parent && this.parent.parenTag && typeof this.parent.parenTag.getItems === 'function') {
+          items = this.parent.parenTag.getItems(this.fieldName,topicName,tableFieldName)
+        } else {
+          let ds = xdata.metaStore.data[topicName]        
+          if (!ds) {
+            console.warn(`metaselect: 没有以 ${tableFieldName} 为 KEY 的数据。`)
+            return items
+          }
+          const recName = getRecName(topicName, this.fieldName)
+          for (let rec of ds.values()) {
+            let item = {
+              label: rec[recName],
+              value: rec[tableFieldName]
+            }
+            items.push(item)
+          }
+        }
+      } else if (typeof this.parent.getSelectItem === 'function') {
+        items = this.parent.getSelectItem(this.fieldName, this.tableName)
+      } else {
+        let tablename = this.tableName
+        if (/^dat_/.test(this.tableName)) tablename = this.tableName.slice(4)
+        if (numberTurnText.hasOwnProperty(tablename)) {
+          let hasTurnName = numberTurnText[tablename][this.fieldName]
+          if (hasTurnName) {
+            if (Array.isArray(hasTurnName)) {
+              for (let i = 0; i < hasTurnName.length; i++) {
+                let hasTurnObj = hasTurnName[i] 
+                for (let rec in hasTurnObj) {
+                  items.push({
+                    value: Number(rec),
+                    label: hasTurnObj[rec]
+                  })
+                }
+              }
+              return items
+            } else {
+              for (let rec in hasTurnName) {
+                items.push({
+                  value: Number(rec),
+                  label: hasTurnName[rec]
+                })
+              }
+            }
+          }
+        }
+      }
+      items = items.sort(compare('name', 'chinese'))
+      return items
+    }
+
+    this.on('mount', () => {
+      if (this.parent.cmd === 'INSERT') changeCheckBox(self)
+    })
+
+    this.init = (opts) => {
+      let msg = opts.data
+      this.parenTag = this.parent.parenTag
+      this.disabled = opts.disabled || ''
+      this.tableName = opts.dataName
+      this.text = msg.field_label
+      this.fieldName = msg.field_name
+      this.enableNull = msg.field_enableNull
+      this.fieldValue = msg.field_value
+      this.tips = !this.enableNull ? '*' : ''
+      this.info = '' // 错误提示信息
+      this.type = msg.field_type 
+      this.isShowDefault = opts.isshowdefault || false // 是否展示默认值
+      this.isShowResult = true
+      this.isShow = opts.hasOwnProperty('isshow') ? opts.isshow : true // 控制组件显隐
+      this.items = this.getItems()
+      if (this.items && this.items.length === 0) return
+      this.items = filterItem(msg.field_value, this.items, this.tableName, this.fieldName)
+      this.message = {
+        rows: this.items,
+        cb: this.chooseItem
+      }
+      const row = this.items.filter(item => parseInt(item.value, 10) === parseInt(msg.field_value, 10))[0]
+      this.value = row ? row.label : this.items[0].label
+      this.index = row ? row.value : this.items[0].value
+      if (!this.isShowDefault) {
+        this.value = this.fieldValue === '' || this.fieldValue === null ? this.fieldValue : this.value
+        this.index = this.fieldValue === '' || this.fieldValue === null ? '' : this.index
+      } 
+    }
+
+    this.init(opts)
+  </script>
+</rs-select-field>

@@ -1,0 +1,166 @@
+<driver-schedule>
+  <span class="printer">
+    <svg class="icon printer-icon" aria-label="打印" name="printPDF" onclick={askFile}>
+      <use xlink:href="/icons/icons.svg#icon-printer"></use>
+    </svg>
+  </span>
+  <div>
+    <rs-select-field 
+      ref={items.field_name} 
+      data={ items } 
+      data-name='dat_shift_type' 
+      cb={change}>
+    </rs-select-field>
+    <rs-date 
+      type='DATE' 
+      ref="search-time" 
+      value={opts.driverDate} 
+      modifycb={changeDate} 
+      isshowdefault='true'>
+    </rs-date>
+  </div>
+  <driver-schedule-list 
+    data={opts.rows} 
+    shifttype={opts.shiftType}>
+  </driver-schedule-list>
+  <script>
+    import '../sass/driver-schedule.sass'
+    import './driver-schedule-list.html'
+    import { trim, composeUpdateDBReq, metaUpdateRes } from '../../js/utils/utils.js'
+    import manageQuery from '../../manage/js/manage_query.js'
+    import manageDef from '../../manage/js/manage_def.js'
+    import { inquireDB } from '../../js/utils/utils.js'
+
+    this.on('mount', () => {
+      this.root.classList.remove('hide')
+      this.registerGlobalEventHandlers()
+    })
+    
+    //修改班制
+    this.chooseItem = () => {
+      const { field_name } = this.items
+      const shiftType = Number(this.refs[field_name].refs[field_name].getAttribute('name'))
+      this.parenTag.changeValue instanceof Function && this.parenTag.changeValue({shiftType})
+      let sql = manageQuery['driver'].sql
+      const { sqlName } = manageQuery['driver']
+      const excerpt = `"${opts.driverDate}"`
+      sql = sql.replace('{exprString}', excerpt).replace('{shiftType}', shiftType)
+      inquireDB(sqlName, sql)
+      this.tags['driver-schedule-list'].isHide = shiftType === 1 ? 'hide' : ''
+      this.tags['driver-schedule-list'].update()
+      this.parenTag.driverDate = opts.driverDate
+    }
+
+    //修改日期
+    this.changeDate = (value) => {
+      const { field_name } = this.items
+      const shiftType = Number(this.refs[field_name].refs[field_name].getAttribute('name'))
+      opts.shiftType = shiftType
+      opts.driverDate = value
+      this.parenTag.changeValue instanceof Function && this.parenTag.changeValue({value, shiftType})
+      let sql = manageQuery['driver'].sql
+      const { sqlName } = manageQuery['driver']
+      const excerpt = `"${value}"`
+      sql = sql.replace('{exprString}', excerpt).replace('{shiftType}', shiftType)
+      inquireDB(sqlName, sql)
+      this.tags['driver-schedule-list'].isHide = shiftType === 1 ? 'hide' : ''
+      this.tags['driver-schedule-list'].update()
+    }
+
+    this.getShift = (target, shifts) => {
+      let shift = target.classList.value.split(' ')[0]
+      switch (shift) {
+        case 'es':
+          return shifts === 1 ? 1 : 4
+        case 'ms':
+          return shifts === 1 ? 2 : 5
+        case 'ns':
+          return shifts === 1 ? 3 : 6
+        default: 
+          return 7 
+      }
+    }
+
+    this.save = (target, driver, msg) => {
+      let sql = null, opTpye = null
+      const fieldName = this.items.field_name
+      const shiftType = Number(opts.shiftType)
+      const shiftId = this.getShift(target, shiftType)
+      const chooseDriver = trim(target.parentNode.previousElementSibling.value)
+      const curDriver = trim(chooseDriver.split('-')[0])
+      driver = trim(driver)
+      const staffId = msg && msg.staff_id
+      const deptId = msg && msg.dept_id
+      const time = opts.driverDate
+      const vehicleId = target.parentNode.getAttribute('name')
+      const vehicleNum = target.parentNode.getAttribute('type')
+      const isInsert = chooseDriver !== driver && driver === '' && chooseDriver !== ''
+      if (isInsert) {
+        let values = `"${curDriver}",${staffId},${deptId},"${time}",${vehicleId},"${vehicleNum}",${shiftType},${shiftId},"${xdata.userName}"`
+        sql = `INSERT into dat_driver_arrange (name,staff_id,dept_id,driver_date,vehicle_id,vehicle_number,shift_type_id,shift_id,user_id) VALUES(${values})`
+        opTpye = 'INSERT'
+      } else if (chooseDriver !== driver && chooseDriver !== '') {
+        let values = `name="${curDriver}",staff_id=${staffId},dept_id=${deptId},user_id="${xdata.userName}"`
+        let condition = `vehicle_number="${vehicleNum}" and driver_date="${time}" and vehicle_id=${vehicleId} and shift_type_id=${shiftType} and shift_id=${shiftId}`
+        sql = `UPDATE dat_driver_arrange set ${values} where ${condition}`
+        opTpye = 'UPDATE'
+      } else  if (chooseDriver !== driver && chooseDriver === '') {
+        let name = driver.split('-')[0]
+        name = trim(name)
+        let values = `name="${name}" and driver_date="${time}" and vehicle_id=${vehicleId} and vehicle_number="${vehicleNum}" and shift_type_id=${shiftType} and shift_id=${shiftId} and user_id="${xdata.userName}"`
+        sql = `DELETE from dat_driver_arrange where (${values})`
+        opTpye = 'DELETE'
+      }
+      let req = composeUpdateDBReq(opTpye, 'driver_arrange', '', sql)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        metaUpdateRes(res, 'driver_arrange', res.data.op)
+      })
+    }
+    // 打印
+    this.askFile = (evt) => {
+      window.xhint.close()
+      window.xhint.showLoading()
+      const opName = evt.currentTarget.getAttribute('name')
+      const def = manageDef[`${opts.name}${opts.shiftType}`].def
+      const name = def.name
+      let sqlString = manageDef[`${opts.name}${opts.shiftType}`].sql
+      sqlString = sqlString.replace('{pdfTime}', opts.driverDate)
+      const reptTime = new Date().getTime()
+      let msg = {
+        cmd: 'file',
+        exprList: [],
+        name: '',
+        labels: def.fields.labels,
+        title: '',
+        namesInShort: def.fields.names,
+        types: def.fields.types,
+        fileType: opName,
+        reptIndex: reptTime,
+        sql: sqlString,
+        userName: xdata.userName
+      }
+      xbus.trigger('REPT-FETCH-FILE', msg)
+    }
+
+    this.init = (opts) => {
+      this.parenTag = opts.parenTag
+      this.items = {
+        field_label: '班次类别',
+        field_name: 'shift_type_id',
+        field_value: opts.shiftType,
+        field_enableNull: true
+      }
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+      xbus.off('META-UPDATE-DB-RES')
+    })
+  </script>
+</driver-schedule>

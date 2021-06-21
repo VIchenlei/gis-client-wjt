@@ -1,0 +1,328 @@
+<power-levels-msg>
+  <div class="power-levels">
+    <div class="levels-title">
+      <span>{ title }</span>
+      <span onclick={addLevels} refs="addLevels">
+        <img class="add_icon" src="/img/add_icon.png" alt="">
+      </span>
+    </div>
+    <div each={row, index in rows} ref="levels{index}" name={row[0].field_value}>
+      <div class="power-levels-header">
+        <span>{getPowerNumber(row)}</span>
+          <span class="levels-icon">
+            <span class="hide" ref="buttons{index}" onclick={ save } data-index={index}>
+              <b class="save" aria-label="保存">
+                <img name="btn-sure" src="/img/store.png" alt="">
+              </b>
+            </span>
+            <span class="icon icon-down" onclick={ showData } data-index={index}></span>
+          </span>
+        </span>
+      </div>
+      <div class="power-levels-body">
+        <div class="power-levels-content">
+          <span each={ item in row } class="levels-warp" if={!['id', 'device_power_id'].includes(item.field_name)}>
+            <rs-text-field
+              data-index={index} 
+              data={item} 
+              ref="{item.field_name}{index}" 
+              data-name={tableName} 
+              data-oldvalue= {dealValue(item)} 
+              if={isShow(item)}>
+            </rs-text-field>
+            <rs-select-field
+              data-index={index}  
+              data={item} 
+              ref="{item.field_name}{index}"  
+              data-name={tableName} 
+              if={item.field_type === 'SELECT'}>
+            </rs-select-field>
+          </span>
+        </div>
+        <div class="power-levels-real" if={isShowRealMsg(index)}>
+          <p class="real-header">实时数据</p>
+          <div data-is="real-msg" data={powers} name={name} index={index} data-row={row} commeName={commeName}></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/power-levels-msg.sass'
+    import '../tags/real-msg.html'
+    import  { getRows, trim, formatFieldValue, editDetail, composeUpdateDBReq, messageTip } from '../../js/utils/utils.js'
+    import { getTextValue } from '../../manage/js/utils.js'
+    import { updateDef } from '../js/device_power_def.js'
+
+    this.commeName = ['deviceAddress', 'deviceType', 'power_rode', 'excharge_state', 'supply_voltage', 'temperature']
+    const BASICNAME = {
+      'device_power': 'power_levels'
+    }
+
+    //选择下拉结果展示保存、按钮
+    this.chooseItem = (fieldName, chooseIndex, target) => {
+      const value = target.getAttribute('name')
+      const oldValue = target.getAttribute('oldvalue')
+      const isSame = oldValue === value
+      if (!isSame) {
+        const index = target.parentNode.parentNode.parentNode.getAttribute('data-index')
+        this.refs[`buttons${index}`].classList.remove('hide')
+      }
+    }
+
+    // 电源线路对应实时数据不存在 隐藏实时数据
+    this.isShowRealMsg = (index) => {
+      const powers = this.powers
+      let def = updateDef['power']
+      let names = def.fields.names
+      let showRealMsg = false
+      for (let i = 0; i < names.length; i++) {
+        let name = names[i]
+        if (this.commeName.includes(name)) {
+          continue
+        } else if (powers && powers.hasOwnProperty(`${name}${index+1}`)) {
+          showRealMsg = true
+        }
+      }
+      return showRealMsg
+    }
+
+    // 输入框值展示特殊处理
+    this.dealValue = (row) => {
+      const msg = {
+        row: row,
+        tableName: this.tableName,
+        cmd: this.cmd
+      }
+      let fieldValue = getTextValue(msg)
+      return fieldValue
+    }
+
+    this.isShow = (data) => {
+      if (data.field_type === 'SELECT') return false
+      return true
+    }
+
+    /*展开、收起数据*/
+    this.showData = (evt) => {
+      let index = evt.target.dataset.index
+      this.refs[`levels${index}`].querySelector('.power-levels-body').classList.toggle('hide')
+    }
+
+    /*添加电路*/
+    this.addLevels = () => {
+      if (this.rows.length >= 8) return
+      this.rows = this.rows ? this.rows : []
+      let data = getRows(null, this.def)
+      data.forEach(item => {
+        if (item.field_name === 'power_levels_id') item.field_value = this.rows.length + 1
+      })
+      this.rows.push(data)
+      this.update()    
+    }
+
+    /*判断更新、新增*/
+    this.getOptype = (devicePowerID, powerLelelsID, index) => {
+      let isexist = this.refs[`levels${index}`].getAttribute('name')  //主键id
+      if (!isexist) {
+        let datas = xdata.metaStore.data.power_levels
+        datas = datas && Array.from(datas.values())
+        if (!datas) isexist = null
+        let data = datas.find(item => item.device_power_id === devicePowerID && item.power_levels_id === powerLelelsID)
+        if (data) isexist = data.id
+      }
+      return Number(isexist)
+    }
+
+    this.save = (evt) => {
+      let devicePowerID = this.value ? this.value : this.parent.tags["basic-battery-msg"].refs['device_power_id'].refs['device_power_id'].value
+      devicePowerID = parseInt(devicePowerID, 10)
+      if (!devicePowerID) {
+        let xmsg = '当前无绑定设备电源'
+        return messageTip(xmsg, 'warning')
+      }
+      const index = evt.item.index
+      const rows = this.rows[index]
+      const powerLevelsIdTags = this.refs[`power_levels_id${index}`]
+      const powerLelelsID = powerLevelsIdTags.refs['power_levels_id'].value
+      const isexist = this.getOptype(devicePowerID, powerLelelsID, index)
+      isexist ? this.doUpdate(devicePowerID, index, rows, isexist) : this.doInsert(devicePowerID, index, rows)
+      this.refs[`buttons${index}`].classList.add('hide')
+      this.parent.registerGlobalEventHandlers()
+    }
+
+    /*新增*/
+    this.doInsert = (devicePowerID, index, rows) => {
+      const type = 'warning'
+      const xmsg = '输入的内容存在非法值，请检查输入项！'
+      if (this.tips) return messageTip(xmsg, type)
+      let fields = '', values = '', detail = '', sql = null, keyValue = null
+      for (let i = 0; i < rows.length; i++) {
+        let row = rows[i]
+        let { field_name, field_type, field_enableNull } = row
+        let fieldValue = null, textValue
+        if (field_name === 'id') continue
+        let ele = this.refs[`${field_name}${index}`] && this.refs[`${field_name}${index}`].refs[field_name]
+        if (field_type === 'SELECT') {
+          if (field_name === 'device_power_id') {
+            fieldValue = devicePowerID
+            textValue = fieldValue
+          } else {
+            fieldValue = ele.getAttribute('oldvalue')
+            let value = ele.getAttribute('name')
+            textValue = ele.innerText
+
+            if (value && fieldValue !== value) fieldValue = value
+
+            if (!fieldValue || !(/\d/ig).test(fieldValue)) fieldValue = 0
+
+            if (!field_enableNull && fieldValue !== 0 && !fieldValue) return messageTip(xmsg, type)
+          } 
+        } else {
+          fieldValue = ele.value
+          if (!field_enableNull && !fieldValue) return messageTip(xmsg, type)
+          fieldValue = fieldValue === null ? fieldValue : formatFieldValue(field_type, fieldValue)
+          textValue = fieldValue
+        }
+
+        if (i === 0) {
+          keyValue = fieldValue
+        } else {
+          fields += ','
+          values += ','
+        }
+        detail = editDetail(field_name, textValue, detail, this.name)
+        fields += field_name
+        values += fieldValue
+      }
+      fields = fields.replace(',', '')
+      values = values.replace(',', '')
+      sql = `REPLACE into ${this.tableName} (${fields}) VALUES(${values})`
+      let req = composeUpdateDBReq('INSERT', this.name, keyValue, sql)
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      req.username = xdata.userName
+      console.log('req', req)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+    }
+
+    this.doUpdate = (devicePowerID, index, rows, isexist) => {
+      const type = 'warning'
+      const xmsg = '输入的内容存在非法值，请检查输入项！'
+      if (this.tips) return messageTip(xmsg, type)
+      let fields = '', values = '', detail = '', sql = '', keyValue = null, preDetail = ''
+      for (let i = 0; i < rows.length; i++) {
+        let row = rows[i]
+        let { field_name, field_type, field_enableNull } = row
+        let fieldValue = null, textValue
+        if (field_name === 'id') continue
+        let ele = this.refs[`${field_name}${index}`] && this.refs[`${field_name}${index}`].refs[field_name]
+        if (field_type === 'SELECT') {
+          if (field_name === 'device_power_id') {
+            fieldValue = devicePowerID
+            textValue = fieldValue
+          } else {
+            fieldValue = ele.getAttribute('name')
+            textValue = ele.innerText
+            if (!fieldValue || !fieldValue.match(/\d/ig)) fieldValue = 0
+          }
+        } else {
+          fieldValue = ele.value
+          textValue = fieldValue
+        }
+        
+        if (rows[i].field_value != fieldValue) {
+          fieldValue = formatFieldValue(field_type, fieldValue)
+          textValue = fieldValue
+          if (sql != '') {
+            sql += ','
+          }
+          sql += `${field_name}=${fieldValue}`
+          detail = editDetail(field_name, textValue, detail, this.name)
+          preDetail = editDetail(field_name, rows[i].field_value, preDetail, this.name)
+        }
+      }
+      if (sql != '') {
+        sql = `UPDATE ${this.tableName} set ${sql} where id=${isexist}`
+        let req = composeUpdateDBReq('UPDATE', this.name, devicePowerID, sql)
+        req.data['detail'] = preDetail + '->' + detail
+        req.data['user_id'] = xdata.userName
+        req.username = xdata.userName
+        console.log('req', req)
+        xbus.trigger('META-UPDATE-DB', {req: req})
+      }
+    }
+
+    this.checkOldValue = (name, value, index) => {
+      let oldValue = ''
+      if (Array.isArray(this.refs[name])) {
+        let tags = this.refs[name]
+        oldValue = tags[index] && tags[index].root.getAttribute('data-oldvalue')
+      } else {
+        oldValue = this.refs[name] && this.refs[name].root.getAttribute('data-oldvalue')
+      }
+      if (oldValue === null) oldValue = ''
+      return oldValue === value
+    }
+
+    this.leaveInput = (evt, tips) => {
+      let reg = null
+      let target = evt.currentTarget
+      let index = target.parentNode.parentNode.getAttribute('data-index')
+      let inputname = target.getAttribute('idname')
+      let type = target.getAttribute('data-type')
+      let value = target.value
+      value = trim(value)
+      const checkInput = {
+        id: (function (value) {
+          const data = xdata.metaStore.data.power_levels.get(Number(value))
+          return data ? '该编号已存在' : ''
+        })(value)
+      }
+
+      if (checkInput[inputname]) tips = checkInput[inputname]
+
+      !this.checkOldValue(inputname, value, index) && this.refs[`buttons${index}`].classList.remove('hide')
+
+      this.tips = tips
+      return tips
+    }
+
+    this.editDefault = (evt) => {
+      this.parent.editDefault(evt)
+    }
+
+    /*几路电源转换成中文数字*/
+    this.getPowerNumber = (row) => {
+      let powerlevels = row.filter(item => item.field_name === 'power_levels_id')[0]
+      let powerNumber = ['一', '二', '三', '四', '五', '六', '七', '八']
+      let powerLelelsID = powerNumber[powerlevels.field_value - 1] ? powerNumber[powerlevels.field_value - 1] : powerlevels.field_value
+      return `${powerLelelsID}路`
+    }
+
+    this.updateList = (datas, powers, value) => {
+      this.value = value
+      let rows = []
+      if (datas && datas.length > 0) {
+        datas.forEach((data, index) => {
+          let row = getRows({row: data}, this.def)
+          rows.push(row)
+        })
+      }
+      this.powers = powers
+      this.rows = rows
+      this.update()
+    }
+
+    this.init = (opts) => {
+      this.name = BASICNAME[opts.name]
+      this.def = xdata.metaStore.defs[this.name]
+      this.rows = []
+      this.title = this.def.label
+      this.tableName = this.def.table
+      this.tableKeyName =  this.def.fields.names[this.def.keyIndex]
+      this.parenTag = this.parent.parenTag
+    }
+
+    this.init(opts)
+  </script>
+</power-levels-msg>

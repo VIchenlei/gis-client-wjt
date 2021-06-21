@@ -1,0 +1,226 @@
+<rs-condition-filter>
+  <fieldset class="rs-condition-filter" tabindex="0" onfocus={ handleFocus } onfocusout={ handleFocusout }>
+    <legend>{ label }</legend>
+    <input ref="input" 
+      type="text" 
+      placeholder={ store && store.length > 0 ? '' : placeholder } 
+      class="clickInput" 
+      readonly="readonly" >
+    <div show={ isShowChoose } 
+      data-is={ getComponent() } 
+      type={ type } 
+      message={ getComponentMessage() } 
+      class="chooseComponent grey-scroll">
+    </div>
+    <div class="choose-scorll grey-scroll">
+      <div class="choose-result">
+        <span if={ store.length > 0 } each={ row, i in store } class="choose-result-content">
+          <span>{ row[desc] }</span>
+          <span ident={ ident } onclick={ deleteElement }>x</span>
+        </span>
+      </div>
+    </div>
+  </fieldset>
+
+
+  <script>
+    import '../rs-choose-select/rs-choose-select.html'
+    import './rs-condition-filter.sass'
+    import '../rs-fuzzy-search/rs-fuzzy-search.html'
+    import { selectDefs } from '../../report/js/report_defs.js'
+    import { getSearchArrShow, getSearchDisplayList  } from '../../report/js/report_utils.js'
+    import fuzzySearch from '../../js/def/fuzzy_search.js'
+    import { clone } from '../../js/utils/utils.js'
+
+    this.on('mount',() => {
+      this.initDataValue()
+    })
+
+    /*聚焦显示搜索子组件*/
+    this.handleFocus = (evt) => {
+      if (this.disabled) return
+      let fieldsetElement = this.root.querySelector('.rs-condition-filter')
+      fieldsetElement.classList.add('rs-is-focus')
+      this.isShowChoose = true
+    }
+
+    /*失去焦距隐藏搜索子组件*/
+    this.handleFocusout = (evt) => {
+      let fieldsetElement = this.root.querySelector('.rs-condition-filter')
+      let focusoutEl = evt.relatedTarget
+      if (!fieldsetElement.contains(focusoutEl)) {
+        fieldsetElement.classList.remove('rs-is-focus')
+        this.isShowChoose = false
+      }
+    }
+
+    /*获取子组件*/
+    this.getComponent = () => {
+      if (['CHECKBOX', 'RADIO'].includes(this.type)) {
+        this.childComponentName = 'rs-choose-select'
+      } else if (this.type === 'SELECT') {
+        this.childComponentName = 'rs-fuzzy-search'
+      }
+      return this.childComponentName
+    }
+
+    /*获取传到子组件的配置信息*/
+    this.getComponentMessage = () => {
+      const shortName = this.name.indexOf('.') === -1 ? this.name : this.name.split('.')[1]
+      const ident = this.ident.replace('_id', '')
+      if (this.childComponentName === 'rs-choose-select' && selectDefs.hasOwnProperty(shortName)) {
+        const rows = selectDefs[shortName]
+        this.desc = 'label'
+        return {
+          rows: rows,
+          desc: 'label',
+          cb: this.getResult,
+          name: shortName,
+          tableName: this.tableName,
+          chooseResult: this.chooseResult
+        }
+      } else if (this.childComponentName === 'rs-fuzzy-search') {
+        let searchObj = getSearchArrShow(ident, this.name, this.tableName)
+        // if (!searchObj) return
+        let {searchArr, isShowResultList} = searchObj
+        searchArr = getSearchDisplayList(searchArr, this.ident)
+        let getMatchs = ident === 'card_id' ? this.getMatchs : null
+        const {label, placeholder, desc, keys} = fuzzySearch[ident]
+        let typeDef = {
+          label,
+          placeholder,
+          isShowResultList,
+          name: shortName,
+          cb: this.getResult
+        }
+        this.dataSet = {
+          desc,
+          keys,
+          data: this.searchArr || searchArr
+        }
+        this.desc = desc
+        return {
+          typeDef,
+          getMatchs,
+          dataSet: this.dataSet,
+          needSearchIcon: false,
+          dealShowResult: this.dealShowResult,
+          tableName: this.tableName,
+          index: this.index
+        }
+      } 
+    }
+
+    /*根据name处理模糊查询的结果*/
+    this.dealShowResult = (matchs, s, keys) => {
+      if (this.name === 'dept') {
+        matchs = matchs && matchs.filter(item => {
+          if (!xdata.depts || xdata.depts.includes(item.dept_id)) return item
+        })
+      } else if (['staff', 'vehicle'].includes(this.name) && (xdata.objRange === 1 || xdata.isCheck === 1)) {
+        matchs = matchs.filter((item) => item.need_display != 0)
+      }
+      let dittoname = clone(matchs)
+      if (keys.includes('staff_id') && this.name !== 'staff_number') {
+        dittoname.forEach(e => {
+          e.name = e.hasOwnProperty('reader_id') 
+                    ? e.name 
+                    : `${e.staff_id}-${e.name}-${xdata.metaStore.getNameByID('dept_id', e.dept_id)}`
+        })  
+      }
+      return dittoname
+    }
+
+    /*处理模糊查询的结果*/
+    this.getMatchs = (s, cardDatas) => {
+      let matchs = null
+      let num = s.substr(0, 3)
+      if (num === '0' || num === '00') num = '001'
+      if (s.length <= 10) {
+        switch (num) {
+          case '001':
+          case '002':
+          case '004':
+          case '005':
+            matchs = cardDatas && cardDatas.filter(item => item.card_id.toString().substr(0, 3) === num).slice(0, 20)
+            break
+          default:
+            matchs = cardDatas && cardDatas.filter(item => item.ident.toString().includes(s)).slice(0, 20)
+            break
+        }
+      } else {
+        matchs = cardDatas && cardDatas.filter(item => item.card_id === s)
+      }
+      return matchs
+    }
+
+    /*选择的回调函数*/
+    this.getResult = (item, cb, name, result) => {
+      let data = result&& Array.from(result.values())
+      this.store = data
+      this.cb = cb
+      this.parent && this.parent.changeCall && this.parent.changeCall()
+      this.update()
+    }
+
+    /*点击删除元素*/
+    this.deleteElement = (evt) => {
+      let shortName = this.name.indexOf('.') === -1 ? this.name : this.name.split('.')[1]
+      const {item} = evt
+      let key = item.row[shortName]
+      this.store = this.store.filter(item => item[shortName] !== key)
+      this.parent && this.parent.changeCall && this.parent.changeCall()
+      typeof this.cb === 'function' && this.cb(item.row)
+    }
+
+    this.initDataValue = () => {
+      let self = this
+      let chooseIdent = this.ident === 'staff_number' ? 'staff_id' : this.ident
+      if (this.dataValue) {
+        if (Array.isArray(this.dataValue)) {
+          this.store = []
+          this.dataValue.forEach(item => {
+            let result = this.dealShowResult([item], '', this.dataSet.keys) 
+            this.store.push(result[0])
+          })
+        } else {
+          let result = this.dataSet.data.filter(item => item[chooseIdent] === this.dataValue)
+          result = this.dealShowResult(result, '', this.dataSet.keys) 
+          this.store = [result[0]]
+        }
+      }
+      this.update()
+    }
+    
+    this.updateSearchArr = (searchArr) => {
+      let dataSet = this.dataSet
+      dataSet.data = searchArr
+      this.tags['rs-fuzzy-search'].updateSearchDataSet(dataSet)
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.def = opts.dataDef
+      this.name = opts.dataDef.name
+      this.label = opts.dataDef.label
+      this.type = opts.dataDef.type
+      this.searchArr = opts.dataDef.searchArr || null
+      this.childComponentName = null
+      let fieldsName = this.name.includes('as') ? this.name.split(' as')[0] : this.name
+      fieldsName = fieldsName.indexOf('.') === -1 ?  fieldsName :  fieldsName.split( '.')[1]
+      this.ident = opts.ident || fieldsName
+      this.isShowChoose = false
+      this.placeholder = opts.placeholder || this.label
+      this.disabled = opts.disabled || false
+      this.store = null
+      this.desc = opts.desc || null
+      this.dataSet = null
+      this.dataValue = opts.dataValue
+      this.tableName = opts.name
+      this.chooseResult = opts.store || new Map()
+      this.index = opts.index || null
+    }
+    
+    this.init(opts)
+  </script>
+</rs-condition-filter>

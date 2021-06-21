@@ -1,0 +1,17 @@
+@import ../../style/defs
+
+.rs-blank-message
+  color: #999
+  flex: auto
+  @include flex-center-center
+  flex-flow: column nowrap
+  padding: 0.32rem
+
+  span
+    padding: 0.08rem
+  .icon
+    @include wh(0.64rem,0.64rem)
+    fill: #e3e3e3
+  @media screen and (max-width: $width-medium)
+    span
+      padding: 0

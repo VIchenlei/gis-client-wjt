@@ -1,0 +1,102 @@
+<area-reader-dialog>
+  <div class="dlg-bg animated">
+    <div class="dlg-window area-reader-dialog animated zoomIn">
+      <rs-title 
+        title={ data.title }>
+      </rs-title>
+      <div class="dlg-body">
+        <div 
+          data-is="check-tree" 
+          class="dialog-table check-tree" 
+          data={ data }>
+        </div>
+      </div>
+      <div class="dlg-foot" onclick={handleEvt}>
+        <button class="btn-sure" ref="btnSure" data-name="save">{data.cmd !== 'DELETE' ? '保存' : '删除' }</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/area-reader-dialog.sass'
+    import './check-tree.html'
+    import { composeUpdateDBReq, metaUpdateRes, messageTip  } from '../../js/utils/utils.js'
+
+    this.handleEvt = (evt) => {
+      let name = evt.target.getAttribute('data-name')
+      if (name === 'save') this.save()
+      if (name === 'cancel') this.close()
+    }
+
+    this.save = () => {
+      if (this.data.cmd === 'UPDATE') this.doUpdate()
+    }
+
+    // 更新分站表
+    this.doUpdateAreaReader = (readers, sUnorigins) => {
+      let keyId = this.data.rows[0].field_value, state = 0
+      let readerSql = {}
+      readers.forEach(reader => {
+        readerSql[reader] = `UPDATE dat_reader set area_id = ${keyId} where reader_id = ${Number(reader)};`
+      })
+      sUnorigins && sUnorigins.forEach(unreader => {
+        readerSql[unreader] = `UPDATE dat_reader set area_id = -${Number(unreader)} where reader_id = ${Number(unreader)};`
+      })
+      let keyValue = readers.concat(sUnorigins).join(',')
+      let req = composeUpdateDBReq('UPDATE', this.data.name, keyValue, readerSql)
+      this.metaUpdate(req, state)
+    }
+
+    this.doUpdate = () => {
+      let checkTree = this.tags['check-tree']
+      if (!checkTree) return
+      const { oldOrigins, origins, sUnorigins } = checkTree
+      if (oldOrigins.length !== origins.length) {
+        this.doUpdateAreaReader(origins, sUnorigins)
+      } else {
+        if (oldOrigins.sort().toString() === origins.sort().toString()) {
+          messageTip('数据没有修改，请确认后再提交！')
+        } else {
+          this.doUpdateAreaReader(origins, sUnorigins)
+        }
+      }
+    }
+
+    this.metaUpdate = (req, state) => {
+      req['state'] = state
+      xbus.trigger('META-UPDATE-DB', {req: req})
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        metaUpdateRes(res, this.data.name, this.data.cmd)
+        this.close()
+      })
+    }
+
+    this.on('mount', () => {
+      this.registerGlobalEventHandlers()
+      window.setDialogDraggable(this.root)
+    })
+
+    //关闭对话框
+    this.close = () => {
+      this.unmount(true)
+    }
+
+    this.init = (opts) => {
+      this.data = opts.message
+      this.parenTag = opts.parenTag
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.unregisterGlobalEventHandlers()
+    })
+
+    this.unregisterGlobalEventHandlers = () => {
+      xbus.off('META-UPDATE-DB-RES')
+    }
+  </script>
+</area-reader-dialog>

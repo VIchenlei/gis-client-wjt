@@ -1,0 +1,16 @@
+@import '../../../style/defs'
+
+.rs-title
+  @include wh(100%, .44rem)
+  @include flex-between-center
+  padding: 0 .1rem
+  font-size: $font-m
+  color: $font-white
+  background: $color-main
+  cursor: move
+  .dlg-title
+    display: flex
+    align-items: center
+  img
+    @include wh(.2rem, auto)
+    cursor: pointer

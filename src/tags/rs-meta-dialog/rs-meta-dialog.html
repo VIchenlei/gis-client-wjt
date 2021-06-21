@@ -1,0 +1,603 @@
+<rs-meta-dialog>
+  <div class="dlg-bg animated" show={isShowDialog}>
+    <div class="dlg-window rs-meta-dialog animated zoomIn {setClass()}">
+      <rs-title title={ title }></rs-title>
+      <div class="dlg-body grey-scroll">
+        <div each={row in rows} class="{hideField(row)}">
+          <rs-text-field 
+            data={row} 
+            ref={row.field_name} 
+            data-name={tableName} 
+            data-oldvalue={dealValue(row)} 
+            if={isShow(row)} 
+            disabled={isDisabled(row)}>
+          </rs-text-field>
+          <rs-select-field 
+            data={getSetSelectRow(row)} 
+            ref={row.field_name} 
+            data-name={tableName} 
+            if={row.field_type === 'SELECT'}
+            isshow={isShowSelect(row)}
+            disabled={isDisabled(row)} 
+            isshowdefault='true'>
+          </rs-select-field>
+          <div data-is="rs-date" 
+            type={row.field_type} 
+            ref={row.field_name} 
+            text={row.field_label} 
+            value={row.field_value} 
+            if={isShowDate(row)} 
+            enablenull={row.field_enableNull} 
+            isshowsecond={isShowSecond} 
+            placeholder={setPlaceholder(row)} 
+            disabled={isDisabled(row)}>
+          </div>
+          <rs-checkbox 
+            if={checkboxes.includes(row.field_name)} 
+            ref={row.field_name} 
+            data={row} 
+            data-name={tableName} 
+            disabled={isDisabled(row)}>
+          </rs-checkbox>
+          <rs-cascader 
+            if={cascaders.includes(row.field_name)} 
+            ref={row.field_name} 
+            data={row} 
+            data-name={tableName} 
+            disabled={isDisabled(row)}>
+          </rs-cascader>
+          <rs-splice-input 
+            if={spliceInputs.includes(row.field_name)} 
+            ref={row.field_name} 
+            data={row} 
+            data-name={tableName} 
+            disabled={isDisabled(row)} 
+            enablenull={row.field_enableNull} 
+            papa={papa}>
+          </rs-splice-input>
+          <rs-color  
+            if={row.field_type === 'COLOR'} 
+            ref={row.field_name} 
+            data={row} 
+            disabled={isDisabled(row)}>
+          </rs-color>
+          <rs-special-select
+            if={row.field_type === 'MORESELECT'}
+            ref={row.field_name}
+            data={row}
+          >
+          </rs-special-select>
+        </div>
+      </div>
+      <div class="dlg-foot" onclick={handleEvt}>
+        <button class="btn-sure" ref="btnSure" data-name="save">{cmd !== 'DELETE' ? '保存' : '删除' }</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import './rs-meta-dialog.sass'
+    import '../rs-text-field/rs-text-field.html'
+    import '../rs-select-field/rs-select-field.html'
+    import '../rs-date/tags/rs-date.html'
+    import '../rs-checkbox/tags/rs-checkbox.html'
+    import '../rs-splice-input/rs-splice-input.html'
+    import '../rs-color/rs-color.html'
+    import '../rs-cascader/rs-cascader.html'
+    import '../rs-special-select/rs-special-select.html'
+    import { trim, formatFieldValue, composeUpdateDBReq, metaUpdateRes, messageTip  } from '../../js/utils/utils.js'
+    import { specialTreat, isHideField, getTextValue, dealNegateValue, getMenus, updateData, isDisabled, treatUpdateSql, treatInsertSql, getOtherSql } from '../../manage/js/utils.js'
+    import numberTurnText from '../../js/def/number_turn_text_def.js'
+    const dateTypes = ['DATETIME', 'DATE', 'MONTH', 'TIME'] 
+    const vehicleColor = {
+      'green': 0,
+      'yellow': 1,
+      'red': 2
+    }
+    let notifyShaffId = ''
+    let notifyId = ''
+    let self = this
+
+    // 车辆类型、区域添加考勤编号字段，fieldVlaue赋值
+    this.getSetSelectRow = (row) => {
+      const {field_name, field_type} = row
+      if (field_type === 'SELECT' && field_name === 'att_rule_id') {
+        const keyValue = this.rows.find(item => item.field_name === this.tableKeyName).field_value
+        const obj = xdata.metaStore.data[`att_rule_${this.topicName}`] && xdata.metaStore.data[`att_rule_${this.topicName}`].get(keyValue)
+        const attRuleID = obj && obj.att_rule_id
+        row.field_value = attRuleID
+      } else if (field_type === 'SELECT' && field_name === 'color') {
+        row.field_value = vehicleColor[row.field_value]
+      }
+      return row
+    }
+
+    // 下拉框显隐
+    this.isShowSelect = (row) => {
+      const {field_name, field_type} = row
+      if (field_type === 'SELECT') {
+        if (this.tableName === 'dat_area' && field_name === 'att_rule_id') {
+          let areaTypeID = this.rows.find(item => item.field_name === 'area_type_id').field_value
+          let businessID = this.rows.find(item => item.field_name === 'business_type').field_value
+          let businessType = (businessID).toString(2).padStart(12, 0).split('').reverse()
+          let isVehicleArea = businessType[5] == 1 ? true : false
+          return areaTypeID !== 6 && !isVehicleArea ? false : true
+        }
+        return true
+      }
+      return false
+    }
+
+    // 输入框值展示特殊处理
+    this.dealValue = (row) => {
+      const msg = {
+        row: row,
+        tableName: this.tableName,
+        cmd: this.cmd,
+        isNegate: opts.isNegate || false
+      }
+      let fieldValue = getTextValue(msg)
+      return fieldValue
+    }
+
+    this.setPlaceholder = (row) => {
+      if (['start_time', 'end_time'].includes(row.field_name)) return row.field_label
+      return null
+    }
+
+    this.isDisabled = (row) => {
+      const self = this
+      if (this.cmd === 'INSERT') return ''
+      if (this.cmd === 'DELETE') return 'disabled'
+      return isDisabled(this.topicName, row, this.tableKeyName, self)
+    }
+
+    this.setClass = () => {
+      if (['tt_inspection_route_planning', 'dat_area'].includes(this.tableName)) {
+        return 'splcie-dialog'
+      } 
+      return ''
+    }
+
+    // 是否显示秒
+    this.isShowSecond = (type) => {
+      return this.parenTag.showSecondNames(this.topicName) ? true : false
+    }
+
+    this.handleEvt = (evt) => {
+      let target = evt.target
+      let name = target.getAttribute('data-name')
+      if (name === 'save') this.save()
+      if (name === 'cancel') this.close(evt)
+    }
+
+    this.save = () => {
+      if (this.cmd === 'INSERT') this.doInsert()
+      if (this.cmd === 'UPDATE') this.doUpdate()
+      if (this.cmd === 'DELETE') this.doDelete()
+    }
+
+    // 标识卡注册输入卡标识 判断卡号是否合法
+    this.limitCard = (value, tips) => {
+      if (value.length > 10) return tips = '卡号超出限制'
+      if (value === '0') return tips = '卡号不能为0'
+      return tips
+    }
+
+    this.leaveInput = (evt, info) => {
+      let target = evt.target
+      let name = target.getAttribute('idname')
+      let value = target.value 
+      if (this.tableName === 'dat_card' && name === 'ident') {
+        info = value.length > 10 || value === '0' ? this.limitCard(value) : info
+        let ident = Number(value)
+        let cardTypeId = this.refs['card_type_id'].refs['card_type_id'].getAttribute('name')
+        let cards = Array.from(xdata.metaStore.data.card.values()).filter(item => item.card_type_id === Number(cardTypeId))
+        let card = cards.filter(item => item.ident === ident)
+        if (card.length > 0) return info = '卡号已存在'
+        let cardValue = target.value.padStart(10, 0)
+        let cardID = cardTypeId.padStart(3,0) + cardValue
+        this.refs['card_id'].refs['card_id'].value = cardID
+        this.refs['card_id'].refs['card_id'].setAttribute('data-type', cardID)
+      }
+      return info
+    }
+
+    this.getKeyValue = () => {
+      let keyValue = null
+      let eleMent = this.refs[this.tableKeyName].refs[this.tableKeyName]
+      if (typeof this.parenTag.getKeyValue === 'function') {
+        keyValue = this.parenTag.getKeyValue(eleMent,this.refs[this.tableKeyName].type,this.tableName,this.cmd)
+      } else {
+        keyValue = this.refs[this.tableKeyName].type === 'SELECT' ?  eleMent.getAttribute('name') : eleMent.value
+      }
+      return keyValue
+    }
+
+    //获取录入框value
+    this.getValue = (fieldValue, fieldType, fieldName) => {
+      if (this.checkboxes && this.checkboxes.includes(fieldName)) {
+        fieldValue = getMenus(this.refs[fieldName], fieldType, fieldName)
+      }
+      if (this.cascaders && this.cascaders.includes(fieldName)) {
+        fieldValue = getMenus(this.refs[fieldName], fieldType, fieldName)
+      }
+      if (this.spliceInputs.includes(fieldName)) {
+        let rsSpliceInput = self.tags['rs-splice-input']
+        if (Array.isArray(rsSpliceInput)) {
+          rsSpliceInput.forEach(item => {
+            if (item.fieldName === fieldName) fieldValue = item.getValue()
+          })
+        } else {
+          fieldValue = rsSpliceInput && rsSpliceInput.getValue()
+        }
+      }
+      if (fieldType === 'SELECT' && fieldName === 'color') {
+        let color = numberTurnText['vehicle_category'].color
+        fieldValue = `'${color[fieldValue]}'`
+      }
+      return fieldValue
+    }
+    
+    //新增
+    this.doInsert = () => {
+      let fields = '', values = '', keyValue = null, otherSql = ''
+      let opType = this.cmd
+      let state = 0
+      if (!this.testForm()) return
+      for (let i = 0; i < this.rows.length; i++) {
+        let fieldValue = null
+        const { field_name, field_type } = this.rows[i]
+        let ele = this.refs[field_name].refs[field_name]
+        let tips = this.refs[field_name] && this.refs[field_name].tips
+        let value = ele && ele.value
+        value = value ? trim(value) : value
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+          fieldValue = fieldValue ? fieldValue : ''
+        } else {
+          fieldValue = value
+        }
+
+        fieldValue = this.getValue(fieldValue, field_type, field_name)
+
+        if (field_name === 'reader_planning') {
+          if (fieldValue === '') continue
+          if (!fieldValue && fieldValue !== '') return
+        }
+        if (field_name === 'business_type' && !fieldValue) return
+        if (this.tableName === 'dat_leader_arrange' && field_name === 'shift_type_id') continue
+        if (['rt_person_forbid_down_mine', 'dat_credentials_staff'].includes(this.tableName) && ['name', 'dept_id'].includes(field_name)) continue
+        if (xdata.isCheck === 0 && field_name === 'over_count_person_rp') continue
+
+        // 获取车辆、区域绑定考勤规则sql，早退sql
+        let obj = getOtherSql(field_name, self)
+        if (obj && typeof (obj) === 'object') {
+          otherSql = obj.sql
+          const tips = obj.tips
+          if (tips) return messageTip(tips)
+          continue
+        }
+
+        if (obj && typeof (obj) === 'boolean') continue
+
+        if (field_name === 'staff_id') notifyShaffId = fieldValue
+        fieldValue = specialTreat(field_type, field_name, fieldValue, self)
+        if (tips && fieldValue !== 0 && (!fieldValue || fieldValue === '""')) {
+          let xmsg = '请把必填字段填写完整！'
+          return messageTip(xmsg)
+        }
+
+        if (i === 0) {
+        } else {
+          fields += ','
+          values += ','
+        }
+        fields += field_name
+        values += fieldValue
+      }
+      if (this.parenTag.isBindCredentials instanceof Function) {
+        if (this.parenTag.isBindCredentials(self)) return
+      }
+      this.fields = fields
+      this.values = values
+      keyValue = this.getKeyValue() 
+      let sql = treatInsertSql(keyValue, fields, values, self, otherSql)
+      let req = composeUpdateDBReq(opType, this.topicName, keyValue, sql)
+      console.log('req', req)
+      this.metaUpdate(req, notifyShaffId, null, state)
+    }
+
+    //编辑
+    this.doUpdate = () => {
+      let fields = '', values = '', keyValue = null, sql = '', otherSql = ''
+      let opType = this.cmd
+      let state = 0
+      if (!this.testForm()) return
+      if (this.parenTag.updateNames && this.parenTag.updateNames.includes(this.tableName)) {
+        return this.parenTag.doSpecialUpdate instanceof Function && this.parenTag.doSpecialUpdate(self)
+      }
+
+      for (let i = 0; i < this.rows.length; i++) {
+        let fieldValue = null
+        let field_value = this.rows[i].field_value
+        const { field_name, field_type } = this.rows[i]
+        let ele = this.refs[field_name].refs[field_name]
+        let tips = this.refs[field_name] && this.refs[field_name].tips
+        let value = ele && ele.value
+        value = value ? trim(value) : value
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+        } else {
+          fieldValue = value
+        }
+        fieldValue = this.getValue(fieldValue, field_type, field_name)
+        if (field_name === 'reader_planning') {
+          if (fieldValue === "") continue
+          if (!fieldValue && fieldValue !== "") return
+        }
+
+        // 获取车辆、区域绑定考勤规则sql，早退sql
+        let obj = getOtherSql(field_name, self)
+        if (obj && typeof (obj) === 'object') {
+          otherSql = obj.sql
+          const tips = obj.tips
+          if (tips) return messageTip(tips)
+          continue
+        }
+        
+        if (obj && typeof (obj) === 'boolean') continue
+
+        if (tips && fieldValue !==0 && !fieldValue) {
+          let xmsg = '请把必填字段填写完整！'
+          return messageTip(xmsg)
+        }
+        
+        field_value = dealNegateValue(field_value, field_name)
+        
+        if (field_value != fieldValue) {
+          fieldValue = specialTreat(field_type, field_name, fieldValue, self)
+          if (field_name === 'business_type' && !fieldValue) continue
+          if (sql !== '' && sql.substr(-1) !== ',') {
+            sql += ','
+          }
+          sql += `${field_name}=${fieldValue}`
+        }
+      } 
+      if (sql !== '' || otherSql) {
+        if (this.parenTag.isBindCredentials instanceof Function) {
+          if (this.parenTag.isBindCredentials(self)) return
+        }
+        keyValue = this.getKeyValue()  
+        sql = treatUpdateSql(keyValue, sql, self, otherSql)
+        let topicName = this.topicName
+        if (this.parenTag.getTopicName instanceof Function) {
+          topicName = this.parenTag.getTopicName(topicName)
+        }
+        let req = composeUpdateDBReq(opType, topicName, keyValue, sql)
+        console.log(req)
+        this.metaUpdate(req, notifyShaffId, notifyId, state)
+      } else {
+        let xmsg = '数据没有修改，请确认后再提交！'
+        return messageTip(xmsg)
+      }
+    }
+
+    //删除
+    this.doDelete = () => {
+      let key = this.tableKeyName  
+      let keyValue = this.refs[key].refs[key].value
+      if (this.parenTag.isBound instanceof Function) {
+        const isBound = this.parenTag.isBound(this.tableName,keyValue)
+        if (isBound) return
+      }
+      let cb = this.deleteMsg
+      this.deleteTip(cb)
+    }
+
+    //删除提示
+    this.deleteTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认删除所选信息吗？',
+        tips: '提示：数据删除后将无法恢复！',
+        cb: cb
+      })[0]
+    }
+
+    // 删除功能
+    this.deleteMsg = () => {
+      let key = this.tableKeyName
+      let keyValue = this.getKeyValue()  
+      let sqlObj = {}, 
+          state = 0
+      if (typeof this.parenTag.deleteSql === 'function') {
+        let msg = this.parenTag.deleteSql(this.tableName, key, keyValue, this.rows)
+        sqlObj = msg.sqlObj
+        keyValue = msg.keyValue
+        notifyId = msg.notifyId
+        notifyShaffId = msg.notifyShaffId
+      } else {
+        const sql = `DELETE from ${this.tableName} where ${key}=${keyValue}`
+        sqlObj['sql'] = sql
+      }
+      
+      let req = composeUpdateDBReq('DELETE', this.topicName, keyValue, sqlObj)
+      console.log(req)
+      this.metaUpdate(req, notifyShaffId, notifyId, state)
+    }
+
+    // 关闭对话框后执行
+    this.closeDialog = () => {
+      let name = this.topicName.toUpperCase()
+      let msg = {}
+      msg[this.topicName] = this.rows[0].field_value
+      xbus.trigger(`${name}-INIT`, msg)
+    }
+
+    //关闭对话框
+    this.close = (evt) => {
+      evt && this.closeDialog()
+      this.unmount(true)
+    }
+
+    //判断有无错误提示，有错误提示，提示保存失败
+    this.testForm = () => {
+      let info = this.root.querySelector('.info')
+      let msg = {
+        type: 'error',
+        message: '保存失败，请核对正确保存！'
+      }
+      if (info)  window.xMessage.open(msg)
+      return info ? false : true
+    }
+
+    this.metaUpdate = (req, notifyShaffId, notify, state) => {
+      if (!!notifyShaffId) {
+        req.data['notify'] = notify ? `${notify};${notifyShaffId}` : `${notifyShaffId}`
+      }
+      req['state'] = state
+      // console.log(req)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+    }
+
+    //隐藏字段
+    this.hideField = (row) => {
+      return isHideField(this.tableName, row)
+    }
+
+    this.isShow = (row) => {
+      if (row.field_type === 'SELECT') return false
+      if (row.field_type === 'COLOR') return false
+      if (row.field_type === 'MORESELECT') return false
+      if (dateTypes.includes(row.field_type)) return false
+      if (this.checkboxes.includes(row.field_name)) return false
+      if (this.cascaders.includes(row.field_name)) return false
+      if (this.spliceInputs.includes(row.field_name)) return false
+      return true
+    }
+
+    this.isShowDate = (row) => {
+      if (dateTypes.includes(row.field_type)) return true
+      return false
+    }
+
+    this.drawGoaf = (res) => {
+      if (res.data.op === 'DELETE') {
+        xbus.trigger('DELETE-GOAF-ON-MAP', res.data.id)
+      } else {
+        if (!this.fields || !this.values) return
+        let fields = this.fields.split(',')
+        let values = this.values.split(',')
+        let goafID = values[0], name = values[1], path = values[2], needDisplay = values[3]
+        let msg = {
+          goaf_id: goafID,
+          name: name,
+          path: path,
+          need_display: needDisplay
+        }
+        xbus.trigger('GRAW-GOAF-ON-MAP', msg)
+      }
+    }
+
+    this.doUpdateByDB = (res) => {
+      const name = res.data.name
+      name !== 'rt_person_forbid_down_mine' && this.close()
+      name === 'goaf' && this.drawGoaf(res)
+      if (this.currenTag && name === this.currenTag.parent.name) {
+        this.currenTag && this.currenTag.doSearch()
+      }
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        let topicName = this.topicName
+        if (this.parenTag.getTopicName instanceof Function) {
+          topicName = this.parenTag.getTopicName(topicName)
+        }
+        let updateRes = metaUpdateRes(res, topicName, this.cmd)
+        this.doUpdateByDB(res)
+      })
+    }
+
+    // 选择车辆考勤业务控制区域考勤显隐
+    xbus.on('RULE-CHANGE', (msg)=> {
+      let value = msg.isShow ? 6 : 5 // 6 显示 5不显示
+      let attRuleTag = this.refs['att_rule_id']
+      attRuleTag && attRuleTag.updateSelect(parseInt(value, 10))
+    })
+
+    // 卡号新增，根据卡类型设置卡号显示该卡类型前缀
+    this.chooseItem = (fieldName, value) => {
+      if (this.tableName === 'dat_card' && fieldName === 'card_type_id') {
+        let cardTypeId = value.toString()
+        let cardValue = this.refs['ident'].refs['ident'].value
+        let cards = Array.from(xdata.metaStore.data.card.values()).filter(item => item.card_type_id === Number(cardTypeId))
+        let card =  cards && cards.filter(item => item.ident === parseInt(cardValue, 10))
+        this.refs['ident'].info = card && card.length > 0 ? '卡号已存在' : ''
+        this.refs['ident'].update()
+        if (cardValue) cardValue = cardValue.padStart(10, 0)
+        let cardID = cardTypeId.padStart(3,0) + cardValue
+        this.refs['card_id'].refs['card_id'].value = cardID
+        this.refs['card_id'].refs['card_id'].setAttribute('data-type', cardID)
+      } else if (this.tableName === 'dat_area' && fieldName === 'is_work_area') {
+        let funName = value == 1 ? 'remove' : 'add'
+        this.refs['leave_time'] && this.refs['leave_time'].root.classList[funName]('hide')
+      } else if (this.tableName === 'dat_area' && fieldName === 'area_type_id') {
+        let attRuleTag = this.refs['att_rule_id']
+        attRuleTag && attRuleTag.updateSelect(parseInt(value, 10))
+      }
+    }
+     
+    this.on('unmount', () => {
+      this.unregisterGlobalEventHandlers()
+    })
+
+    this.on('mount', () => {
+      this.registerGlobalEventHandlers()
+      window.setDialogDraggable(this.root)
+    })
+
+    this.init = (opts) => {
+      let msg = opts.message
+      this.parenTag = opts.parenTag
+      this.title = msg.title
+      this.rows = msg.rows
+      this.cmd = msg.cmd
+      this.tableName = msg.table
+      this.topicName = msg.name
+      this.tableKeyName = msg.key
+      this.maxid = msg.maxid
+      this.isShowDialog = true
+      this.currenTag = msg.currentTag || null
+      this.checkboxes = msg.checkboxes || []
+      this.cascaders = msg.cascaders || []
+      this.spliceInputs = msg.spliceInputs || [] //字符串拼接展示
+      this.isNegate = msg.isNegate || false
+      this.papa = msg.papa || null
+      if (this.tableName === 'dat_area') {
+        let areaTypeID = this.rows[2].field_value
+        this.selectedIndex = Number(areaTypeID)
+      }
+    }
+
+    this.init(opts)
+
+    xbus.on('UPDATE-META-ROWS', (msg) => {
+      this.isShowDialog = true
+      this.isNegate = msg.rows.isNegate || false
+      updateData(msg, self)
+      this.update()
+    })
+
+    xbus.on('DIALOG-SHOW', (msg) => {
+      this.isShowDialog = msg.isShow
+      this.update()
+    })
+
+    this.unregisterGlobalEventHandlers = () => {
+      xbus.off('META-UPDATE-DB-RES')
+    }
+    
+  </script>
+</rs-meta-dialog>

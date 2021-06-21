@@ -1,0 +1,28 @@
+@import '../../style/defs.sass'
+.manages
+  width: 100%
+  overflow: auto
+  position: relative
+  .homepage
+    width: 100%
+  .back-homepage
+    @include wh(.48rem, .24rem)
+    @include flex-center-center
+    @include absolute-left-top(.1rem, .1rem, $zIndex: 999)
+    border-radius: 3px
+    background: linear-gradient(#def, #09f)
+  .reader-topology
+    height: 100%
+    overflow-y: auto
+    padding: 0 .1rem
+  .leader-search
+    @include absolute-left-top(.1rem, .4rem, $zIndex: 999)
+    .popup-list
+      width: 100%
+      position: absolute
+.reader_topology
+  overflow: hidden
+.leader_scheduling
+  .rs-table-icon-btn 
+    margin-top: .6rem
+

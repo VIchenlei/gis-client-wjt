@@ -1,0 +1,41 @@
+<rs-graph>
+<div class="charts" style="width:{width}px;height:{height}px" ></div>
+  <script>
+  import echarts from 'echarts'
+  import {
+    pieOption,
+    barOption,
+    lineOption
+  } from '../../js/def/graph_def.js'
+
+  this.initChart = () => {
+    let canva = this.root.querySelector('.charts')
+    if (!canva) return
+    echarts.dispose(canva)
+    let chart = echarts.init(canva)
+    let option = this.option
+    let config = null
+    if (this.graphName === 'pieOption') {
+      config = pieOption(option)
+    } else if (this.graphName === 'barOption') {
+      config = barOption(option)
+    } else if (this.graphName === 'lineOption') {
+      config = lineOption(option)
+    }
+    chart.setOption(config)
+  }
+
+  this.on('mount', () => {this.initChart()})
+
+
+  this.init = (opts) => {
+    this.graphDef = opts.graphdef
+    this.graphName = this.graphDef ? this.graphDef.graphName : null
+    this.option = this.graphDef ? this.graphDef.graphOption : null
+    this.width = (this.graphDef && this.graphDef.width) || 450
+    this.height = (this.graphDef && this.graphDef.height) || 250
+  }
+
+  this.init(opts)
+  </script>
+</rs-graph>

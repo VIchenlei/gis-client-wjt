@@ -1,0 +1,371 @@
+<business-msg class="business-msg">
+  <p class="title">业务信息</p>
+  <div ref="content">
+    <span each={row in rows} class="business-wp">
+      <rs-text-field 
+        data={row} 
+        ref={row.field_name} 
+        data-name={tableName} 
+        data-oldvalue= {dealValue(row)} 
+        if={isShow(row)}>
+      </rs-text-field>
+      <rs-select-field 
+        data={row} 
+        ref={row.field_name} 
+        data-name={tableName} 
+        if={row.field_type === 'SELECT'}>
+      </rs-select-field>
+    </span>
+  </div>
+  <script>
+    import '../sass/business-msg.sass'
+    import '../../tags/rs-text-field/rs-text-field.html'
+    import '../../tags/rs-select-field/rs-select-field.html'
+    import  { getRows, trim, formatFieldValue, editDetail, composeUpdateDBReq, messageTip } from '../../js/utils/utils.js'
+    import numberTurnText from '../../js/def/number_turn_text_def.js'
+    import { getTextValue } from '../js/utils.js'
+    let store = xdata.metaStore
+    let basicMsgTag = null
+
+    //输入框值展示特殊处理
+    this.dealValue = (row) => {
+      const msg = {
+        row: row,
+        tableName: this.tableName,
+        cmd: this.cmd
+      }
+      let fieldValue = getTextValue(msg)
+      return fieldValue
+    }
+
+    this.doInsert = () => {
+      let fields = '', values = '', keyValue = null, cardSql = null, cardKey = null, opType = 'INSERT', detail = ''
+      const type = 'warning'
+      const xmsg = '输入的内容存在非法值，请检查输入项！'
+      if (this.tips) return messageTip(xmsg, type)
+
+      for (let i = 0, len = this.rows.length; i < len; i++) {
+        const { field_name, field_type } = this.rows[i]
+        if (field_name === 'need_display') continue
+        let fieldValue = null, textValue = null
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('oldvalue')
+          let value = this.refs[field_name].refs[field_name].getAttribute('name')
+          textValue = this.refs[field_name].refs[field_name].innerText
+          if (fieldValue !== value) fieldValue = value
+          if (!fieldValue || !(/\d/ig).test(fieldValue)) fieldValue = 0
+        } else {
+          if (field_name === `${opts.name}_id`) {
+            fieldValue = basicMsgTag && basicMsgTag.refs[field_name].refs[field_name].value
+            opType = this.judgeKeyValue(fieldValue)
+          } else {
+            fieldValue = this.refs[field_name].refs[field_name].value
+          }
+          
+          if (field_name === 'card_id') {
+            if (fieldValue.length > 13) fieldValue = this.formatCard(fieldValue)
+            cardSql = this.judgeCard(fieldValue)
+            cardKey = fieldValue
+          }
+          fieldValue = formatFieldValue(this.rows[i].field_type, fieldValue)
+          textValue = fieldValue
+        }
+        if (i === 0) {
+          keyValue = Number(basicMsgTag && basicMsgTag.refs[field_name].refs[field_name].value)
+        } else {
+          fields += ','
+          values += ','
+        }
+        detail = editDetail(field_name, textValue, detail, `${opts.name}_extend`)
+        fields += field_name
+        values += fieldValue
+      }
+      if (opts.name === 'staff') {
+        fields += ',user_id'
+        values += `,'${xdata.userName}'`
+      }
+      let sql = `REPLACE into ${this.tableName} (${fields}) VALUES(${values})`
+      let req = composeUpdateDBReq(opType, `${opts.name}${xdata.isCheck === 1 && opts.name === 'staff' ? '_extend_ck' : '_extend'}`, keyValue, sql)
+      req.data['notify'] = `${keyValue};${cardKey}`
+      basicMsgTag && basicMsgTag.insertSql()
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      console.log(req,'businessreq')
+      xbus.trigger('META-UPDATE-DB', {req: req})
+      if (cardSql) {
+        let cardreq = composeUpdateDBReq('INSERT', 'card', cardKey, cardSql)
+        xbus.trigger('META-UPDATE-DB', {req: cardreq})
+      }
+      // xdata.metaStore.basicExtendUpdate = true
+    }
+
+    //根据数据是否存在判断是新增、编辑
+    this.judgeKeyValue = (fieldValue) => {
+      let objects = xdata.metaStore.data[`${opts.name}_extend`]
+      fieldValue = parseInt(fieldValue, 10)
+      if (objects.get(fieldValue)) return 'UPDATE'
+      return 'INSERT'
+    }
+
+    this.formatCard = (fieldValue) => {
+      let value = fieldValue.substr(3)
+      value = parseInt(value, 10).toString()
+      value = opts.name === 'staff' ? `001${value.padStart(10, 0)}` : `002${value.padStart(10, 0)}`
+      return value
+    }
+
+    this.judgeCard = (fieldValue) => {
+      let cards = xdata.metaStore.data.card
+      let cardType = opts.name === 'staff' ? 1 : 2
+      if (!cards || !cards.get(fieldValue)) {
+        return `REPLACE INTO dat_card (card_id, card_type_id, ident, state_id) VALUES(${fieldValue}, ${cardType}, ${Number(fieldValue.slice(3))}, 0)`
+      }
+    }
+
+    this.handupCard = key => {
+      let staffExtend = store.data.staff_extend && store.data.staff_extend.get(key)
+      let cardID = staffExtend && staffExtend.card_id
+      let underWellCards = xdata.cardStore.scards
+      if (underWellCards.get(cardID)) {
+        xbus.trigger('MAN-CONTROL-UPMINE', {
+          cmd: 'clear_card',
+          data: [{
+            cardid: cardID,
+            cardtype: 1
+          }]
+        })
+      }
+    }
+
+    //编辑数据
+    this.doUpdate = (opType) => {
+      let sql = '', cardSql = null, cardKey = null, keyValue = null, detail = '', preDetail = ''
+      let key = basicMsgTag && basicMsgTag.key
+      if (store.data.staff_extend && !store.data.staff_extend.get(key)) return this.doInsert()
+      for (let i = 0, len = this.rows.length; i < len; i++) {
+        const { field_name, field_type } = this.rows[i]
+        if (field_name === 'need_display') continue
+        let fieldValue = null, textValue = null
+        if (this.rows[i].field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+          textValue = this.refs[field_name].refs[field_name].innerText
+          if (!fieldValue || !fieldValue.match(/\d/ig)) fieldValue = 0
+        } else {
+          if (field_name === `${opts.name}_id`) {
+            fieldValue = basicMsgTag.keyValue || key
+            keyValue = fieldValue
+          } else {
+            fieldValue = this.refs[field_name].refs[field_name].value
+          }
+          textValue = fieldValue
+        }
+        if (field_name === 'card_id') {
+          fieldValue = this.refs[field_name].refs[field_name].value
+          if (fieldValue.length > 13) fieldValue = this.formatCard(fieldValue)
+          cardSql = this.judgeCard(fieldValue)
+          cardKey = fieldValue
+          textValue = fieldValue
+        }
+        if (this.rows[i].field_value != fieldValue) {
+          fieldValue = formatFieldValue(field_type, fieldValue)
+          if (sql != '') {
+            sql += ','
+          }
+          sql += `${field_name}=${fieldValue}`
+          detail = editDetail(field_name, textValue, detail, `${opts.name}_extend`)
+          preDetail = editDetail(field_name, this.rows[i].field_value, preDetail, `${opts.name}_extend`)
+        }
+      }
+      
+      if (sql) {
+        let sqlString = `UPDATE ${this.tableName} SET ${sql} where ${opts.name + '_id'}=${key};`
+        let req = composeUpdateDBReq(opType, `${opts.name}${xdata.isCheck === 1 && opts.name === 'staff' ? '_extend_ck' : '_extend'}`, keyValue, sqlString)
+        req.data['notify'] = `${keyValue};${cardKey}`
+        req.data['detail'] = preDetail + '->' + detail
+        req.data['user_id'] = xdata.userName
+        // console.log('req',req)
+        xbus.trigger('META-UPDATE-DB', {req: req})
+      }
+      
+      this.parent.tags['basic-msg'] && this.parent.tags['basic-msg'].insertSql(opType)
+      
+      if (cardSql) {
+        let cardreq = composeUpdateDBReq('INSERT', 'card', cardKey, cardSql)
+        xbus.trigger('META-UPDATE-DB', {req: cardreq})
+      }
+      // xdata.metaStore.basicExtendUpdate = true
+    }
+
+    //删除数据
+    this.doDelete = (name) => {
+      let keyname = opts.name + '_id'
+      let sql = `DELETE from ${this.tableName} where ${keyname}=${name}`
+      let req = composeUpdateDBReq('DELETE', `${opts.name}_extend`, name, sql)
+      let obj = store.data[`${opts.name}_extend`] && store.data[`${opts.name}_extend`].get(Number(name))
+      let cardID = obj && obj.card_id
+      let deptID = obj && store.data.dept && store.data.dept.get(obj.dept_id)
+      let detail = editDetail(keyname, name, '', `${opts.name}_extend`)
+      detail = editDetail('card_id', cardID, detail, `${opts.name}_extend`)
+      detail = editDetail('dept_id', deptID && deptID.name, detail, `${opts.name}_extend`)
+      req.data['notify'] = `${name};${cardID}`
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      req.username = xdata.userName
+      // this.handupCard(name)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+      this.rows = getRows(null, this.def)
+      this.update()
+    }
+
+    //校验卡号
+    this.checkCard = (target, value) => {
+      let tips = ''
+      const num = opts.name === 'staff' ? 1 : 2
+      if (value.indexOf(`00${num}`) !== -1 && value !== `00${num}` && value.length > 10) {
+        value = value.substr(3)
+        value = parseInt(value, 10).toString()
+      }
+      const keyValue = this.parent.tags['basic-msg'].refs[`${opts.name}_id`].value
+      if (!value) return tips = '卡号不能为空'
+      value = value.length <= 10 ? `00${num}${value.padStart(10, 0)}` : `00${num}${value}`
+      target.value = value
+
+      let checkValue = value.substr(3)
+      checkValue = parseInt(checkValue, 10)
+      if (checkValue === 0) return tips = '卡号不能为0'
+      if (checkValue.length > 10) return tips = '卡号超出限制'
+
+      const objs = Array.from(store.staffs.values()).concat(Array.from(store.vehicles.values()))
+      const isBindCard = objs.some(item => item.card_id === value)
+      const bindObj = isBindCard && store.getCardBindObjectInfo(value)
+      const bindID = bindObj && bindObj[`${opts.name}_id`]
+      if (bindObj && bindID !== keyValue) return tips = '已存在该编号'
+      typeof this.parent.hideFill === 'function' && this.parent.hideFill()
+
+      return tips
+    }
+
+    this.checkOldValue = (name, value) => {
+      let oldValue = this.refs[name] && this.refs[name].root.getAttribute('data-oldvalue')
+      if (oldValue === null) oldValue = ''
+      return oldValue === value
+    }
+
+    //校验
+    this.leaveInput = (evt, tips) => {
+      let store = xdata.metaStore
+      let target = evt.currentTarget
+      let inputname = target.getAttribute('idname')
+      let value = target.value
+      value = trim(value)
+
+      if (typeof this.parent.hideFill === 'function') {
+        !this.checkOldValue(inputname, value) && this.parent.hideFill()
+      }
+
+      if (!xdata.isControl && inputname !== 'card_id') return ''
+
+      if (inputname === 'card_id') {
+        return tips = this.checkCard(target, value)
+      } else if (inputname === 'lampNo') {
+        return tips = !/^[A-Za-z\d]{2}\-\d{3}$/.test(value) && value !== '' ? '请输入数字、字母或-' : ''
+      }
+
+      this.tips = tips
+
+      return tips
+    }
+
+    //隐藏不需要展示的字段
+    this.isShow = (row) => {
+      if (row.field_type !== 'SELECT') {
+        const names = ['staff_id', 'need_display', 'vehicle_id']
+        if (names.includes(row.field_name)) return false
+        return true
+      } else {
+        return false
+      }
+    }
+
+    //重置
+    this.doReset = () => {
+      this.rows = getRows(null, this.def)
+      this.update()
+    }
+
+    //选择下拉结果展示保存、按钮
+    this.chooseItem = (fieldName, index, target) => {
+      const value = target.getAttribute('name')
+      const oldValue = target.getAttribute('oldvalue')
+      const isSame = oldValue === value
+      if (typeof this.parent.hideFill === 'function') {
+        !isSame && this.parent.hideFill()
+      }
+    }
+
+    //切换业务信息展示
+    this.updateList = (value) => {
+      this.key = value  //更新基本信息用于sql语句中
+      const obj = store.data[opts.name]
+      const objExtend = store.data[`${opts.name}_extend`]
+      const msg = obj.get(value) && objExtend.get(value) 
+        ? {
+            row: objExtend.get(value)
+          } 
+        : null
+
+      this.rows = getRows(msg, this.def)
+      this.refs['content'].setAttribute('data-type', 'update')
+      this.update()
+    }
+
+    this.on('mount', () => {
+      basicMsgTag = this.parent.tags['basic-msg']
+      if (xdata.isCheck === 1 && opts.name === 'staff') {
+        this.def = store.defs.staff_extend_ck ? store.defs.staff_extend_ck : store.defs.staff_extend
+      } else {
+        this.def = store.defs[opts.name + '_extend']
+      }
+      this.tableName = `dat_${opts.name}_${xdata.isCheck === 1 && opts.name === 'staff' ? 'extend_ck' : 'extend'}`
+      this.rows = getRows(null, this.def)
+      this.update()
+    })
+
+    this.init = (opts) => {
+      this.parenTag = this.parent.parenTag
+    }
+
+    this.init(opts)
+
+    //获取下拉列表数据
+    this.getSelectItem = (fieldName, tableName) => {
+      let items = []
+      if (fieldName === 'dept_id_ck' && xdata.isCheck === 0) {
+        let ds = xdata.metaStore.data.dept_ck
+        if (!ds) return items
+        for (let rec of ds.values()) {
+          let item = {
+            label: rec.name,
+            value: rec['dept_id']
+          }
+          items.push(item)
+        }
+      } else {
+        let tablename = tableName
+        if (/^dat_/.test(tableName)) tablename = tableName.slice(4)
+        if (numberTurnText.hasOwnProperty(tablename)) {
+          let hasTurnName = numberTurnText[tablename][fieldName]
+          if (hasTurnName) {
+            for (let rec in hasTurnName) {
+              items.push({
+                value: Number(rec),
+                label: hasTurnName[rec]
+              })
+            }
+          }
+        }
+      }
+      return items
+    } 
+  </script>
+</business-msg>

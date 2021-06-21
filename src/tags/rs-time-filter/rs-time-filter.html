@@ -1,0 +1,114 @@
+<rs-time-filter class="rs-time-filter">
+    <div if={ showSelect } class="rs-time-filter-top">
+        <fieldset>
+            <legend>时间选择</legend>
+            <select class="time-select"  onchange={ selectChoose }  onfocus={ handleFocus } onblur={ handleBlur } disabled={ label && label.length <= 1 }>
+                <option each={ l in label} >{ l.label }</option>
+            </select>
+        </fieldset>
+        <rs-date if={ showMonthCondition } type='MONTH' text="日期" value={ getDefaultTime('MONTH') } ></rs-date>
+        <div class="time-warp" if= { !showMonthCondition }>
+            <rs-date type={ timeType } text="日期" isshowsecond="true" value={ getDefaultTime(timeType,'start') } ></rs-date>
+            <rs-date type={ timeType } text="日期" isshowsecond="true" value={ getDefaultTime(timeType,'end') } ></rs-date>
+        </div>
+    </div>
+    <div if={ !showSelect } class="rs-time-filter-bottom">
+        <rs-date type={ inputType } text={ label } value={ getDefaultTime(inputType) } ></rs-date>
+    </div>
+
+  <script>
+    import './rs-time-filter.sass'
+    import { getSearchDate, showTimeFilterHint } from '../../report/js/report_utils.js'
+    import { timeTypeDefs } from '../../report/js/report_defs.js'
+    import '../rs-date/tags/rs-date.html'
+
+    /*select绑定focus事件*/
+    this.handleFocus = () => {
+        let fieldsetElement = this.root.querySelector('fieldset')
+        fieldsetElement.classList.add('rs-is-focus')
+    }
+
+    /*select绑定Blur事件*/
+    this.handleBlur = () => {
+        let fieldsetElement = this.root.querySelector('fieldset')
+        fieldsetElement.classList.remove('rs-is-focus')
+    }
+
+    /*select的chang事件*/
+    this.selectChoose = (evt) => {
+        let target = evt.currentTarget
+        let chooseOption = this.label[target.selectedIndex]
+        this.showMonthCondition = chooseOption.label === '月份' ? true : false
+        this.type = chooseOption.label === '月份' ? 'MONTH' : 'DATE'
+    }
+
+    /*获取默认时间*/
+    this.getDefaultTime = (inputType, sign) => {
+        let type = inputType
+        let value = null
+        if (type === 'MONTH') {
+            value = new Date().format('yyyy-MM')
+        } else if (type === 'DATE') {
+            value = getSearchDate(sign, this.timeType, this.oldValue, this.name)
+        } else if (type === 'DATETIME') {
+            value = sign ?  getSearchDate(sign, this.timeType, this.oldValue, this.name) : new Date().format("yyyy-MM-dd hh:mm:ss")
+        }
+        return value
+    }
+
+    /*获取input的type类型*/
+    this.getInputType = () => {
+        let type = null
+        let timeObj = timeTypeDefs[this.type]
+        type = timeObj.type
+        this.timeType = timeObj.timeType
+        this.showSelect = timeObj.showSelect
+        this.showMonthCondition = timeObj.showMonthCondition
+        return type
+    }
+
+    /*获取时间查询结果值*/
+    this.getResult = () => {
+        let scondition = '', econdition = '', stime = '', etime = '',tips = ''
+        let type = this.type
+        let time = this.root.querySelectorAll('.calendar-select')
+        let myselect = this.root.querySelector('.time-select')
+        stime = time && time[0] && time[0].value
+        etime = time && time[1] && time[1].value
+        let selectedIndex = myselect && myselect.selectedIndex
+        let selectData = this.label[selectedIndex]
+        if (this.type === 'DATE') {
+            tips = showTimeFilterHint(stime,etime,this.timeType)
+            let timeParam = this.timeType === 'DATETIME' ? 'yyyy-MM-dd hh:mm:ss' : 'yyyy-MM-dd'
+            stime = stime && new Date(stime).format(timeParam)
+            etime = etime && new Date(etime).format(timeParam)
+            scondition = selectData.start.name
+            econdition = selectData.end.name
+        } else if (this.type === 'MONTH') {
+            stime = stime && new Date(stime).format('yyyy-MM')
+            scondition = selectData.name
+        } else {
+            let fieldsName = this.def.name.includes('as') ? this.def.name.split(' as')[0] : this.def.name
+            let timeParam = this.type === 'DATETIME' ? 'yyyy-MM-dd hh:mm:ss' : 'yyyy-MM-dd'
+            stime = stime && new Date(stime).format(timeParam)
+            scondition = fieldsName
+        }
+        return {stime, etime, scondition, econdition, type, tips}
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+        this.timeType = 'DATE'
+        this.showSelect = true
+        this.oldValue = opts.dataValue
+        this.def = opts.dataDef
+        this.type = opts.dataDef.type
+        this.showMonthCondition = true
+        this.inputType = this.getInputType()
+        this.name = opts.name
+        this.label = this.showSelect ? opts.dataDef.selectOptin : opts.dataDef.label
+    }
+    
+    this.init(opts)
+  </script>
+</rs-time-filter>

@@ -1,0 +1,25 @@
+<sp-history>
+  <div id="history_player_container" data-is="history-player" class="history-player-container"></div>
+  <div id="history_query_container" data-is="history-query" class="history-query grey-scroll"></div>
+  
+  <script>
+    import '../sass/sp-history.sass'
+    import './history-player.html'
+    import './history-query.html'
+    this.on('mount', () => {
+      this.tagPlayer = this.tags['history-player']
+      this.tagQuery = this.tags['history-query']
+    })
+
+    this.on('update', (msg) => {
+      if (msg && msg.cardID) {
+        this.fastQuery(msg.cardID, msg.numberId, msg.time, msg.endTime)
+        this.tagQuery && this.tagQuery.root.classList.remove('hide')
+      }
+    })
+
+    this.fastQuery = (cardID, numberId, time, endtime) => {
+      this.tagQuery.fastQuery(cardID, numberId, time, endtime)
+    }
+  </script>
+</sp-history>

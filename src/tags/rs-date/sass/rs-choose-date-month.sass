@@ -1,0 +1,68 @@
+@import '../../../style/defs'
+.rs-choose-date-month
+  width: 100%
+.calendar-panel-header
+  @include wh(2.02rem, 0.4rem)
+  line-height: 0.4rem
+  text-align: center
+  user-select: none
+  border-bottom: 1px solid $color-border
+  div>a
+    position: absolute
+    top: 0
+    cursor: pointer
+    color: $color-border
+    font-family: 'SimHei'
+  div>a:hover
+    color: #1890ff
+  .calendar-prev-year-btn 
+    left: 7px
+  .calendar-next-year-btn 
+    right: 7px
+.calendar-panel-body
+  padding: 8px 12px
+  .calendar-table
+    border-collapse: collapse
+    max-width: 100%
+    background-color: transparent
+    width: 100%
+    thead, tbody
+      display: table-header-group
+      vertical-align: middle
+      border-color: inherit
+      tr 
+        display: table-row
+        vertical-align: inherit
+        border-color: inherit
+        td, th
+          border: 0
+          text-align: center
+          font-size: $font-xs
+        .calendar-cell 
+          color: #333
+          padding: 3px 0
+          height: 30px
+        .calendar-last-month-cell, .calendar-next-month-btn-day
+          .calendar-date 
+            color: #999
+            pointer-events: none
+            cursor: default
+        .calendar-month
+          margin: 10px auto
+          color: #000
+          border-radius: 2px
+          width: 40px
+          height: 21px
+          line-height: 20px
+          border: 1px solid transparent
+          padding: 0
+          background: transparent
+          text-align: center
+          color: #333333
+          -webkit-transition: background .3s ease
+          transition: background .3s ease
+          cursor: pointer
+        .calendar-month-cell-select
+          .calendar-month
+            background: #0099FF
+            color: #fff

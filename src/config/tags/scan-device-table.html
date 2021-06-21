@@ -1,0 +1,102 @@
+<scan-device-table>
+  <span class="ip-title">扫描范围</span>
+  <div class="device-ip">
+    <div class="start-ip-address">
+      <div each={ i, key in commonIP }>
+        <fieldset class="ip-input">
+          <input type="number" value={getIpValue(i, key, 0)} min="0" max="255">
+        </fieldset>
+        <span if={key !== commonIP.length -1}>.</span>
+      </div>
+    </div>
+    <span>——</span>
+    <div class="end-ip-address">
+      <div each={ i, key in commonIP }>
+        <fieldset class="ip-input">
+          <input type="number" value={getIpValue(i, key, 1)} min="0" max="255">
+        </fieldset>
+        <span if={key !== commonIP.length -1}>.</span>
+      </div>
+    </div>
+  </div>
+  <div each={field in fields}>
+    <rs-text-field
+      if={field.field_type === 'STRING'} 
+      data={field} 
+      ref={field.field_name} 
+      data-name={tableName}>
+    </rs-text-field>
+    <rs-select-field
+      if={field.field_type === 'SELECT'} 
+      ref={field.field_name} 
+      data={ field } 
+      data-name={ field.dataName } 
+      isshowdefault='true'>
+    </rs-select-field>
+  </div>
+  <script>
+    import '../sass/scan-device-table.sass'
+    import { FIELD } from '../js/device_updata_def.js'
+    import { messageTips } from '../../js/utils/utils.js'
+
+    // 获取扫描范围默认IP
+    this.getIpValue = (...values) => {
+      let value = values[0]
+      if (values[1] === 3) {
+        value = values[2] === 0 ? 0 : 254 // 0开始IP，1结束IP，默认范围0-254
+      }
+      return value
+    }
+
+    this.constructNetArray = (start, end) => {
+      let nets = []
+      for (let i = Number(start[0].value); i <= Number(end[0].value); i++) {
+        for (let j = Number(start[1].value); j <= Number(end[1].value); j++) {
+          for (let m = Number(start[2].value); m <= Number(end[2].value); m++) {
+            for (let n = Number(start[3].value); n <= Number(end[3].value); n++) {
+              let tips = '将信息填写完整'
+              if ((!i && i !== 0) || (!j && j !== 0) || (!m && m !== 0) || (!n && n !== 0)) return messageTip(tips)
+              nets.push(`${i}.${j}.${m}.${n}`)
+            }
+          }
+        }
+      }
+      return nets    
+    }
+
+    this.doSave = (name) => {
+      let start = this.root.querySelector('.start-ip-address').querySelectorAll('input')
+      let end = this.root.querySelector('.end-ip-address').querySelectorAll('input')
+
+      let nets = this.constructNetArray(start, end)
+
+      let deviceAddress = this.refs["deviceAddress"].refs["deviceAddress"].value
+      let deviceType = this.refs["deviceType"].refs["deviceType"].getAttribute('name')
+
+      let unIPDeviceAddress = this.refs['unIPDeviceAddress'] && this.refs['unIPDeviceAddress'].refs['unIPDeviceAddress'].value
+      let unIPDeviceType = this.refs['unIPDeviceType'] && this.refs['unIPDeviceType'].refs['unIPDeviceType'].getAttribute('name')
+      
+      xdata.deviceUpdateStore.scanMsg = {
+        name,
+        data: {nets, deviceAddress, deviceType, unIPDeviceAddress, unIPDeviceType}
+      }
+      xbus.trigger('SEND-MANAGER-MSG', {
+				cmd: name,
+				data: {nets, deviceAddress, deviceType, unIPDeviceAddress, unIPDeviceType}
+      })
+
+      opts.pTag.close()
+    }
+
+    this.init = (opts) => {
+      let ip = opts.data[0].field_value
+      let ipAddressArray = ip.split('.')
+      this.commonIP = ipAddressArray
+      this.tableName = opts.pTag.tableName
+      this.fields = FIELD[this.tableName]
+      this.parenTag = opts.pTag.parenTag
+    }
+
+    this.init(opts)
+  </script>
+</scan-device-table>

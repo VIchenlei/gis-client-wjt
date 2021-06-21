@@ -1,0 +1,31 @@
+<transfer-menu>
+    <div each={ i in [menus] } class="menu">
+        <side-list each={ item in i } def={ item } if={ isShow(item) }></side-list>
+    </div>
+    <script>
+        import './transfer-menu.sass'
+        import '../side-list/side-list.html'
+    
+        const SHOWNUMBER = 100 //设置成100，暂时隐藏滚动
+       
+        /*控制显隐函数*/
+        this.isShow = (row) => {
+            let isShow = false
+            let menuID = row.menuID
+            let result = xdata.menus.find(item =>{
+                return item.includes(menuID)
+            })
+            if (!xdata.hasMenus || result) isShow = true
+            return isShow
+        }
+
+
+        /*初始化函数*/
+        this.init = (opts) => {
+            this.menus = opts.menus
+            this.name = opts.name
+        }
+
+        this.init(opts)
+    </script>
+</transfer-menu>

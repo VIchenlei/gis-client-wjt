@@ -1,0 +1,67 @@
+@import '../../style/defs'
+
+.detailDialog
+    .detail-dialog
+        width: 95%
+        min-width: 10rem
+        font-size: 0.128rem
+        .dlg-body
+            width: 100%
+            padding: .1rem .2rem
+            background: #eee
+            max-height: 6.2rem
+            overflow-y: auto
+            .ctrl-panel
+                display: flex
+                align-items: center
+                justify-content: space-between
+                padding: 0 .08rem
+                flex: 0 0 0.48rem
+                // background: #eee
+                .condition-builder
+                    display: flex
+                    .condition
+                        display: flex
+                        align-items: center
+                        margin: 0.1rem 0.16rem 0 0
+                .button-list
+                    button
+                        margin-left: 0.1rem
+                        width: auto
+                        min-width: 0.8rem
+                    .enterReader
+                        width: 1rem
+            .content-panel
+                overflow-y: auto
+                table
+                    font-size: $font-s
+                    tbody
+                        max-height: inherit
+                        tr
+                            &:hover
+                                background: #E2F1FC
+                    tr
+                        border-bottom: 1px solid $color-border
+                        cursor: pointer
+                        th, td
+                            padding: .1rem
+@media screen and (max-width: $width-medium)
+  .detailDialog
+    .detail-dialog
+      width: 3.4rem
+      min-width: 3.4rem
+      .dlg-body
+        .ctrl-panel
+          @include wh(100%,100%)
+          justify-content: flex-start
+          .button-list button
+            min-width: 0.38rem
+            margin-left: 0
+        .rs-text-field
+            width: 1.2rem
+            .text-field
+                width: 1.2rem
+                input
+                    width: 1.2rem
+        .content-panel
+            overflow-x: auto

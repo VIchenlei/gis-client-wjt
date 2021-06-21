@@ -1,0 +1,34 @@
+<aboutus class="aboutus">
+  <div class="dlg-bg animated">
+    <div class="dlg-window aboutus-dialog animated zoomIn" onclick={ stopPropagation }>
+      <rs-title title="关于..."></rs-title>
+      <div class="dlg-body about-content">
+        <p each={sys in Object.keys(sysInfo)}>
+          <span each={item in sysInfo[sys]}>{item}</span>
+        </p>
+        <p><a href="http://www.beijingyongan.com" target="_blank">联系我们</a></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import '../../tags/rs-title/tags/rs-title.html'
+    import '../sass/aboutus.sass'
+    import Draggable from '../../js/utils/Draggable.js'
+    import { sysInfo } from '../js/sysinfo.js'
+
+    this.sysInfo = sysInfo
+    this.mixin('EventMixin')
+
+    this.on('mount', () => {
+      let dragTarget = this.root.querySelector('.dlg-window')
+      let dragHandle = null
+      Draggable(dragTarget, dragHandle)
+    })
+
+    this.hide = (evt) => {
+      this.unmount(true)
+    }
+  </script>
+</aboutus>
+  

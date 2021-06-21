@@ -1,0 +1,39 @@
+<sp-three>
+    <iframe class="three-iframe" src="http://www.thingjs.com/s/8a3171e354bd1e3405be9c4a?params=105b0f77fd24654d4eebc434e9" frameborder="0"></iframe>
+
+    <script>
+        import '../sass/three.sass'
+
+        this.doLoginThree = () => {
+            let token = ''
+            let cid = ''
+            rtcService.user.login('admin', 'admin123').then(res => {
+                if (res.success) {
+                    token = res.data
+                    return rtcService.user.allocClient(res.data)
+                }
+            }).then(res => {
+                if (res.success) {
+                    cid=res.data
+                    return rtcService.app.setProject(token, res.data, 'WangJiaTa') // WangJiaTa or LR3D
+                }
+            }).then(res => {
+                this.root.querySelector('iframe').src=`http://192.168.0.222:8080/home/index/${cid}?token=${encodeURIComponent(token)}`
+            }).catch(res => {
+                console.log(res)
+            })
+        }
+
+        this.on('mount', () => {
+            // let rtcServiceExist = !!window.rtcService
+            // if (rtcServiceExist) {
+            //     this.doLoginThree()
+            // } else {
+            //     window.xMessage.open({
+            //         type: 'error',
+            //         message: '三维场景加载失败，请联系系统管理员！'
+            //     })
+            // }
+        })
+    </script>
+</sp-three>

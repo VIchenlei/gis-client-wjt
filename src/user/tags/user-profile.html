@@ -1,0 +1,125 @@
+<user-profile>
+    <div class="user-banner hide-on-pc">
+      <img src="../img/user.png" alt="用户图片">
+      <span>{username}</span>
+    </div>
+
+    <rs-list class="user-dropmenu animated" rslist={ rsList }></rs-list>
+
+  <script>
+    import '../sass/user-profile.sass'
+    import '../../tags/rs-list/rs-list.html'
+    import '../../tags/rs-dialog/rs-dialog.html'
+    import './modify-pwd-dialog.html'
+    import { USERLIST } from '../js/Credential.js'
+
+    this.show = () => {
+      let ele = this.root.classList
+      ele.remove('hide')
+      ele.add('slideInDownHeader')
+    }
+
+    this.hide = () => {
+      let ele = this.root.classList
+      ele.remove('slideInDownHeader')
+      ele.add('hide')
+    }
+
+    this.changeBg = (evt) => {
+      let bgColor = !this.black ? 'black' : ''
+      document.getElementsByTagName('body')[0].setAttribute('id', bgColor)
+      this.black = !this.black
+    }
+
+    this.afreshMetadata = () => {
+      let method = this.method
+      console.log('method', method)
+      xdata.dexieDBStore.forceData.clear()
+      xdata.metaStore.firstPull = false
+      let message = {
+        name: 'progress-bar',
+        information: '正在更新数据，请稍候...'
+      }
+      window.xhint.showLoading(message)
+      let msg = {
+        cmd: 'afresh_metadata',
+        data: {
+          mdtdata: method === 'all' ? [] : xdata.dexieDBStore.rows,
+          objRange: xdata.objRange
+        }
+      }
+      xbus.trigger('AFRESH-METADATA', msg)
+      xdata.dexieDBStore.forceUpdateMetadata = true  
+    }
+
+    this.pullAllMetadata = (evt) => {
+      let self = this
+      if (this.activePanel) {
+        this.activePanel.unmount(true)
+      }
+      this.activePanel = riot.mount('rs-dialog', { 
+        content: '您确认要重新拉取全部配置数据吗？',
+        cb: this.afreshMetadata
+      })[0]
+    }
+
+    this.pullMetaData = (evt) => {
+      let self = this
+      if (this.activePanel) {
+        this.activePanel.unmount(true)
+      }
+      this.activePanel = riot.mount('rs-dialog', { 
+        content: '您确认要重新拉取部分配置数据吗？',
+        cb: this.afreshMetadata
+      })[0]
+    }
+
+    this.showPwdDialog = (evt) => {
+      if (this.pwdDialog) {
+        this.pwdDialog.unmount(true)
+      }
+      this.pwdDialog = riot.mount('modify-pwd-dialog', { title: '修改密码', username: this.username })[0]
+    }
+
+    this.logout = (evt) => {
+      xbus.trigger('USER', {cmd: 'LOGOUT'})
+    }
+
+    this.dohandleItem = (msg) => {
+      let name = msg.icon
+      switch (name) {
+        case 'changebg':
+          this.changeBg()
+          break
+        case 'metadata':
+          this.method = null
+          this.pullMetaData()
+          break
+        case 'allmetadata':
+          this.method = 'all'
+          this.pullAllMetadata()
+          break
+        case 'lock':
+          this.showPwdDialog()
+          break
+        case 'poweroff': 
+          this.logout()
+          break
+      }
+    }
+
+    xbus.on('USERINFO-UPDATE', (userinfo) => {
+      this.username = userinfo.name
+      this.update()
+    })
+
+    this.init = (opts) => {
+      this.rsList = USERLIST
+      this.username = xdata.userName
+      this.pwdDialog = null
+      this.method = null
+    }
+
+    this.init(opts)
+  </script>
+</user-profile>

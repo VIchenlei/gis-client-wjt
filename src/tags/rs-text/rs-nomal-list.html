@@ -1,0 +1,16 @@
+<!--不带输入框的普通select列表选择-->
+<rs-nomal-list class="rs-nomal-list">
+  <div class="rs-box">
+    <span>{defaultvalue}</span>
+    <i></i>
+  </div>
+
+  <script>
+    import './rs-nomal-list.sass'
+
+    this.init = (opts) => {
+      this.defaultvalue = opts.defaultvalue
+    }
+    this.init(opts)
+  </script>
+</rs-nomal-list>

@@ -1,0 +1,13 @@
+@import '../../style/defs.sass'
+.basic-head
+  .title
+    font-size: $font-s
+    color: $font-default
+    @include flex-between-center
+    padding: .1rem
+    .save, .reset
+      @include wh(.14rem, .14rem)
+      display: inline-block
+      cursor: pointer
+    .reset
+      margin-left: 0.1rem

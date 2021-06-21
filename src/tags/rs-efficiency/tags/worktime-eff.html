@@ -1,0 +1,119 @@
+<worktime-eff>
+  <div class="efficiency-reason-worktime"></div>
+  <div class="dept-worktime" style="width:100%;height:300px;"></div>
+  <div class="dept-button"><span onclick={ show }></span></div>
+  <script>
+    import echarts from 'echarts'
+    import { efficiencyLineDept } from "../../../js/def/graph_def.js"
+    import { barCharts } from "../js/rs_efficiency_defs.js"
+    import '../../../report/tags/rs-efficiency-reason.html'
+    let self = this
+    
+    /*初始化工时率图表*/
+    this.initWorktimeCharts = (rows, faceworktime, roadworktime) => {
+      if (!rows) rows = new Map()
+      let initdom = this.root.querySelector('.dept-worktime')
+      if (!initdom) return
+      echarts.dispose(initdom)
+      let chart = echarts.init(initdom)
+      let data = Array.from(rows.values())
+      data.sort(function(a, b){return a[0] - b[0]})
+      let dataArr = data.map(item => item[1])
+      let max = Math.max.apply(Math, dataArr)
+      let min = 0
+      let faceworktimeArr = faceworktime && faceworktime.concat(roadworktime).map(item => item[1])
+      let rightMax = Math.max.apply(Math, faceworktimeArr)
+      let series = []
+      series.push({
+        id: 'dept-worktime',
+        name: '工时利用率',
+        data: data,
+        type: 'line',
+        barWidth: '8px',
+        showAllSymbol: true,
+        itemStyle: {
+          normal: {
+            color: '#26cc41'
+          }
+        }
+      })
+      series.push(barCharts(faceworktime, '#26cc41', 'faceworktime', '平均有效时长'))
+      series.push(barCharts(roadworktime, '#d7f20c', 'roadworktime', '平均无效时长'))
+      let msg = {
+        time :  this.parent.parent.time.split('-')[1],
+        legend: ['工时利用率', '平均有效时长', '平均无效时长'],
+        title:'工时利用率',
+        series: series,
+        max : max,
+        min : min,
+        isShow : true,
+        rightMax: rightMax
+      }
+      let option = efficiencyLineDept(msg)
+      chart.setOption(option)
+      chart.on('click', function (params) {
+        if (self.shiftWorktime) {
+          self.shiftWorktime.unmount(true)
+        }
+        let date = params.data[0]
+        let currentWholeworktime = self.parent.deptRows.get('wholeworktime').get(date)
+        let rateID = currentWholeworktime.rate_id
+        self.shiftWorktime = riot.mount('dialog-show', {
+          riotTag: 'worktime-shift',
+          deptID: self.parent.deptID,
+          time: `${self.parent.parent.time.split('-')[0]}-${params.name}`,
+          title: '平均工时明细表',
+          rateID: rateID
+        })[0]
+      })
+    }
+
+    /*处理数据*/
+    this.splitData = (rows) => {
+      let arr = []
+      rows.forEach(row => {
+        let time = Number(new Date(new Date(row.stime).getTime()).format('d'))
+        arr.push([time, row.worktime])
+      })
+      return arr
+    }
+
+    /*控制原因输入组件是否mount*/
+    this.show = (evt) => {
+      if (self.Analysis) self.Analysis.unmount(true)
+      self.Analysis = riot.mount('div.efficiency-reason-worktime','rs-efficiency-reason', {message: self.analysisMsg})[0]
+    }
+    
+    /*保存原因分析的传过去的回调函数*/
+    this.AnalysisCb = (CreateDateTime, updateArr) => {
+      let sql = `REPLACE into rpt_sanlv_daily_main (CreateDateTime,CreatePersonal,Rpt_Type) VALUES ('${CreateDateTime}','${this.parent.d_name}',3)`
+      let req = {
+        cmd: 'update',
+        data: {
+          op: 'INSERT',
+          name: 'rpt_sanlv_daily_main',
+          sql: sql,
+          updateArr: updateArr,
+          deptArr: [this.parent.workfaceID]
+        }
+      }
+      xbus.trigger('META-UPDATE-DB', {
+        req: req
+      })
+      this.parent.getSql(this.parent.deptID)
+    }
+
+    /*初始化函数*/
+    this.init = (worktimerows, faceworktime, roadworktime, worktimeAnalysis) => {
+      this.analysisMsg = {
+        Analysis: worktimeAnalysis[0] ? worktimeAnalysis[0].Analysis : '',
+        cb: this.AnalysisCb
+      }
+      faceworktime = faceworktime && this.splitData(faceworktime)
+      roadworktime = roadworktime && this.splitData(roadworktime)
+      this.faceworktime = faceworktime
+      this.roadworktime = roadworktime
+      this.initWorktimeCharts(worktimerows, faceworktime, roadworktime)
+    }
+  </script>
+</worktime-eff>

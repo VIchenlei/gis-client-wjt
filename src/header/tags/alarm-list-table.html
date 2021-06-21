@@ -1,0 +1,81 @@
+<alarm-list-table>
+  <rs-table-icon-btn
+    ref={opts.list}
+    showtitle='true'
+    selectall={selectall}
+    fields={fields} 
+    locate={locate}
+    btname="复位" 
+    rows={subRows} 
+    selectallname={opts.list} 
+    key="event_id">
+  </rs-table-icon-btn>
+  <div class="pagination" 
+    data-is="rs-pagination" 
+    totalpage={ totalPage} 
+    pageindex={ pageIndex } 
+    tablename='realTimeAlarm'
+    showpagenum='true'
+    if={totalPage>1}>
+  </div>
+  <script>
+    import '../../tags/rs-pagination/rs-pagination.html'
+    import { initPagination, copySubRows } from '../../js/utils/utils.js'
+
+    this.handleOperate = (evt, datas, selectallname) => {
+      typeof this.parent.handleOperate === 'function' && this.parent.handleOperate(evt, datas, selectallname)
+    }
+
+    this.on('PAGEINDEX-CHANGE', (msg) => {
+      if (msg.name === 'realTimeAlarm') {
+        this.pageIndex = msg.pageIndex
+        this.subRows = copySubRows(this.rows, this.pageIndex)
+        const rsTable = this.refs[opts.list]
+        rsTable && rsTable.updateRows(this.subRows)
+        this.update()
+        window.xhint.close()
+      }
+    })
+
+    this.updateRowsFields = (updateMsg) => {
+      this.getPages(this.pageIndex)
+      this.rows = updateMsg.data
+      this.sortRows()
+      this.subRows = copySubRows(this.rows, this.pageIndex)
+      updateMsg.data = this.subRows
+      this.hasdata = !!(this.subRows && this.subRows.length > 0)
+      const rsTable = this.refs[opts.list]
+      rsTable && rsTable.updateRowsFields(updateMsg)
+      this.update()
+    }
+
+    // 获取分页数据
+    this.getPages = (pageIndex) => {
+      let pages = initPagination(this.rows, pageIndex)
+      this.total = pages.total
+      this.totalPage = pages.totalPage
+      this.pageIndex = pages.pageIndex
+    }
+
+    this.sortRows = () => {
+      this.rows = this.rows.sort(function (a, b) {
+          return a.cur_time < b.cur_time ? 1 : -1
+      })
+    }
+
+    this.init = (opts) => {
+      this.selectall = xdata.isCheck !== 1 ? 'true' : ''
+      this.fields = this.parent.getFields(opts.list)
+      this.locate = this.parent.getLocate(opts.list)
+      this.rows = this.parent.getRows(opts.list)
+      this.sortRows()
+      this.hasdata = !!(this.rows && this.rows.length > 0) //有无数据
+      if (this.hasdata) {
+        this.getPages(this.pageIndex)
+        this.subRows = copySubRows(this.rows, this.pageIndex) // 初始化显示第一页     
+      }
+    }
+
+    this.init(opts)
+  </script>
+</alarm-list-table>

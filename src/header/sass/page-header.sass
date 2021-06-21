@@ -1,0 +1,53 @@
+@import '../../style/defs'
+
+.page-header
+  @include flex-row-center
+  flex: 0 0 .5rem
+  background-image: linear-gradient(30deg, #7cf, #09f)
+  color: $font-white
+  img
+    @include wh(1.6rem, auto)
+    margin-right: .3rem
+  .rs-text
+    @include wh(2.6rem, .23rem)
+    background: $color-white
+    border-radius: .2rem
+    input
+      border: none
+  .shortcut-operation
+    display: flex
+    border-right: 1px solid $color-ccc
+  .page-fuzzy-search
+    position: relative
+    font-size: 0.12rem
+    .search-icon
+      img
+        position: absolute
+        top: 0.03rem
+        right: -0.23rem
+        left: auto
+        height: 22px
+        cursor: pointer
+        width: auto
+      .searchinput
+        @include wh(2.72rem,0.256rem)
+        padding: 0 0.3rem 0 0.16rem
+        border-radius: 0.16rem
+        background: #fff
+        border: 0
+    .popup-list
+      position: absolute
+      left: 12px
+      z-index: 1
+      color: #000000
+      .chooseComponent
+        height: 2rem
+        overflow-y: auto
+      .tips
+        display: flex
+        justify-content: center
+        align-items: center
+        color: #222
+        height: 50px
+        width: 2rem
+        background-color: #fff

@@ -1,0 +1,38 @@
+@import '../../style/defs'
+.config-table
+  height: 100%
+.basic-battery-table
+  @include wh(100%, 100%)
+  padding: .45rem .1rem .1rem
+  color: $font-default
+  background: $color-grey-xs
+  overflow: hidden
+  .basic-header
+    font-size: $font-s
+    @include flex-between-center
+    position: relative
+    margin-bottom: .1rem
+    .icon
+      cursor: pointer
+      fill: #333
+  .basic-content
+    display: flex
+    height: inherit
+    overflow: hidden
+    .basic-left
+      flex: 1.2
+      overflow: auto
+      background: $color-white
+      padding: .1rem
+      .basic-search
+        box-shadow: 0 0 0 0 rgba(0, 0, 0, 0.3)
+      .rs-table-icon-btn
+        margin: 0
+    .basic-right
+      flex: 2
+      margin-left: .1rem
+      height: 100%
+      overflow: auto
+      padding-bottom: .32rem
+      .power-levels-msg
+        margin-top: .1rem

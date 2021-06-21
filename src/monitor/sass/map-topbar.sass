@@ -1,0 +1,126 @@
+@import '../../style/defs'
+.map-topbar
+  position: absolute
+  left: 50%
+  color: $color-white
+  top: 0.2rem
+  z-index: auto
+  transform: translateX(-50%)
+  ul
+    display: flex
+  li
+    @include flex-align-center
+    padding: 0 .1rem
+  .icon
+    @include wh(.2rem, .2rem)
+    display: flex
+    background: url('/img/icon.png') no-repeat
+    cursor: pointer
+    background-size: 2.81rem 3.32rem
+  .icon-down
+    @include wh(.16rem, .08rem)
+    background-size: 1.8rem 1.95rem
+    @include bp-hover(.02rem, -1.805rem, .02rem, -1.87rem)
+  .vehicle
+    @include bp-hover(-.02rem, -.93rem, -.02rem, -1.12rem)
+  .staff
+    @include bp-hover(-.17rem, -.93rem, -.17rem, -1.12rem)
+  .visual 
+    @include bp-hover(-.35rem, -.93rem, -.35rem, -1.12rem)
+  .magnifier 
+    @include bp-hover(-.53rem, -.93rem, -.53rem, -1.12rem)
+  .measure 
+    @include bp-hover(-.72rem, -.93rem, -.72rem, -1.12rem)
+  .edit_map
+    @include bp-hover(-.91rem, -.93rem, -.91rem, -1.12rem)
+  .visualarea
+    @include bp-hover(-.53rem, -1.31rem, -.53rem, -1.48rem)
+  .switch_map 
+    @include bp-hover(-1.09rem, -.93rem, -1.09rem, -1.12rem)
+  .rs-list ul
+    @include flex-column
+    width: 1.4rem
+    background: $color-white
+    color: $font-default
+    li
+      height: .3rem
+      span
+        margin-left: .08rem
+      i
+        @include wh(.16rem, .16rem)
+        background: url('/img/icon.png') no-repeat
+      &:hover,&.active
+        color: #09F
+    #reader
+      @include icon-bp-hover(-.02rem, -1.33rem, -.02rem, -1.5rem)
+    #light
+      @include icon-bp-hover(-.2rem, -1.33rem, -.2rem, -1.5rem)
+    #fade_area
+      @include icon-bp-hover(-.02rem, -1.67rem, -.02rem, -1.83rem)
+    #camera
+      @include icon-bp-hover(-.36rem, -1.33rem, -.36rem, -1.5rem)
+    #landmark
+      @include icon-bp-hover(-.73rem, -1.33rem, -.73rem, -1.5rem)
+    #reset
+      @include icon-bp-hover(-1.85rem, -1.33rem, -1.85rem, -1.5rem)
+    #fault
+      @include icon-bp-hover(-.95rem, -1.66rem, -.95rem, -1.82rem)
+    #underground
+      @include icon-bp-hover(-2.06rem, -2.05rem, -2.06rem, -2.22rem)
+    #areaStaff
+      @include icon-bp-hover(-2.06rem, -1.34rem, -2.06rem, -1.5rem)
+    #readerPath
+      @include icon-bp-hover(-1.12rem, -1.66rem, -1.12rem, -1.83rem)
+    #antenna
+      @include icon-bp-hover(-2.25rem, -2.04rem, -2.25rem, -2.2rem)
+
+      
+    // 矩形查车等
+    #rect_query_vehicle
+      @include icon-bp-hover(-.026rem, -1.66rem, -.026rem, -1.82rem)
+    #circle_query_vehicle
+      @include icon-bp-hover(-.2rem, -1.66rem, -.2rem, -1.82rem)
+    #poly_query_vehicle
+      @include icon-bp-hover(-.37rem, -1.66rem, -.37rem, -1.82rem)
+    #rect_query_staff
+      @include icon-bp-hover(-.56rem, -1.66rem, -.56rem, -1.82rem)
+    #circle_query_staff
+      @include icon-bp-hover(-.74rem, -1.66rem, -.74rem, -1.82rem)
+    #poly_query_staff
+      @include icon-bp-hover(-.95rem, -1.66rem, -.95rem, -1.82rem)
+
+    // 长度、面积、新增分站等
+    #measure_length
+      @include icon-bp-hover(-.01rem, -1.97rem, -.01rem, -2.14rem)
+    #measure_area
+      @include icon-bp-hover(-.185rem, -1.985rem, -.185rem, -2.16rem)
+    #edit_area
+      @include icon-bp-hover(-.37rem, -1.99rem, -.37rem, -2.16rem)
+    #edit_landmark
+      @include icon-bp-hover(-.55rem, -1.98rem, -.55rem, -2.15rem)
+    #edit_forbid_area
+      @include icon-bp-hover(-.026rem, -1.66rem, -.026rem, -1.82rem)
+    #edit_forbid_bstation
+      @include icon-bp-hover(-.02rem, -1.33rem, -.02rem, -1.5rem)
+    #edit_route_plan
+      @include icon-bp-hover(-1.12rem, -1.66rem, -1.12rem, -1.83rem)
+    #edit_goaf
+      @include icon-bp-hover(-1.31rem, -1.66rem, -1.31rem, -1.83rem)
+    #edit_point
+      @include icon-bp-hover(-1.5rem, -1.66rem, -1.5rem, -1.83rem)
+    #delete_point
+      @include icon-bp-hover(-1.69rem, -1.66rem, -1.69rem, -1.83rem)
+
+    // 普通、特殊等区域
+    #area_1
+      @include icon-bp-hover(-1.89rem, -1.67rem, -1.89rem, -1.84rem)
+    #area_3
+      @include icon-bp-hover(-2.08rem, -1.67rem, -2.08rem, -1.84rem)
+    #area_5
+      @include icon-bp-hover(-2.26rem, -1.67rem, -2.26rem, -1.84rem)
+    #area_6
+      @include icon-bp-hover(-2.45rem, -1.67rem, -2.45rem, -1.84rem)
+    #area_1001
+      @include icon-bp-hover(-2.63rem, -1.67rem, -2.63rem, -1.84rem)
+    #area_2000
+      @include icon-bp-hover(-1.89rem, -2.04rem, -1.89rem, -2.21rem)

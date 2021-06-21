@@ -1,0 +1,172 @@
+<player-ctrl class="player-controlbar">
+  <span class="process-container">
+    <span ref="wholeprocess" class="whole-process" onclick={ gotoHere }>
+      <span ref="activeprocess" class="active-process">
+        <span class="process-indicator"></span>
+      </span>
+    </span>
+  </span>
+
+  <span class="play-pause">
+    <span onclick={ togglePlay } id="playButton" class="player-button">
+      <svg class="icon" if={ isPlaying }><use xlink:href="/icons/icons.svg#icon-pause"></use></svg>
+      <svg class="icon" if={ !isPlaying }><use xlink:href="/icons/icons.svg#icon-play_arrow"></use></svg>
+    </span>
+    <span onclick={ stopPlay } class="player-button">
+      <svg class="icon"><use xlink:href="/icons/icons.svg#icon-stop2"></use></svg>
+    </span>
+    <span class="time-bar">
+      <span ref="elapsedtime">00:00:00</span>
+      <span>/</span>
+      <span ref="totaltime">00:00:00</span>
+    </span>
+  </span>
+
+  <span class="speed-controler">
+    <span ref="s60" class="select-tag active" data-value="60" onclick={ setSpeed }>60X</span>
+    <span ref="s70" class="select-tag" data-value="70" onclick={ setSpeed }>一分钟播放</span>
+  </span>
+
+  <script>
+    import { formatElapsedTime } from '../../js/utils/utils.js'
+    import '../sass/player-ctrl.sass'
+    this.on('mount', () => {
+      this.mountInit()
+    })
+
+    this.on('unmount', () => {
+      try {
+        window.removeEventListener('resize', false)
+      } catch (err) {
+        console.log('err')
+      }
+    })
+
+    this.mountInit = () => {
+      this.elapsedTimeNode = this.refs.elapsedtime
+      this.totalTimeNode = this.refs.totaltime
+      this.processBarNode = this.refs.wholeprocess
+      this.activeProcessNode = this.refs.activeprocess
+      this.activeSpeedNode = this.refs.s60
+      this.player = this.parent
+      this.ticker = this.player.ticker
+      this.initProcessBar()
+      this.monitorResize()
+    }
+
+    this.monitorResize = () => {
+      let self = this
+      window.addEventListener('resize', function handle () {
+        self.pbLength = self.processBarNode.offsetWidth
+      })
+    }
+
+    this.initProcessBar = () => {
+      this.isPlaying = false
+      this.activeProcessNode && this.activeProcessNode.setAttribute('style', `transform:translateX(-99%)`)
+      this.updateDurationNode(this.elapsedTimeNode, 0)
+      this.updateDurationNode(this.totalTimeNode, 0)
+      this.pbLength = this.processBarNode && this.processBarNode.offsetWidth
+      this.update()
+    }
+
+    this.initTrack = (msg) => {
+      this.isPlaying = false
+      this.activeProcessNode && this.activeProcessNode.setAttribute('style', `transform:translateX(-99%)`)
+      this.updateDurationNode(this.elapsedTimeNode, 0)
+      if (msg) {
+        let totalMs = ((new Date(msg.endTime)).getTime() - (new Date(msg.startTime)).getTime()) || 0
+        this.updateDurationNode(this.totalTimeNode, totalMs)
+      }
+      this.pbLength = this.processBarNode.offsetWidth
+      this.update()
+    }
+
+    this.setSpeed = (evt) => {
+      let node = evt.target
+      let speed = parseInt(node.getAttribute('data-value'), 10)
+
+      if (node !== this.activeSpeedNode) {
+        this.activeSpeedNode.classList.remove('active')
+        this.activeSpeedNode = node
+        this.activeSpeedNode.classList.add('active')
+
+        this.ticker.setSpeed(speed)
+      }
+
+      evt.preventUpdate = true
+    }
+
+    this.togglePlay = (evt) => {
+      if (this.totalTimeNode.innerText === '00:00:00' && !this.isPlaying) {
+        return
+      }
+      this.isPlaying = !this.isPlaying
+      this.ticker.togglePlay()
+    }
+
+    xbus.on('STOP-PLAYER-PLAY', () => {
+      this.isPlaying = false
+      this.ticker && this.ticker.pausePlay()
+      this.update()
+    })
+
+    this.stopPlay = (evt) => {
+      this.isPlaying = false
+      this.ticker.stopPlay()
+      this.update()
+    }
+
+    this.gotoHere = (evt) => {
+      if (this.totalTimeNode.innerText === '00:00:00' && !this.isPlaying) return
+      let x = evt.layerX
+      let percent = x / this.pbLength
+      if (percent < 0.01) {
+        this.isPlaying = false
+        return this.ticker.stopPlay()
+      }
+      this.ticker.gotoHere(percent, 'jump')
+      this.isPlaying = false
+      this.update()
+    }
+
+    this.jumpTo = (tick) => {
+      this.updateActiveBar(tick, 'jump')
+      this.updateDurationNode(this.elapsedTimeNode, tick * 1000)
+    }
+
+    this.doTick = (tick) => {
+      this.updateActiveBar(tick)
+      this.updateDurationNode(this.elapsedTimeNode, tick * 1000)
+    }
+
+    this.updateDurationNode = (node, time) => {
+      let stime = formatElapsedTime(time)
+      node && (node.innerText = stime)
+    }
+
+    this.updateActiveBar = (tick, type) => {
+      let percent = tick / this.ticker.totalTick
+      let s = '-' + (1 - percent) * 99 + '%'
+      let style = `transform:translateX(${s});`
+      if (type !== 'jump') style = style + 'transition: transform 980ms linear'
+      this.activeProcessNode.setAttribute('style', style)
+    }
+
+    this.reset = () => {
+      this.initProcessBar()
+    }
+
+    this.init = (opts) => {
+      this.isMouseDown = false
+      this.isPlaying = false
+      this.processBarNode = null
+      this.activeProcessNode = null
+      this.elapsedTimeNode = null
+      this.activeSpeedNode = null
+      this.player = null
+    }
+
+    this.init(opts)
+  </script>
+</player-ctrl>

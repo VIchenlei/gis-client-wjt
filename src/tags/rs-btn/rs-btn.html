@@ -1,0 +1,13 @@
+<rs-btn class="rs-btn">
+  <button class={btntype}>{btntext}</button>
+
+  <script>
+    import './rs-btn.sass'
+
+    this.init = (opts) => {
+      this.btntype = opts.type || 'nomal'
+      this.btntext = opts.text
+    }
+    this.init(opts)
+  </script>
+</rs-btn>

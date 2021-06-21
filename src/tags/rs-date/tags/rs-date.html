@@ -1,0 +1,141 @@
+<!--
+  /**
+    *ref: 用作录入框需要传入，用来获取input的value，不传值ref默认为‘calendar’
+    *value: 输入框内容，传入-显示传入内容，不传则显示palcehoder
+    *text : 日期录入框title，不传默认文字为日期
+    *type : type日期类型 DATETIME、DATE、MONTH、TIME，不传默认为DATE
+    *enableNull: 是否为必填项，不传默认为true，不是必填项
+    *isShowSecond: true展示秒，默认false
+  */
+-->
+<rs-date class="rs-date">
+  <fieldset class="choose-date" tabindex="0" onclick={ handleFocus } onfocusout={ handleFocusout }>
+    <legend>
+      <span class="choose-date-label">{text}</span>
+      <span class="choose-date-tips">{tips}</span>
+    </legend>
+    <input class="calendar-select"
+      idname={calendar}  
+      ref={calendar} 
+      placeholder={placeholder} 
+      value={ value } 
+      onfocus={ inputFocus } 
+      oninput={ dateInput }
+      disabled={ opts.disabled } 
+      readonly=true>
+    <div class="rs-choose-date" data-is="rs-choose-date" cb={ getInputVal } type={ type } value={ value } showSecond={ isShowSecond }></div>
+  </fieldset>
+  <span class={info ? 'info' : ''}>{ info }</span>
+  <script>
+    import '../sass/rs-date.sass'
+    import '../tags/rs-choose-date.html'
+    import utils from '../js/utils.js'
+
+    const REGDATE = {
+      DATETIME: /^([1-2]\d{3})-(0?[1-9]|1[0-2])-(0?[1-9]|[1-2][0-9]|30|31) (0?\d|1\d|2[0-4]):(0?\d|[1-5]\d)(:(0?\d|[1-5]\d))?$/,
+      DATE: /^([1-2]\d{3})-(0?[1-9]|1[0-2])-(0?[1-9]|[1-2][0-9]|30|31)$/,
+      MONTH: /^([1-2]\d{3})-(0?[1-9]|1[0-2])$/,
+      TIME: /^([0-1][0-9]|2[0-3]):([0-5][0-9])(:([0-5][0-9]))?$/
+    }
+
+    let chooseDate, className, rsChooseDate, currentTag
+    this.isShowChoose = true
+
+    this.on('mount', () => {
+      chooseDate = this.root.querySelector('.choose-date').classList
+      className = 'choose-date-red-line'
+      rsChooseDate = this.root.querySelector('.rs-choose-date').classList
+      currentTag = this.tags['rs-choose-date']
+    })
+
+    /*失去焦距隐藏搜索子组件*/
+    this.handleFocusout = (evt) => {
+      let fieldsetElement = this.root.querySelector('.choose-date')
+      let focusoutEl = evt.relatedTarget
+      if (!fieldsetElement.contains(focusoutEl)) {
+        if (utils.attr(currentTag.elemWrap, 'isShow') == 'on') {
+          fieldsetElement.classList.remove('choose-date-line')
+          this.openPanel(evt)
+        }
+      }
+    }
+
+    //点击输入框弹出日期控件
+    this.handleFocus = (evt) => {
+      if (opts.disabled) return 
+      const fieldsetElement = this.root.querySelector('.choose-date')
+      if (utils.attr(currentTag.elemWrap, 'isShow') == 'off') {
+        fieldsetElement.classList.add('choose-date-line')
+        this.openPanel(evt)
+      } else {
+        fieldsetElement.classList.remove('choose-date-line')
+      }
+    }
+
+    this.openPanel = (evt) => {
+      currentTag.openPanel(evt.target)
+      if (['TIME', 'DATETIME'].includes(this.type)) {
+        let currentTimeTag = currentTag.tags[`rs-choose-date-time`]
+        currentTimeTag.initTimePosition()
+      }
+      evt.stopPropagation()
+    }
+
+    this.dateInput = (evt) => {
+      let value = evt.target.value
+      if (value.indexOf(" ") === -1) return
+      this.checkDate(value)
+      let splitValList = currentTag.getSplitValue(value)
+      let dateList = splitValList.dateList,
+        timeList = splitValList.timeList
+      currentTag.getRemoveSelect()
+      currentTag.dateInput(dateList, timeList)
+      currentTag.updateHtml()
+      if (!value) currentTag.clearInput()
+    }
+
+    this.getInputVal = (value) => {
+      this.root.querySelector('.calendar-select').value = value
+    }
+
+    this.inputFocus = (e) => {
+      chooseDate.remove(className)
+    }
+
+    /*检验日期*/
+    this.checkDate = (val) => {
+      if (!this.tips) return
+      let value = val || this.refs[this.calendar].value
+      let regDate = REGDATE[this.type]
+      !regDate.test(value) ? chooseDate.add(className) : chooseDate.remove(className)
+      if (!value) {
+        this.info = '输入不能为空'
+      } else {
+        this.info = !regDate.test(value) ? '请输入正确的时间' : ''
+        if (val) this.update()
+      }
+    }
+
+    this.updateValue = (value) => {
+      this.value = value
+      this.update()
+    }
+
+    this.init = (opts) => {
+      this.calendar = opts.ref || 'calendar'
+      this.calendar = opts.name || this.calendar
+      this.type = opts.type || 'DATE'
+      this.value = opts.riotValue || ''
+      this.value = this.value.includes('T') ? new Date(this.value).format('yyyy-MM-dd: hh:mm:ss') : this.value
+      this.text = opts.text || '日期'
+      this.enableNull = opts.hasOwnProperty('enablenull') ? opts.enablenull : true
+      this.tips = !this.enableNull ? '*' : ''
+      this.info = ''
+      this.isShowSecond = opts.isshowsecond || false
+      this.placeholder = opts.placeholder || '选择日期'
+      this.modifycb = opts.modifycb
+    }
+
+    this.init(opts)
+  </script>
+</rs-date>

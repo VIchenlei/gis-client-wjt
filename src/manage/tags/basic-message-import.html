@@ -1,0 +1,23 @@
+<basic-message-import>
+  <ul>
+    <li each={ menu in menus } name={ menu.name } class={ menu.value } onclick={ chooseMenu }>{ menu.label }</li>
+  </ul>
+  <script>
+    import '../sass/basic-message-import.sass'
+
+    /*选择导入导出*/ 
+    this.chooseMenu = (evt) => {
+      let target = evt.target
+      let opName = evt.currentTarget.getAttribute('class')
+      let name = target.getAttribute('name')
+      this.cb(name, opName)
+    }
+
+    this.init = (opts) => {
+      this.menus = opts.menus
+      this.cb = opts.cb
+    }
+
+    this.init(opts)
+  </script>
+</basic-message-import>

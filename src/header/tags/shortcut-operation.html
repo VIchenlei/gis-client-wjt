@@ -1,0 +1,63 @@
+<shortcut-operation>
+    <span each={item in badgeItems} class="shortcut-item hint--bottom-left {isShow(item)}" aria-label={item.label}>
+      <icon-badge class="icon-badge" data-name={item.name} iconname={item.name} mark={ alarmCount } onclick={switchItem}></icon-badge>
+    </span>
+    <span each={ item in shortcut } class="shortcut-item hint--bottom-left {item.onmobile ? '' : 'hide-on-mb'} {isShow(item)}" data-name={item.name} aria-label={ item.label } onclick={ switchItem }>
+      <span class="icon {item.name}"></span>
+    </span>
+
+    <script>
+      /**
+       * badgeItems: 带角标的icon
+       * shortcut: 普通icon
+      */
+      import '../../tags/icon-badge/icon-badge.html'
+      import '../sass/shortcut-operation.sass'
+
+      this.switchItem = (evt) => {
+        let target = evt.currentTarget
+        let doSwitchName = target.getAttribute('data-name')
+        typeof this.parent.doSwitchItem === 'function' && this.parent.doSwitchItem(doSwitchName)
+      }
+
+      this.isShow = (row) => {
+        let menuID = row.menuID
+        if (!xdata.hasMenus || xdata.menus.includes(menuID)) return ''
+        return 'hide'
+      }
+
+      this.updateAlarmCount = () => {
+        let tagAlarmBadge = this.tags['icon-badge']
+        if (tagAlarmBadge) {
+          this.alarmCount = xdata.alarmStore.onAlarming ? xdata.alarmStore.onAlarming.size : 0
+          let eventType = xdata.metaStore.data.event_type && xdata.metaStore.data.event_type.get(40)
+          let isShow = eventType && eventType.is_show === 1 ? true : false // 资格是否显示 true 隐藏 false显示
+          if (isShow) {
+            let credCount = xdata.alarmStore.certificateAlarm.size
+            this.alarmCount = this.alarmCount - credCount
+          }
+          if (xdata.isCheck === 1) {
+            let resetAlarmCount = xdata.alarmStore.resetAlarming.size
+            this.alarmCount = resetAlarmCount ? this.alarmCount - resetAlarmCount : this.alarmCount
+          }
+          tagAlarmBadge.updateMark(this.alarmCount)
+        }
+      }
+
+      xbus.on('ALARM-LIST-CHANGED', (msg) => {
+        this.updateAlarmCount()
+      })
+
+      xbus.on('SHOW-ALARM-CHANGE', () => {
+        this.updateAlarmCount()
+      })
+
+      this.init = (opts) => {
+        this.badgeItems = opts.badgeitems
+        this.shortcut = opts.shortcut
+        this.className = opts.class
+        this.alarmCount = 0
+      }
+      this.init(opts)
+    </script>
+</shortcut-operation>

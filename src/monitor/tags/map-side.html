@@ -1,0 +1,18 @@
+<map-side>
+  <div class="mapside">
+    <div data-is="map-side-over"></div>
+    <div data-is="map-side-bar" papa={papa}></div>
+  </div>
+
+  <script>
+    import './map-side-over.html'
+    import './map-side-bar.html'
+    import '../sass/map-side.sass'
+
+    this.init = (opts) => {
+      this.papa = opts.papa
+    }
+
+    this.init(opts)
+  </script>
+</map-side>

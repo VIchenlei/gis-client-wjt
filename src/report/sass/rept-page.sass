@@ -1,0 +1,42 @@
+
+@import '../../style/defs.sass'
+
+.report-canvas
+  .tab-bar
+    .tab-container
+      display: flex
+      align-items: flex-end
+      flex: 0 0 $head-height
+      overflow-x: auto
+      overflow-y: hidden
+      padding: 5px 10px 0 10px
+      .tab
+        @include flex-around-center
+        height: 0.36rem
+        min-width: 1.84rem
+        flex: 0 0 auto
+        cursor: pointer
+        font-size: 0.14rem
+        border: 1px solid $color-border
+        .pic-span
+          @include wh(0.16rem, 0.16rem)
+          background-image: url('/img/close.png')
+          background-size: cover
+        .label-span
+          display: flex
+          padding: 0 0 0 5px
+          color: #666
+          line-height: 0.32rem
+          white-space: nowrap
+        &.active
+          background-image: linear-gradient(180deg, #7cf, #09f)
+          border: none
+          .pic-span
+            background-image: url('/img/close-active.png')
+          .label-span
+            color: #ffffff
+            white-space: nowrap
+  .tab-content
+    flex-flow: column nowrap
+    flex: auto
+    padding: 0 10px

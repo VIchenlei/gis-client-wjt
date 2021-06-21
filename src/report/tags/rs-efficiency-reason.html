@@ -1,0 +1,63 @@
+<rs-efficiency-reason>
+  <div class="dept-analysis">
+		<input class='write-analysis' type="text" ref='db_analysis' placeholder="请输入原因分析...">
+		<div class="old-analysis">{ Analysis }</div>
+		<div class="time_warp">
+			<span>请输入修改时间</span>
+			<input type="date" ref="save_time" value={ defaultTime }>
+		</div>
+		<div class="btn-warp">
+      <div class="btn-save" onclick={ save }>保存</div>
+      <div class="btn-save" onclick={ close }>取消</div>
+		</div>
+	</div>
+<script>
+  import '../sass/rs-efficiency-reason.sass'
+  
+  /*保存函数，执行回到，返回需要保存的信息*/
+  this.save = () => {
+    let oldArr = [], updateArr = []
+    let CreateDateTime = this.refs.save_time.value
+    let NowTime = new Date().format('yyyy-MM-dd')
+    if (!CreateDateTime) return window.xMessage.open({
+      message: '请输入原因分析！',
+      type: 'warning'
+    })
+    if (this.refs.db_analysis) {
+      oldArr.push(this.Analysis)
+      updateArr.push(this.refs.db_analysis.value)
+    } else {
+      return window.xMessage.open({
+        message: '请输入原因分析！',
+        type: 'warning'
+      })
+    }
+
+    if (NowTime !== CreateDateTime || JSON.stringify(oldArr) !== JSON.stringify(updateArr)) {
+      this.cb(CreateDateTime, updateArr)
+    } else {
+      return window.xMessage.open({
+        message: '修改失败!',
+        type: 'warning'
+      })
+    }
+    this.close()
+  }
+
+  /*关闭函数*/
+  this.close = () => {
+    this.unmount(true)
+  }
+
+  /*初始化函数*/
+  this.init = (opts) => {
+    let message = opts.message
+    this.Analysis = message ? message.Analysis : ''
+    this.defaultTime = new Date().format('yyyy-MM-dd')
+    this.cb = message && message.cb
+  }
+
+  /*执行初始化函数*/
+  this.init(opts)
+</script>
+</rs-efficiency-reason>

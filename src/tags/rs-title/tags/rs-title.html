@@ -1,0 +1,33 @@
+<rs-title class="rs-title {classname}">
+  <span class="dlg-title">
+    <rs-grip type="grip-horizontal"></rs-grip>
+    <span>{title}</span>
+  </span>
+  <span onclick={ close } if={ needCloser }>
+    <img class="icon" src="/img/close.png" alt="">
+  </span>
+
+  <script>
+    import '../sass/rs-title.sass'
+    import './rs-grip.html'
+
+    this.on('update',() => {
+      this.title = opts.title
+    })
+
+    this.close = (evt) => {
+      if (typeof this.parent.close === 'function') {
+        this.parent.close(evt)
+      } else {
+        let ele = this.parent.root.classList
+        ele.add('hide')
+      }
+    }
+
+    this.init = (opts) => {
+      this.title = opts.title
+      this.needCloser = !(opts.closer === 'no')
+    }
+    this.init(opts)
+  </script>
+</rs-title>

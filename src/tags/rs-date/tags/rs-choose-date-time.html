@@ -1,0 +1,65 @@
+<rs-choose-date-time class="rs-choose-date-time">
+  <div class="calendar-precise">
+    <div class="precise-title">
+      <span each={ rows in dateTimeList } if={ rows.show }>{ rows.title }</span>
+    </div>
+    <div class="precise-wrapper"></div>
+  </div>
+  <script>
+    import '../sass/rs-choose-date-time.sass'
+    let calendarTbody = null
+
+    this.getTbodyTimeLiTemplate = (rows, name) => {
+      let html = ''
+      for (let i = 0; i < rows.length; i++) {
+        html+=`<li class="precise-wrapper-list ${ this.dateOpt[name] === rows[i] ? 'precise-wrapper-list-select' : '' }">${rows[i]}</li>`
+      }
+      return html
+    }
+
+    this.getTbodyTimeTemplate = (dateOpt, dateTimeList) => {
+      this.dateOpt = dateOpt
+      this.dateTimeList = dateTimeList
+      let html = ''
+      for (let i = 0; i < dateTimeList.length; i++) {
+        html+=`<div class="precise-wrapper-box" style="display:${dateTimeList[i].show ? 'block' : 'none'}"><ul class="precise-wrapper-${ dateTimeList[i].name }" name="${dateTimeList[i].name}">${this.getTbodyTimeLiTemplate(dateTimeList[i].list, dateTimeList[i].name)}</ul></div>`
+      }
+      return html
+    }
+
+    this.handleTime = () => {
+      typeof this.parent.handleTbody === 'function' && this.parent.handleTbody(calendarTbody, this)
+    }
+
+    //十分秒初始设置位置及绑定鼠标滚轮事件
+    this.initTimePosition = () => {
+      const names = ['hour', 'minute', 'second']
+      names.forEach(item => {
+        let time = this.root.querySelector(`.precise-wrapper-${item}`)
+        let active = time.querySelector('.precise-wrapper-list-select')
+        this.parent.handleScroll(active)
+        time.addEventListener('mousewheel', (evt) => {
+          evt.preventDefault()
+          let active = time.querySelector('.precise-wrapper-list-select')
+          let target = evt.wheelDelta > 0 ? active.previousElementSibling : active.nextElementSibling
+          if (target) this.parent.handleScroll(target)
+        })
+      })
+    }
+
+    this.on('mount', () => {
+      calendarTbody = this.root.querySelector('.precise-wrapper')
+      typeof this.parent.updateHtml === 'function' && this.parent.updateHtml()
+      this.handleTime()
+      this.initTimePosition()
+    })
+
+    this.init = (opts) => {
+      this.dateTimeList = opts.data
+      this.type = opts.type
+      this.dateOpt = opts.dateopt
+    }
+
+    this.init(opts)
+  </script>
+</rs-choose-date-time>

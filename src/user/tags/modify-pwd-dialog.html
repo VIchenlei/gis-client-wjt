@@ -1,0 +1,37 @@
+<modify-pwd-dialog>
+  <div class="dlg-bg" onclick={stopPropagation}>
+    <div ref="pwddialog" class="dlg-window modify-dialog animated zoomIn">
+      <div data-is="rs-title" title={ title } class="dlg-head"></div>
+      <div class="dlg-body dlg-body-for-modify">
+        <modify-pwd id="modipwd" username={name}></modify-pwd>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    import '../../tags/rs-title/tags/rs-title.html'
+    import './modify-pwd.html'
+    import '../sass/modify-pwd-dialog.sass'
+    
+    this.mixin('EventMixin')
+    this.on('mount', () => {
+      if (window.isPC) window.setDialogDraggable(this.root)
+    })
+
+    this.show = () => {
+      this.root.classList.remove('hide')
+    }
+
+    this.close = (evt) => {
+      this.unmount(true)
+    }
+
+    this.init = (opts) => {
+      this.title = opts.title
+      this.tagModifyPwd = null
+      this.name = opts.username
+    }
+
+    this.init(opts)
+  </script>
+</modify-pwd-dialog>

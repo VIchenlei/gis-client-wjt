@@ -1,0 +1,73 @@
+<main-nav class="main-nav">
+  <nav onclick={switchItem}>
+    <span each={menus} data-value={name} ref={name} if={isShow(menuID)}>{label}</span>
+  </nav>
+
+  <script>
+    import '../sass/main-nav.sass'
+
+    let spHistory = null, spReport = null
+
+    this.isShow = (menuID) => {
+
+      let isShow = false
+      let result = xdata.menus.find(item =>{
+        return item.includes(menuID)
+      })
+      if (!xdata.hasMenus || result) isShow = true
+      return isShow
+    }
+
+    this.on('mount',() => {
+      let node = this.refs['sp_monitor']
+      this.setActiveItem(node)
+    })
+
+
+    this.gotoPage = (spName, msg) => {
+      let fromSpName = this.activeItem && this.activeItem.getAttribute('data-value')
+      this.mainPage.gotoPage(spName, msg)
+    }
+
+    xbus.on('TRACK-FAST-OPERATE', (msg) => {
+      msg && this.gotoPage('sp_history', msg)
+    })
+
+    xbus.on('REPORT-FAST-OPEN', (msg) => {
+      this.gotoPage('sp_report', msg)
+      xbus.trigger('SHOW-REPORT', (msg))
+    })
+    
+    this.setActiveItem = (node) => {
+      this.activeItem && this.activeItem.classList.remove('active')
+
+      node && node.classList.add('active')
+      this.activeItem = node
+    }
+
+    this.switchItem = (evt) => {
+      let target = evt.target
+      let spName = target.getAttribute('data-value')
+      let sideBarName = this.activeItem && this.activeItem.getAttribute('data-value')
+      if (sideBarName && sideBarName === 'sp_config') {
+        xbus.trigger('REST-DEVICE-TABLE')
+      }
+      if (target === this.activeItem) return
+      this.setActiveItem(target)
+      if (spName) this.gotoPage(spName, null)
+    }
+
+    this.setActiveItemByName = (nodeName) => {
+      let node = this.refs[nodeName]
+      node && this.setActiveItem(node)
+    }
+
+    this.init = (opts) => {
+      this.menus = opts.menuitems
+      this.activeItem = null
+      this.mainPage = this.parent.parent
+    }
+
+    this.init(opts)
+  </script>
+</main-nav>

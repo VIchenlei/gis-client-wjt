@@ -1,0 +1,76 @@
+@import '../../../style/defs'
+.rs-choose-date-year, .rs-choose-date-time
+  width: 100%
+  display: block
+.calendar-border
+  border-right: 1px solid $color-border
+.calendar-panel-header
+  @include wh(2.02rem, 0.4rem)
+  line-height: 0.4rem
+  text-align: center
+  user-select: none
+  border-bottom: 1px solid $color-border
+  position: relative
+  div>a
+    position: absolute
+    top: 0
+    cursor: pointer
+    color: $color-border
+    font-family: 'SimHei'
+  div>a:hover
+    color: #1890ff
+  .calendar-prev-year-btn 
+    left: 7px
+  .calendar-prev-month-btn 
+    left: 36px
+  .calendar-next-year-btn 
+    right: 7px
+  .calendar-next-month-btn 
+    right: 36px
+.calendar-panel-body
+  padding: 8px 12px
+  .calendar-table
+    border-collapse: collapse
+    max-width: 100%
+    background-color: transparent
+    width: 100%
+    thead, tbody
+      display: table-header-group
+      vertical-align: middle
+      border-color: inherit
+      tr 
+        display: table-row
+        vertical-align: inherit
+        border-color: inherit
+        td, th
+          border: 0
+          text-align: center
+          font-size: $font-xs
+        .calendar-cell 
+          color: #333
+          padding: 3px 0
+          height: 30px
+          .calendar-date 
+            display: block
+            margin: 0 auto
+            color: #000
+            border-radius: 2px
+            width: 21px
+            height: 21px
+            line-height: 20px
+            border: 1px solid transparent
+            padding: 0
+            background: transparent
+            text-align: center
+            -webkit-transition: background .3s ease
+            transition: background .3s ease
+            cursor: pointer
+        .calendar-today
+          .calendar-date 
+            border-color: #1890ff
+            color: #1890ff
+        .calendar-selected-date, .calendar-selected-start-date, .calendar-selected-end-date
+          .calendar-date 
+            background: #1890ff
+            color: #fff
+            border: 1px solid transparent

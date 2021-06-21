@@ -1,0 +1,461 @@
+<device-net-table>
+  <div data-is="rs-batch-process"
+    name={ name }
+    key={ key } 
+    data-msg={ opts } 
+    class="rs-batch-process">
+  </div>
+  <div class="device-net-table">
+    <rs-text-field if={name === 'staff_software_update'} 
+      data={cardRow} 
+      ref={cardRow.field_name} 
+      data-name='device'>
+    </rs-text-field>
+    <rs-text-field if={name === 'staff_software_update'} 
+      data={versionRow} 
+      ref={versionRow.field_name} 
+      data-name='device'>
+    </rs-text-field>
+    <!-- <div class="device-panel" if={!software.includes(name)}>
+      <button onclick={batchEditDeviceUpdate}>批量修改</button>
+    </div> -->
+    <div class="software-panel" if={software.includes(name)}>
+      <div class="software-file" onclick={modifyFile}>
+        <button class="firstFile">{getText()}</button>
+        <button class="secondFile" if={name !== 'staff_software_update'}>分站程序文件2</button>
+      </div>
+      <div class="device-update-btn" onclick={handleBtn}>
+        <button class="start_send_device_update">扫描</button>
+      </div>
+    </div>
+    <div data-is="device-tree-table" 
+      rows={ subRows } 
+      key={ key } 
+      fields={ def.fields }
+      selectall={selectall} 
+      selectallname={selectallname}
+      labelname='选择'
+      serialnumber={isShowSerialNumber} 
+      operate={operate}>
+    </div>
+    <div class="pagination" 
+      data-is="rs-pagination" 
+      totalpage={ totalPage} 
+      pageindex={ pageIndex } 
+      tablename={ name } 
+      if={totalPage>1}>
+    </div>
+  </div>
+  <script>
+    import '../sass/device-net-table.sass'
+    import '../tags/device-tree-table.html'
+    import { DEVICE_TYPE } from '../js/device_updata_def.js'
+    import { getRows, getMessage, copySubRows, initPagination, messageTip } from '../../js/utils/utils.js'
+    // import deviceAllDatas from '../js/devcie_scan_def.js'
+
+    const STORENAME = {
+      network_configuration: 'netStore',
+      device_configuration: 'paramsStore',
+      device_net_params: 'netStore',
+      software_configuration: 'paramsStore',
+      device_software_update: 'paramsStore',
+      device_params: 'paramsStore'
+    }
+
+    const cardType = {
+      1: 145,
+      2: 146,
+      4: 148,
+      5: 149
+    }
+
+    // deviceType 为红绿灯、小分站、隔爆电源、can中继数据添加到大分站下显示
+    const DEVICEID = [2, 5, 6, 12]
+
+    this.software = ['device_software_update', 'staff_software_update']
+
+    this.getText = () => {
+      return this.name === 'staff_software_update' ? '标识卡程序文件' : '分站程序文件1'
+    }
+
+    this.getClassName = (row) => {
+      if (this.name === 'staff_software_update') {
+        const {card_type_id, ident} = row
+        if (xdata.deviceUpdateStore.cardUploaded.get(`${ident}-${card_type_id}`)) return 'green'
+        return ''
+      }
+      return ''
+    }
+
+    this.uploadFile = (source, name) => {
+      let tag = this.root.querySelector(`.${this.className}`)
+      tag.innerText = name
+      tag.setAttribute('data-source', source)
+    }
+
+    this.modifyFile = (evt) => {
+      let self = this
+      let target = evt.target
+      this.className = target.className
+      let msg = {
+        cmd: 'UPDATE',
+        fieldName: 'bin',
+        fileType: 'bin',
+        fileName: '',
+        fileNamePrefix: '0',
+        cb: this.uploadFile
+      }
+      if (this.fileDialog) {
+        this.fileDialog.unmount(true)
+      }
+      this.fileDialog = riot.mount('rs-file-dialog', msg)[0]
+      xbus.trigger('FILEDIALOG-DATA-SHOW')
+    }
+
+    this.getKeyAttribute = () => {
+      if (this.name === 'staff_software_update') return ['ident', 'card_type_id']
+      return ['deviceAddress', 'deviceType']
+    }
+
+    //全选
+    this.handleSelectAll = (handleID, checked) => {
+      this.checked = checked
+      this.isSelectAll = checked
+      let KeyAttribute = this.getKeyAttribute()
+      this.rows.forEach(item => {
+        let key = `${item[KeyAttribute[0]]}-${item[KeyAttribute[1]]}`
+        this.checked ? this.selectInputs.set(key, true) : this.selectInputs.delete(key)
+      })
+    }
+
+    //选中单个
+    this.handleSelect = (data, checked) => {
+      let KeyAttribute = this.getKeyAttribute()
+      let key = `${data[KeyAttribute[0]]}-${data[KeyAttribute[1]]}`
+      checked ? this.selectInputs.set(key, true) : this.selectInputs.delete(key)
+      if (this.isSelectAll) {
+        this.checked = !checked ? false : this.checked
+        !checked ? this.notChecked.set(key, true) : this.notChecked.delete(key)
+        if (this.notChecked.size === 0) this.checked = true
+        this.update()
+      }
+      let selectAll = this.tags['device-tree-table'].refs[this.selectallname]
+      selectAll && (selectAll.checked = this.checked)
+    }
+
+    //是否选中状态
+    this.isChecked = (data, row) => {
+      // row = this.rows
+      let KeyAttribute = this.getKeyAttribute()
+      let key = Array.isArray(KeyAttribute) ? `${row[KeyAttribute[0]]}-${row[KeyAttribute[1]]}` : row[KeyAttribute]
+      return this.selectInputs.get(key)
+      // if (this.name === 'staff_software_update') {
+      //   row = xdata.metaStore.data.card && xdata.metaStore.data.card.get(data)
+      // } else {
+      //   row = row.find(item => item.deviceAddress === data)
+      // }
+
+      // let key = `${row[KeyAttribute[0]]}-${row[KeyAttribute[1]]}`
+      // return this.selectInputs.get(key)
+    }
+
+    this.edit = (data) => {
+      let rows = getRows({row: data}, opts.def, opts.maxid)
+      let msg = getMessage('UPDATE', rows, opts.def, opts.maxid)
+      opts.parenTag.trigger('META-UPDATE-ROW', msg)
+    }
+
+    // 设置操作中编辑、删除显示隐藏
+    this.setOperate = (msg) => {
+      let self = this
+      msg.name = this.name
+      msg.self = self
+      opts.parenTag.commentFn instanceof Function && opts.parenTag.commentFn(msg, 'setOperate')
+    }
+
+    // 批量修改
+    this.batchEditDeviceUpdate = (evt) => {
+      let selects = this.judgeSelectDatas()
+      if (!selects) return
+      let msg = this.structureMsg(selects)
+      msg['selects'] = selects
+      opts.parenTag.trigger('META-UPDATE-ROW', msg)
+    }
+
+    // 构造dialog显示结果
+    this.structureMsg = (selects) => {
+      selects = [...selects]
+      let key = selects[0]
+      let store = xdata.deviceUpdateStore[STORENAME[this.def.name]]
+      let row = {row: store.get(key)}
+      let rows = getRows(row, this.def)
+      let msg = getMessage('UPDATE', rows, this.def)
+      let keyIndex = this.name === 'device_params' ? 1 : 0
+      let keyRow = this.name === 'device_params' ? msg.rows[keyIndex].field_value : msg.rows[keyIndex].field_value
+      let str = `${keyRow}`
+      selects.shift()
+      selects.map(item => {
+        if (item) {
+          let select = item.split('-')
+          str += `；${select[0]}`
+        }
+      })
+      msg.rows[keyIndex].field_value = str
+      return msg
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('DEVICE-UPDATE-RESPONSE', (data) => {
+        this.showChooseData()
+        this.parenTag.doHandle()
+      })
+    }
+
+    this.unregisterGlobalEventHandlers = () => {
+      xbus.off('DEVICE-UPDATE-RESPONSE')
+    }
+
+    // 扫描
+    this.handleBtn = (evt) => {
+      let target = evt.target
+      let handler = target.className
+      let selects = this.judgeSelectDatas()
+      let updateFiles = this.obtainUpdateFiles()
+      if (!selects || !updateFiles) return
+
+      let {firstFile, secondFile} = updateFiles
+      let row = null
+      if (this.name === 'staff_software_update') {
+        const [ident, card_type] = selects[0].split('-')
+        const settings = xdata.metaStore.data.setting
+        const setting = settings.get(48)
+        const cardIP = setting ? setting.value : '192.168.155.126'
+        row = {
+          deviceAddress: Number(ident),
+          deviceType: cardType[Number(card_type)],
+          ip: cardIP,
+          isIP: false
+        }
+      } else {
+        let store = xdata.deviceUpdateStore[STORENAME[this.name]]
+        row = store.get(selects[0])
+      }
+  
+      let port = 9300
+      if (row) {
+        let message = {
+          name: 'progress-bar',
+          information: '正在更新数据，请稍候...'
+        }
+        window.xhint.showLoading(message)
+        
+        let {deviceAddress, deviceType, ip, isIP} = row
+        if (!isIP) handler = `non_ip_${handler}`
+        if (this.name === 'staff_software_update') handler = 'wireless_start_send_device_update'
+        let nets = [ip]
+        xbus.trigger('SEND-MANAGER-MSG', {
+          cmd: handler,
+          data: {nets, deviceAddress, deviceType, firstFile, secondFile, port}
+        })
+      }
+    }
+
+    // 是否选中需要修改的项目
+    this.judgeSelectDatas = () => {
+      let selects = Array.from(this.selectInputs.keys())
+      if (selects.length <= 0) {
+        let type = 'warning'
+        let tips = '请选择需要修改的项目路'
+        return messageTip(tips, type)
+      }
+      let choose = selects.shift()
+      this.selectInputs.delete(choose)
+      return [choose]
+    }
+
+    // 是否存在升级文件
+    this.obtainUpdateFiles = () => {
+      let files = this.root.querySelector('.software-file').querySelectorAll('button')
+      let firstFile = files[0].getAttribute('data-source')
+      let secondFile = null
+      if (this.name !== 'staff_software_update') {
+        secondFile = files[1].getAttribute('data-source')
+      }
+      if (!firstFile || (!secondFile && this.name !== 'staff_software_update')) {
+        let type = 'warning'
+        let tips = '请选择升级文件'
+        return messageTip(tips, type)
+      }
+      return {firstFile, secondFile}
+    }
+
+    this.showChooseData = () => {
+      let name = this.name
+      let resultArray = Array.from(this.selectInputs.values())
+      let rows = null
+      let storeResult = STORENAME[name]
+      let store = xdata.deviceUpdateStore[storeResult]
+      let storeArray = store && Array.from(store.values())
+      if (storeResult === 'deviceParamsStore' || storeResult === 'deviceNetStore') {
+        let data = store && Array.from(store.keys())
+        let initDatas = []
+        data && data.forEach(item => {
+          let result = store.get(item) && Array.from(store.get(item).values())
+          initDatas = initDatas.concat(result)
+        })
+        storeArray = initDatas
+      }
+      if (resultArray && resultArray.length > 0) {
+        let arr = []
+        resultArray.forEach(item => arr.push(item.row.id))
+        rows = storeArray.filter(item => arr.includes(item.deviceType))
+      } else {
+        rows = storeArray
+      }
+      this.rows = rows
+      this.getPages(this.pageIndex)
+      this.subRows = copySubRows(this.rows, this.pageIndex)
+      let rsTableTag = this.tags['device-tree-table']
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      this.update()
+    }
+
+     //获取分页数据
+     this.getPages = (pageIndex) => {
+      let pages = initPagination(this.rows, pageIndex)
+      this.total = pages.total
+      this.totalPage = pages.totalPage
+      this.pageIndex = pages.pageIndex
+    }
+
+    this.on('PAGEINDEX-CHANGE', (msg) => {
+      if (msg.name === this.name) {
+        this.pageIndex = msg.pageIndex
+        this.subRows = copySubRows(this.rows, this.pageIndex)
+        let rsTableTag = this.tags['device-tree-table']
+        rsTableTag && rsTableTag.updateRows(this.subRows)
+        this.update()
+        window.xhint.close()
+      }
+    })
+
+    this.isOperate = () => {
+      const { name } = opts
+      if (name === 'staff_software_update') return false
+      return true
+    }
+    this.isSearch = (tableName, fieldName) => {
+      return true
+    }
+
+    this.getAllResult = () => {
+      const rows = Array.from(xdata.metaStore.data.card.values())
+      if (!rows) return
+      this.rows = rows
+      this.subRows = copySubRows(this.rows)
+      let rsTableTag = this.tags['device-tree-table']
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      this.getPages()
+      this.update()
+    }
+
+
+    this.chooseItem = (result, fieldName, s) => {
+      if (!result && !s) return this.getAllResult()
+      const cards = xdata.metaStore.data.card
+      let data = null
+      if (fieldName === 'select_card') {
+        data = cards && cards.get(result.card_id)
+      } else if (fieldName === 'hw_version') {
+        data = cards && Array.from(cards.values()).filter(item => {
+          if (item.hw_version && item.hw_version.includes(s)) return item
+        })
+      }
+      this.subRows = fieldName === 'select_card' ? [data] : data
+      let rsTableTag = this.tags['device-tree-table']
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      this.rows = this.subRows
+      this.getPages()
+      this.update()
+    }
+
+    this.on('mount', () => {
+      if (this.software.includes(opts.name)) {
+        this.root.querySelector('.start_send_device_update').innerText = '升级'
+      }
+      this.root.classList.remove('hide')
+    })
+
+    // 把电源、小分站、can中继等设备以数组形式整理至对应的分站下
+    this.getDealRows = (rows) => {
+      if (opts.name === 'staff_software_update') return rows
+      let datas = []
+      for (let i = 0; i < rows.length; i++) {
+        let row = rows[i]
+        row['childDevices'] = []
+        row['serialNumber'] = ''
+        if (row.deviceType === 1) {
+          rows.filter(item => {
+            if (DEVICEID.includes(item.deviceType) && ((item.hasOwnProperty('originIPDeviceAddress') && row.deviceAddress === item.originIPDeviceAddress)) || (item.deviceType === 6 && row.deviceAddress === item.deviceAddress)) {
+              row['childDevices'].push(item)
+            }
+          })
+          datas.push(row)
+        } else if (![1,6].includes(row.deviceType) && !row.hasOwnProperty('originIPDeviceAddress')) {
+          datas.push(row)
+        }
+      }
+      
+      for (let i = 0; i < datas.length; i++) {
+        datas[i]['serialNumber'] = i + 1
+      }
+      return datas
+    }
+
+    this.init = (opts) => {
+      this.def = opts.def
+      this.rows = this.getDealRows(opts.rows)
+      this.name = opts.name
+      this.key = opts.def.fields.names[0]
+      this.className = null
+      this.operate = opts.operate
+      this.isShowSerialNumber = opts.name === 'staff_software_update' ? false : true
+
+      this.getPages(this.pageIndex)
+      this.subRows = copySubRows(this.rows, this.pageIndex) // 初始化显示第一页
+
+      this.selectall = this.software.includes(opts.name) ? true : false
+      this.selectallname = `#selectAll${this.name}`
+      this.selectInputs = new Map()
+      this.checked  = false 
+      this.notChecked = new Map() 
+      this.isSelectAll = false
+      this.registerGlobalEventHandlers()
+      this.parenTag = opts.parenTag
+
+      this.cardRow = {
+        field_name: 'select_card',
+        field_label: '卡号',
+        field_type: 'SELECT',
+        field_enableNull: true,
+        show: true,
+        cb: this.chooseItem
+      }
+      this.versionRow = {
+        field_name: 'hw_version',
+        field_label: '版本',
+        field_type: 'SELECT',
+        field_enableNull: true,
+        show: true,
+        cb: this.chooseItem
+      }
+    }
+    
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+      this.unregisterGlobalEventHandlers()
+    })
+  </script>
+</device-net-table>

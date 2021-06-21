@@ -1,0 +1,42 @@
+@import '../../style/defs.sass'
+
+.sp-rate
+  display: flex 
+  width: 100%
+  flex-flow: column nowrap
+  overflow: hidden
+  .mb-three-rate
+    .btn-warp
+      display: flex
+      justify-content: space-between
+    .mb-overview
+      display: flex
+      flex-direction: column
+      align-items: center
+      .mb-overview-title
+        width: 1.28rem
+        height: 0.208rem
+        font-weight: bold
+        text-align: center
+      .overview-echarts
+        display: flex
+        width: 100%
+        justify-content: space-around
+      .overviewBD, .overviewWD, .overviewRD
+        text-align: center
+    .mb-dept
+      font-size: $font-xs
+      text-align: center
+      .rate-dept
+        position: relative
+      .rate-dept_boot canvas
+        top: -23px
+  .mb-efficiency
+    .efficiency-control
+      display: flex
+      flex-direction: row
+      align-items: center
+      justify-content: space-between
+      padding: 5px 12px
+      .input-warp
+        position: relative

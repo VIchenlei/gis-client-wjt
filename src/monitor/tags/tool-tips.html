@@ -1,0 +1,367 @@
+<tool-tips class="tool-tips hide" onclick={ stopEvent }>
+  <div class="tool-tips-container">
+    <rs-title title={ title }></rs-title>
+    <div class="op-panel">
+      <span name="state" ref="state" class="tab-icon" onclick={ switchTo }>实时状态</span>
+      <span name="info" ref="info" class="tab-icon" onclick={ switchTo }>基本信息</span>
+    </div>
+    <div class="tool-tips-content" if={ topic==='state' && hasData }>
+      <p each={ name, i in data.def.fields.names } if={!(subtype==='adhoc' && i===15)} class="tool-tips-info">
+        <span class="lable"if={name !=='state' }>{ data.def.fields.labels[i] }：</span>
+        <span class="value" title="{ data.rec[name] }"  if={name !=='state' }>{ data.rec[name] }</span>
+        <span class="lable" if={name==='state' && subtype==='reader' }>{ data.def.fields.labels[i] }：</span>
+        <span class="value" title="{ data.rec[name] === 0 ? '正常':'异常' }" if={name==='state' && subtype==='reader' }>{ data.rec[name] === 0 ? '正常':'异常' }</span>
+      </p>
+      <tool-tips-checkbox if={ showLand } name="fade_area"></tool-tips-checkbox>
+    </div>
+    <div class="tool-tips-content grey-scroll" if={ topic ==='info' && hasData }>
+      <p each={ name, i in data.def.fields.names } class="tool-tips-info" if={isShowInfo(name)}>
+        <span class="lable">{ data.def.fields.labels[i] }：</span>
+        <span class="value" title="{noTurnTxt(name , data.rec[name])}">{noTurnTxt(name , data.rec[name])}</span>
+      </p>
+      <tool-tips-checkbox if={ showPath } name={ subtype }></tool-tips-checkbox>
+      <tool-tips-checkbox if={ showPath } name='antenna'></tool-tips-checkbox>
+      <light-control ref="light-control" if={subtype === 'light'} data={ data.rec }></light-control>
+      <div class="tool-foot" if={subtype === 'light'} onclick={handleLand}>
+        <button class="btn-sure" data-type="save">确定</button>
+        <button class="btn-cancel" data-type="cancel">取消</button>
+      </div>
+
+      <div class="tool-foot hide-on-mb" if={showLand} onclick={handleLand}>
+        <button class="btn-sure" data-type="edit">编辑</button>
+        <button class="btn-cancel" data-type="delete">删除</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/tool-tips.sass'
+    import { getShowPoint } from '../../js/map/OlMapUtils.js'
+    import { noTurnTxt, getRows, getMessage } from '../../js/utils/utils.js'
+    import { config } from '../../config/js/config_def.js'
+    import { getInfo, dealAntennaData } from '../../manage/js/utils.js'
+    import '../../tags/rs-meta-dialog/rs-meta-dialog.html'
+    import './light-control.html'
+    import './tool-tips-checkbox.html'
+
+    this.isShowFadeArea = (subtype) => {
+
+    }
+
+    this.stopEvent = (evt) => {
+      evt.stopPropagation()
+    }
+
+    this.on('mount', () => {
+      const msg = {
+        target: this.root,
+        handle: this.root.querySelector('.rs-title')
+      }
+      window.setDraggable(msg)
+    })
+
+    xbus.on('MAP-TOOLTIPS-SHOW', (symbol) => {
+      this.symbol = symbol
+      this.type = symbol.type
+      this.subtype = symbol.subtype
+      this.title = this.symbol['info'].def.label
+      this.id = symbol.id
+
+      const names = ['landmark', 'personcards', 'area', 'goaf', 'light']
+      if (names.includes(this.subtype)) {
+        this.refs['state'] && this.refs['state'].classList.add('hide')
+        this.showLand = this.subtype === 'landmark' ? true : false     
+        this.showTab(this.refs.info)
+      } else {
+        this.refs['state'] && this.refs['state'].classList.remove('hide')
+        this.showLand = false
+        this.showTab(this.refs.state)
+      }
+      if(['reader', 'area', 'goaf'].includes(this.subtype)){
+        this.showLand = symbol.notShowPath ? false : true
+      }
+
+      this.showPath = this.subtype === 'reader' && !symbol.notShowPath ? true : false
+
+      const toolTip = this.root
+      setTimeout(() => {
+        toolTip.classList.remove('hide')
+        if (!window.isPC) {		
+          this.root.style.left = `50%`
+          this.root.style.top = `50%`
+          this.root.style.marginLeft = `-${toolTip.offsetWidth/2}px`
+          this.root.style.marginTop = `-${toolTip.offsetHeight/2}px` 
+        }        
+      }, 100)
+
+      this.update()
+      if (toolTip.parentElement) {
+        const point = getShowPoint(symbol.event, toolTip)
+        this.root.style.left = `${point.x}px`
+        this.root.style.top = `${point.y}px`  
+      } 
+    })
+
+    this.isShowInfo = (name) => { // 基本信息是否显示 
+      if (this.subtype === 'light' && name === 'ctrlUser') {
+        let value = this.data.rec[name]
+        let stateCtrl = this.data.rec['stateCtrl']
+        return stateCtrl === '已被手动控制' && value ? true : false
+      }
+      return true
+    }
+
+    this.switchTo = (evt) => {
+      let tab = evt.currentTarget
+      if (tab === this.activeTab) return false
+      this.showTab(tab)
+    }
+
+    this.showTab = (tab) => {
+      if (!tab) return
+      const topic = tab.getAttribute('name')
+      this.switchtab(topic)
+      this.setActiveTab(tab)
+      this.topic = topic
+    }
+
+    //切换tab
+    this.switchtab = (topic) => {
+      const data = this.symbol[topic]
+      data.rec = xdata.metaStore.formatRecord(data.def, data.rec, null)
+      this.data = data
+      this.hasData = !!this.data.rec
+    }
+
+    this.setActiveTab = (tab) => {
+      if (!tab || tab === this.activeTab) return
+      if (this.activeTab) {
+        this.activeTab.classList.remove('active')
+      }
+      tab.classList.add('active')
+      this.activeTab = tab
+    }
+
+    //获取区域业务
+    this.getBusiness = (business) => {
+      const areaId = this.data.rec.area_id
+      const areas = Array.from(xdata.metaStore.data.area.values())
+      const area = areas.filter(item => item.area_id === areaId)[0]
+      const areaTypeId = area.area_type_id
+      business = business && business.toString(2).padStart(12, 0).split('').reverse()
+      return business
+    }
+
+    //区域业务展示文字拼接
+    this.getBusinessText = (value) => {
+      let business = this.getBusiness(value)
+      let lists = xdata.metaStore.data['area_business']
+      lists = lists && Array.from(lists.values())
+      let values = ''
+      lists.forEach((list, i) => {
+        if (parseInt(business[i], 10)) values += `;${list.name}`
+      })
+      values = values.replace(';','')
+      return values
+    }
+
+    //将数字修改成文字的参数的参数
+    this.noTurnTxt = (nameTxt, value) => {
+      if (nameTxt === 'business_type') {
+        return this.getBusinessText(value)
+      } else {
+        return noTurnTxt(this.subtype, nameTxt, value)
+      }
+    }
+
+    //执行编辑、删除
+    this.handleLand = (evt) => {
+      const type = evt.target.getAttribute('data-type')
+      if (type === 'edit') this.showMeta('UPDATE')
+      if (type === 'delete') this.showMeta('DELETE')
+      if (type === 'save') this.save()
+      if (type === 'cancel') this.close()
+    }
+
+    this.save = () => {
+      this.refs['light-control'] && this.refs['light-control'].sendState()
+    }
+
+    this.sendState = (msg) => {
+      let { rules, stateId, cancleRules } = msg
+      rules = this.data.rec.ctrlUser === xdata.userName ? cancleRules : 1//如果是发起控制人有可取消权限，不是发起控制人只有控制权限
+      let light = xdata.metaStore.data.light.get(this.data.rec.light_id)
+      let sendmsg = {//注： 发送取消控制时应该是本人取消、采集应忽略此次发送的状态，取消上次的状态
+        cmd : 'light_control',
+        data: {
+          'GroupId': light.lights_group_id,
+          'LightId': light.light_id,
+          'Control': rules,
+          'ControlName': xdata.userName,
+          'LightColour': stateId
+        }
+      }
+      xbus.trigger('LIGHT-CONTROL-REQ', sendmsg)
+      this.refs['light-control'].cancleRules = 1
+      this.close()
+      this.update()
+    }
+
+    //执行展示编辑对话框
+    this.showMeta = (opType) => {
+      const id = Number(this.symbol.id)
+      const subtype = this.subtype
+      const store = xdata.metaStore
+      let def = store.defs[subtype]
+      if (subtype === 'area') {
+        def = xdata.isCheck === 1 ? config['area_ischeck'].def : config['area'].def
+      }
+      const table = {
+        def: def,
+        rows: store.dataInArray.get(subtype),
+        maxid: store.maxIDs[subtype]
+      }
+      const data = store.data[subtype].get(id)   
+      const rows = getRows({row: data}, table.def, table.maxid)
+      let message = getMessage(opType, rows, table.def, table.maxid)
+      if (subtype === 'area') {
+        message.checkboxes = ['business_type']
+        message.spliceInputs = ['over_speed_vehicle']
+      }
+      if (subtype === 'reader') {
+        this.getTable(subtype)
+        this.showMergeDialog(message)
+      } else {
+        this.showMetaDialog(message)
+      }
+      this.close()
+    }
+
+    //获取合并页面下table数据
+    this.getTable = (name) => {
+      if (name === 'reader') {
+        this.sencondTable = {
+          def: xdata.metaStore.defs['antenna'],
+          rows: xdata.metaStore.dataInArray.get('antenna'),
+          maxid: xdata.metaStore.maxIDs['antenna'],
+        }
+        this.thirdTable = {
+          def: xdata.metaStore.defs['reader_path_tof_n'],
+          rows: xdata.metaStore.dataInArray.get('reader_path_tof_n'),
+          maxid: xdata.metaStore.maxIDs['reader_path_tof_n'],
+        }
+      }
+    }
+    
+    //处理合并页面下的基础数据
+    this.getMergeData = (msg) => {
+      const value = msg.rows[0].field_value
+      const { cmd, key } = msg
+      const sencondMsg = getInfo(this.sencondTable, value, cmd, key) //获取天线数据
+      const thirdMsg = getInfo(this.thirdTable, value, cmd, key) // 获取分站路径数据
+
+      if (!sencondMsg.length) {//未配置天线时，默认新增天线展示，可保存添加
+        for (let i = 0; i < 2; i++) {
+          let antennaMsg = getInfo(this.sencondTable, value, 'INSERT')[0]
+          antennaMsg = dealAntennaData(msg, antennaMsg, i + 1)
+          sencondMsg.push(antennaMsg)
+        }
+      }
+
+      const datas = {
+        firstMsg: msg,
+        sencondMsg: sencondMsg,
+        thirdMsg: thirdMsg
+      }
+      return datas
+    }
+
+    //执行弹出合并弹出窗
+    this.showMergeDialog = (msg) => {
+      if (this.rsMergeDialog) {
+        this.rsMergeDialog.unmount(true)
+      }
+      let self = this
+      const datas = this.getMergeData(msg)
+      this.rsMergeDialog = riot.mount('rs-merge-dialog', { message: datas, parenTag: self })[0]
+    }
+    //执行弹出录入对话框
+    this.showMetaDialog = (msg) => {
+      if (this.rsMetaDialog) this.rsMetaDialog.unmount(true)
+      if (['area', 'goaf'].includes(msg.name)) msg.fromPage = 'monitor'
+      this.rsMetaDialog = riot.mount('rs-meta-dialog', { message: msg, parenTag: self})[0]
+    }
+
+    xbus.on('HIDE-ALL-POPUP', () => {
+      this.close()
+    })
+
+    //隐藏对话框
+    this.close = () => {
+      const toolTip = this.root
+      if (toolTip && !toolTip.classList.contains('hide')) {
+        toolTip.classList.add('hide')
+      }
+    }
+
+    /*获取选中状态*/
+    this.isCheck = (name) => {
+      if (name === 'reader_path_tof_n') {
+        const rows = xdata.readerPathStore.showReaderPath
+        return rows.get(parseInt(this.id, 10))
+      } else if (name === 'antenna') {
+        const rows = xdata.antennaStore.showAntenna
+        return rows.get(parseInt(this.id, 10))
+      } else if (name === 'fade_area') {
+        //是否显示盲区
+        let readerId = Number(this.id)
+        let ischecked = xdata.metaStore.fadeAreaArr.get(readerId) ? true : false
+        return ischecked
+      }
+    }
+
+    /*修改选中状态*/
+    this.change = (name, checked) => {
+      if (name === 'reader_path_tof_n') {
+        const msg = {
+          name: parseInt(this.id, 10), //分站id用于获取分站覆盖范围信息
+          checked: checked, // true  false 用去判断隐藏显示分站覆盖范围
+        }
+        xdata.readerPathStore.switchShow(msg)
+        xbus.trigger('MAP-SHOW-READERPATH', msg)   
+      } else if (name === 'antenna') {
+        const msg = {
+          name: parseInt(this.id, 10),
+          checked: checked
+        }
+        xdata.antennaStore.switchShow(msg)
+        xbus.trigger('MAP-SHOW-ANTENNA', msg) 
+      } else if (name === 'fade_area') {
+        let readerId = this.id
+        if (checked) {
+        // 查询分站盲区接口函数
+          this.doqueryFadeArea(Number(readerId))
+        } else {
+          xbus.trigger('MAP-HIDE-FADEAREA', {readerId: Number(readerId)})
+        }
+        this.root.classList.add('hide')
+      }
+    }
+
+    this.doqueryFadeArea = (readerId) => {
+      let message = {
+        cmd: 'fadeArea',
+        data: {
+          name: 'fadeArea',
+          readerId: readerId
+        }
+      }
+      window.xhint.showLoading()
+      xbus.trigger('FADE-READER-DATA', {
+        req: message,
+        def: {
+          name: 'fadeArea'
+        }
+      })
+    }
+  </script>
+</tool-tips>

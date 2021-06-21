@@ -1,0 +1,69 @@
+<page-login class="page-login">
+  <div class="login-head">
+    <!-- <img src="/img/logo.png" alt="logo"> -->
+  </div>
+  <div class="login-body">
+    <div class="slogan-panel">
+      <div class="slogan">智慧矿山精准定位综合安全管理系统</div>
+      <div class="minor-slogan">精益化生产 · 精准化管控 · 精细化操作</div>
+    </div>
+    <div class="login-form">
+      <span class="error-message {message ? '' : 'node-hide'}">{message}</span>
+      <rs-text data-icon="user" data-wrongicon="wronguser" data-placeholder="请输入用户名" data-type="text" data-id="user" onkeydown="{hideMessageOrEnterForLogin}" bline="true"></rs-text>
+      <rs-text data-icon="pwd" data-wrongicon="wrongpwd" data-placeholder="请输入密码" data-type="password" data-id="pwd" onkeydown="{hideMessageOrEnterForLogin}" bline="true"></rs-text>
+      <rs-btn type="nomal" text="登  录" onclick="{doLogin}"></rs-btn>
+    </div>
+  </div>
+  <div class="login-foot">
+    <img if={isPC} src="/img/clogo.png" alt="永安信通">
+    <span>©2017 永安信通</span>
+  </div>
+
+  <script>
+    import './page-login.sass'
+    import '../main/page-main.html'
+    import '../tags/rs-text/rs-text.html'
+    import '../tags/rs-btn/rs-btn.html'
+    import { encrypt } from '../js/utils/utils.js'
+
+    this.message = null
+
+    this.doLogin = () => {
+      let username = this.root.querySelector('#user').value
+      let userpwd = this.root.querySelector('#pwd').value
+      userpwd = username && userpwd && encrypt(username, userpwd)
+      if (username !== '' && userpwd !== '') {
+        xbus.trigger('USER', {
+          cmd: 'LOGIN',
+          data: {
+            user_name: username,
+            user_pwd: userpwd
+          }
+        })
+      } else {
+        this.message = '请先输入用户名、密码，再按 ”登录“ '
+      }
+    }
+
+    xbus.on('SHOW-USER-TIPS', (msg) => {
+      this.message = msg.msg
+      this.update()
+    })
+
+    this.hideMessageOrEnterForLogin = (evt) => {
+      if (this.message) {
+        this.message = null
+      }
+
+      // enter 键
+      let keyCode = evt.keyCode
+      if (keyCode === 13) {
+        this.doLogin()
+      }
+
+      // 在自定义tag中，riot 默认阻止事件传递。
+      // 所以，这里 return true 显式要求传递事件
+      return true
+    }
+  </script>
+</page-login>

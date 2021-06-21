@@ -1,0 +1,17 @@
+@import '../../style/defs.sass'
+.basic-message-import
+  width: 1.4rem
+  @include absolute-right-top(.2rem, .2rem, 5)
+  background: $color-white
+  font-size: $font-s
+  box-shadow: 0 3px 4px 2px rgba(0,0,0,.1)
+  border-radius: 2px
+  color: $content-color
+  ul
+    max-width: 1.4rem
+    text-align: center
+    li
+      margin: .08rem
+      cursor: pointer
+    li:hover
+      color: $color-main

@@ -1,0 +1,312 @@
+<alarm-list class="alarm-list">
+  <rs-title title="实时告警" class="dlg-head"></rs-title>
+  <div class="r-btn" onclick={doHandleBtns} if={xdata.isCheck !== 1}>
+    <button class="recover btn-alarm" onclick={doRecoverAlarm}>恢复所有告警</button>
+    <button class="reset btn-alarm" onclick={doResetAlarm}>复位选中告警</button>
+  </div>
+  <div class="alarm-body grey-scroll">
+    <div each={list in lists} class="alarm-class">
+      <div>
+        <rs-icon-title icon={list} title={getName(list)} tips={getTips(list)}></rs-icon-title>
+        <button class="btn-alarm" onclick={doOneRecoverAlarm} if={xdata.isCheck !== 1}>恢复告警</button>
+      </div>
+      <alarm-list-table
+        ref={list}
+        list={list}>
+      </alarm-list-table>
+    </div>
+  </div>
+
+  <script>
+    import '../sass/alarm-list.sass'
+    import '../../tags/rs-title/tags/rs-title.html'
+    import '../../tags/rs-title/tags/rs-icon-title.html'
+    import '../../tags/rs-table/tags/rs-table-icon-btn.html'
+    import './alarm-list-table.html'
+    import Draggable from '../../js/utils/Draggable.js'
+    import ALARMDEF from '../js/alarm_def.js'
+    import { messageTip, clone } from '../../js//utils/utils.js'
+
+    this.isShowing = true // 默认显示告警
+    this.staffWhole = [1, 3, 13, 15, 17, 19]
+    let self = this
+
+    /*切换偏离告警对象去除选中状态*/
+    this.deselect = (target) => {
+      let rsTable = this.tags['rs-table-icon-btn']
+      if (rsTable && Array.isArray(rsTable)) {
+        let rsTableTag = rsTable.filter(item => item.selectallname === 'card')[0]
+        if (rsTableTag) {
+          let activeTag = rsTableTag.root.querySelectorAll('.active')
+          activeTag.forEach(ele => { 
+            if (target != ele) ele.classList.remove('active')
+           })
+        }
+      }
+    }
+
+    /*显示偏离路线*/
+    this.handleOperate = (evt, datas, selectallname) => {
+      let target = evt.target
+      let value = target.innerText
+      let item = evt.item
+      let className = target.parentNode.getAttribute('class')
+      if (item.name === 'name' && className && className.includes('islink')) {
+        if (!datas) return
+        this.deselect(target)
+        target.classList.toggle('active')
+        let checked = target.classList.contains('active')
+        let index = Number(target.dataset.index)
+        let data = datas[index]
+        xbus.trigger('MAP-SHOW-ROUTEPLAN',{data: data, checked: checked})
+      } else if (item.name === 'name' && className && className.includes('redText')) {
+        let index = Number(target.dataset.index)
+        let data = datas && datas[index]
+        if (data) {
+          let eventID = data.event_id
+          this.wholeAlarmEventID = eventID
+          let alarmName = this.staffWhole.includes(data.type_id) ? 1 : 2
+          let msg = null
+          if (selectallname === 'area') {
+            let dataType = Number(data.area_id)
+            msg = {
+              type: 'card',
+              subTypeID: alarmName,
+              statType: 'area',
+              groupID: dataType,
+              from: 'ALARM',
+              cb: this.triggerAlarmObject
+            }
+          } else {
+            msg = {
+              type: 'card',
+              subTypeID: alarmName,
+              statType: '*',
+              composeType: 'type',
+              from: 'ALARM',
+              cb: this.triggerAlarmObject
+            }
+          }
+          window.showDetailDialog(msg)
+        }
+      } 
+    }
+    this.triggerAlarmObject = (rows) => {
+      if (!rows) return []
+      let alarm = xdata.alarmStore.onAlarming.get(this.wholeAlarmEventID)
+      let startTime = alarm.cur_time
+      let triggerAlarmDetails = rows.filter(item => item[7] >= startTime)
+      return triggerAlarmDetails
+    }
+  
+    xbus.on('ALARM-LIST-SHOW', () => {
+      this.isShowing = true
+      this.root.classList.remove('hide')
+      this.updateList() // 告警框弹出时，刷新告警列表避免告警关闭的情况下采集推送关闭告警，再打开告警框已关闭的告警还存在
+    })
+
+    xbus.on('ALARM-LIST-CHANGED', msg => {
+      this.isShowing && this.updateList(msg)
+    })
+
+    xbus.on('ALARM-LIST-UPDATE', () => {
+      let lists = this.lists
+      if (lists.length > 0 && !lists.includes('credentials')) {
+        for (let i = 0; i < lists.length; i++) {
+          let name = lists[i]
+          let data = xdata.alarmStore.distinguishByObjtype.get(name)
+          data && data.forEach((item,index) => {
+            let objId = item.obj_id
+            let objTypeId = item.obj_type_id
+            if (objTypeId !== 9) return false
+            let obj = xdata.metaStore.getCardBindObjectInfo(objId)
+            item.name = obj && obj.name ? obj.name : ''
+            data.set(index, item)
+          })
+        }
+        this.isShowing && this.updateList()
+      }
+    })
+
+    this.doOneRecoverAlarm = (evt) => {
+      let row = evt.item
+      let dataObj = row.dataObj // 告警对象
+      let dataType = row.dataType // 告警类型
+      let dataTypeNot = row.dataTypeNot // 该告警对象中不包含的告警类型
+      this.doRecoverAlarm({dataObj, dataType, dataTypeNot})
+    }
+
+    this.doRecoverAlarm = (data) => {
+      xbus.trigger('RECOVER-ALARM', {
+        cmd: 'recover_alarm',
+        data: data
+      })
+    }
+
+    this.doHandleBtns = evt => {
+      let target = evt.target
+      let classname = target.className
+      if (classname.includes('reset')) this.resetAlarmDone(Array.from(this.resetAlarms.values()))
+      if (classname.includes('recover')) this.doRecoverAlarm()
+    }
+
+    this.resetAlarmDone = data => {
+      if (!data || data.length <= 0) return
+      let msg = {
+        cmd: 'alarm_done',
+        data: Array.isArray(data) ? data : [data]
+      }
+      console.log(msg)
+      xbus.trigger('ALARM-DONE-REQ', msg)
+    }
+    
+    this.hideAlarmData = (data) => {
+      let eventID = data.event_id || data.credentials_staff_id || data.credentials_vehicle_id
+      xdata.alarmStore.resetAlarming.set(eventID, data)
+      // this.isShowing && this.updateList()
+      let datas = xdata.alarmStore.onAlarming && Array.from(xdata.alarmStore.onAlarming.values())
+      xbus.trigger('ALARM-LIST-CHANGED', datas)
+      messageTip('复位成功', 'success')
+    }
+
+    this.handleBtn = data => {
+      if (xdata.isCheck === 1) {
+        let eventID = data.event_id || data.credentials_staff_id || data.credentials_vehicle_id
+        this.resetAlarms.set(data.event_id, data)
+        this.hideAlarmData(data)
+      } else {
+        this.resetAlarmDone(data)
+      }
+
+    }
+
+    this.handleSelect = (data, checked) => {
+      let eventID = data.event_id || data.credentials_staff_id || data.credentials_vehicle_id
+      checked ? this.resetAlarms.set(data.event_id, data) : this.resetAlarms.delete(data.event_id)
+    }
+
+    this.isChecked = (data) => {
+      return !!this.resetAlarms.get(data)
+    }
+
+    this.handleSelectAll = (handleid, checked) => {
+      let datas = xdata.alarmStore.distinguishByObjtype.get(handleid)
+      datas && Array.from(datas.values()).forEach(item => checked ? self.resetAlarms.set(item.event_id, item) : self.resetAlarms.delete(item.event_id))
+    }
+
+    this.getRows = (name) => {
+      if (name === 'credentials') {
+        return this.credentialsAlarm
+      }
+      let data = xdata.alarmStore.distinguishByObjtype.get(name)
+      data = data && Array.from(data.values())
+      if (data) data.map(item => item.isLocating = xdata.locateStore.get(item.obj_id))
+      return data
+    }
+
+    this.getFields = (name) => {
+      if (name === 'card' || name === 'credentials') return {
+        names: ['event_type_id', 'cur_time', 'dept_id', 'name', 'map_id'],
+        labels: ['告警类型', '告警开始时间', '部门', '告警对象', '所属地图'],
+        types: ['SELECT', 'NOYEARDATETIME', 'SELECT', 'STRING', 'SELECT']
+      }
+      return {
+        names: ['event_type_id', 'cur_time', 'name', 'map_id'],
+        labels: ['告警类型', '告警开始时间', '告警对象', '所属地图'],
+        types: ['SELECT', 'NOYEARDATETIME', 'STRING', 'SELECT']
+      }
+    }
+
+    this.getLocate = (name) => {
+      return ['global', 'credentials'].includes(name) ? false : true
+    } 
+
+    this.getTips = (name) => {
+      let data = name === 'credentials' ? this.credentialsAlarm : xdata.alarmStore.distinguishByObjtype.get(name)
+      let resetAlarmCount = xdata.alarmStore.resetAlarming && xdata.alarmStore.resetAlarming.size
+      let length = data.size ? data.size : data.length
+      length = resetAlarmCount ? length- resetAlarmCount : length
+      return `(告警条数：${length}条)`
+    }
+
+    this.getName = (name) => {
+      if (name === 'reader_communication') return '分站告警-通信异常告警'
+      if (name === 'reader_electricity') return '分站告警-分站供电告警'
+      let title = Object.values(ALARMDEF).find(item => item.icon === name)
+      return title && title.title
+    }
+
+    // 检查用户操作复位功能后,过滤复位数据
+    this.getCheckRestData = (data) => {
+      data = data && data.filter(item => {
+        let eventID = item.event_id || item.credentials_staff_id || item.credentials_vehicle_id
+        let alarm = xdata.alarmStore.resetAlarming.get(eventID)
+        if (!alarm) return item
+      })
+      return data
+    }
+
+    this.dealCredentials = (lists, msg) => {
+      let credentialsAlarm = []
+      let eventType = xdata.metaStore.data.event_type && xdata.metaStore.data.event_type.get(40)
+      let isShow = eventType && eventType.is_show === 1 ? true : false // 资格是否显示 true 隐藏 false显示
+      msg && msg.forEach(item => {
+        if (isShow) return false
+        if (item.credentials_staff_id || item.credentials_vehicle_id) {
+          if (!lists.includes('credentials')) lists.push('credentials')
+          credentialsAlarm.push(item)
+        }
+      })
+      this.credentialsAlarm = credentialsAlarm
+      this.lists = lists
+      this.update()
+    }
+
+    this.updateList = (msg) => {
+      this.lists = xdata.alarmStore.distinguishByObjtype && Array.from(xdata.alarmStore.distinguishByObjtype.keys())
+      this.dealCredentials(this.lists, msg)
+      for (let i = 0; i < this.lists.length; i++) {
+        let name = this.lists[i]
+        let tableCompent = this.refs[name]
+        let fields = this.getFields(name)
+        let locate = this.getLocate(name)
+        let updateMsg = {
+          fields: fields,
+          locate: locate,
+          selectallname: name
+        }
+        if (tableCompent) {
+          this.tags['rs-icon-title'][i] && this.tags['rs-icon-title'][i].updateTitleTips()
+          if (name === 'credentials') {
+            if (xdata.isCheck === 1) this.credentialsAlarm = this.getCheckRestData(this.credentialsAlarm)
+            updateMsg['data'] = this.credentialsAlarm
+            tableCompent.updateRowsFields(updateMsg)
+            return
+          }
+          let data = xdata.alarmStore.distinguishByObjtype.get(name)
+          data = data && Array.from(data.values())
+          if (data) data.map(item => item.isLocating = xdata.locateStore.get(item.obj_id))
+          if (xdata.isCheck === 1) data = this.getCheckRestData(data)
+          updateMsg['data'] = data
+          tableCompent.updateRowsFields(updateMsg)
+        }
+      }
+      this.update()
+    }
+
+    this.on('mount', () => {
+      let dragHandle = this.root.querySelector('.dlg-head')
+      let dragTarget = this.root
+      this.resetAlarms = new Map() // 告警复位store
+      this.selectall = xdata.isCheck !== 1 ? 'true' : ''
+      Draggable(dragTarget, dragHandle)
+      this.updateList()
+      if (!window.isPC) this.close()
+    })
+
+    this.close = () => {
+      this.root.classList.add('hide')
+      this.isShowing = false
+    }
+  </script>
+</alarm-list>

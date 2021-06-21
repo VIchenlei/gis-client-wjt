@@ -1,0 +1,41 @@
+@import '../../style/defs'
+
+.rs-dialog
+  .dlg-bg
+    z-index: 9999
+.xhint-dialog
+  width: 5.4rem
+  font-size: $font-m
+  padding: .2rem
+  .dlg-body
+    @include flex-column-center-center
+    i
+      display: flex
+      @include wh(.4rem, .4rem)
+      background: url('/img/warning.png') no-repeat
+      background-size: .4rem auto
+      padding: .2rem
+      transform: rotate(180deg)
+    .xhint-tips
+      max-width: 5.2rem
+      max-height: 2rem
+      overflow: auto
+      word-break: break-all
+      margin: .2rem 0
+    .xhint-hint
+      font-size: $font-s
+      color: $font-weight-grey
+    .xhint-input
+      @include flex-row-center
+      input
+        text-align: center
+        color: $font-weight-grey
+  .dlg-foot
+    @include flex-around-center
+    width: 100%
+    flex: 0 0 .6rem
+    border-top: 1px solid $color-grey-line
+@media screen and (max-width: $width-medium)
+  .xhint-dialog
+    width: 3.4rem
+    padding: .1rem

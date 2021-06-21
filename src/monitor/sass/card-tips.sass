@@ -1,0 +1,47 @@
+@import '../../style/defs'
+.card-tips
+  @include wh(4.7rem, auto)
+  @include absolute-left-top(0, 0, $zIndex:999)
+  .card-tips-container
+    background: $color-white
+    font-size: $font-s
+    color: $font-default
+    .card-tips-body
+      padding: .1rem
+      .card-tips-title
+        padding: .1rem 0
+        font-weight: bold
+        border-bottom: 1px solid rgba(179, 179, 179, 0.5)
+      .card-tips-content
+        .content-block
+          padding: .05rem 0
+          @include flex-between-center
+          align-items: inherit
+          .content-block-label
+            line-height: .26rem
+          img
+            @include wh(auto, 1rem)
+      .status
+        padding: .05rem 0
+        .content-block-label
+          width: 2.2rem
+          line-height: .26rem
+          display: inline-block
+          overflow: hidden
+          text-overflow: ellipsis
+          white-space: nowrap
+          .location
+            vertical-align: middle
+      .person-oncar
+        max-height: .8rem
+        overflow: auto
+    .card-tips-foot
+      padding: .1rem
+      .opbar
+        @include flex-around-center
+        .opicon
+          @include wh(auto, .24rem)
+  @media screen and (max-width: $width-medium)
+    width: 3.4rem
+    height: 5rem
+    overflow: auto

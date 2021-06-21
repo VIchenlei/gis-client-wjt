@@ -1,0 +1,46 @@
+<player-view-change class="addbg">
+    <div onclick={ changeView }>
+        <svg class="icon">
+            <use href='/icons/icons.svg#{iconShow}'></use>
+        </svg>
+    </div>
+    <script>
+        import '../sass/player-view-change.sass'
+
+        this.changeView = () => {
+            this.showList = !this.showList
+            let trackListTag = this.parent.tags['history-track-list']
+            if (trackListTag) {
+                this.showList ? trackListTag.root.classList.remove('hide') : trackListTag.root.classList.add('hide')
+                this.showList ? this.root.classList.add('addbg') : this.root.classList.remove('addbg')
+            }
+            this.iconShow = this.showList ? 'icon-arrow' : 'icon-arrowon'
+            this.update()
+        }
+
+        xbus.on('HIDE-TRACKLIST-MENU', () => {
+            this.root.classList.add('hide')
+            this.parent.tags['history-track-list'].root.classList.add('hide')
+        })
+
+        xbus.on('SHOW-VIEW-CHANGE', () => {
+            this.root.classList.remove('hide')
+            let isCheckout = this.parent.parent.tags["history-query"].checkoutWork
+            isCheckout ? this.parent.tags['history-track-list'].root.classList.remove('hide') : this.parent.tags['history-track-list'].root.classList.add('hide')
+            isCheckout ? this.root.classList.remove('hide') : this.root.classList.add('hide')
+        })
+
+        xbus.on('CHANGE-SHOW-LIST', () => {
+            this.iconShow = 'icon-arrow'
+            this.showList = true
+            this.update()
+        })
+
+        this.init = (opts) => {
+            this.iconShow = 'icon-arrow'
+            this.showList = true
+        }
+
+        this.init(opts)
+    </script>
+</player-view-change>

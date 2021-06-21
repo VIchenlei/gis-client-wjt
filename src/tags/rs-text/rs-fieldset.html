@@ -1,0 +1,69 @@
+<!--
+  data-attribute: 当一个页面有多个rs-fieldset时，为区分callback指向的是哪一个，需要加此属性
+  legend: feldeset名称
+  key: 多选时，需要指定key值
+  lists: 下拉列表数据
+  defaultvalue: 默认显示数据
+  class: 自定义样式class
+  icon: 显示图标
+  multiple: 是否多选，默认为false
+  disabled: 禁止选择
+-->
+<rs-fieldset class="rs-fieldset {classname} {disabled}">
+  <fieldset onclick={handleShowList}>
+    <legend>{legend}</legend>
+    <span if={!multiple}>{defaultvalue}</span>
+    <p if={multiple}>
+      <span each={defaultvalue}>
+        {name}
+        <i class="close"></i>
+      </span>
+    </p>
+    <i class="icon" style="background: url('/img/{icon}.png') center center no-repeat;"></i>
+  </fieldset>
+  <rs-list if={showList} rslist={lists}></rs-list>
+
+  <script>
+    import '../rs-list/rs-list.html'
+
+    import './rs-fieldset.sass'
+
+    this.showList = false
+
+    this.dohandleItem = (msg) => {
+      if (this.multiple) {
+        this.defaultchoose.set(msg[key], msg)
+        this.defaultvalue = Array.from(this.defaultchoose.values())
+      } else {
+        this.defaultchoose = msg
+        this.defaultvalue = msg.name
+      }
+      this.showList = false
+      this.update()
+      typeof this.parent.dohandleItem === 'function' && this.parent.dohandleItem(this.defaultchoose)
+    }
+
+    this.handleShowList = (evt) => {
+      this.showList = !this.showList
+    }
+
+    this.updateComponent = () => {
+      this.init(opts)
+      this.update()
+    }
+
+    this.init = (opts) => {
+      this.name = opts.dataAttribute
+      this.key = opts.key
+      this.legend = opts.legend
+      this.multiple = opts.multiple || false
+      this.lists = opts.dataLists
+      this.disabled = opts.disabled
+      this.defaultchoose = this.multiple ? new Map() : (opts.defaultvalue || opts.dataLists[0])
+      this.defaultvalue = typeof this.defaultchoose === 'string' ? this.defaultchoose : (this.multiple ? Array.from(this.defaultchoose.values()) : this.defaultchoose.name)
+      this.classname = opts.class
+      this.icon = opts.icon || 'down'
+    }
+    this.init(opts)
+  </script>
+</rs-fieldset>

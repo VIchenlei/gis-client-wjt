@@ -1,0 +1,278 @@
+<history-query class="history-query grey-scroll">
+  <nav class="his-nav">
+    <img src="../img/historyLogo.png">
+    <h4>历史轨迹</h4>
+  </nav>
+  <div if={ isShowHistory() } class="history-content">
+    <div class="search-content">
+      <div class="search-change">
+        <svg class={ getClassName('HS-A-002') } name="cardtypeid" ref="cardtypeid" value="2" onclick={ setCardTypeID }>
+          <use href='/icons/icons.svg#icon-vehicle-big'></use>
+        </svg>
+        <span class={ getClassName('HS-A-001', true) }>|</span>
+        <svg class={ getClassName('HS-A-001') } class="icon active" name="cardtypeid" ref="cardtypeid" value="1" onclick={ setCardTypeID }>
+          <use href='/icons/icons.svg#icon-staff-big'></use>
+        </svg>
+      </div>
+      <div class="identify-staff">
+        <div class="his-fuzzy-search"></div>
+      </div>
+      <div class="search-img" onclick={ doQueryList }>
+        <img src="./img/serachWhite.png">
+      </div>
+    </div>
+    <!-- <div class="checkout-work" ref="checkout-work">
+      <input type="checkbox" name="" id="checkout">
+      <label for="checkout">按考勤查询历史轨迹</label>
+    </div> -->
+    <div class="search-more-result">
+        <div data-is="history-search"></div>
+        <div data-is="history-track-list"></div>
+    </div>
+  </div>
+  
+  <script>
+    import '../sass/history-query.sass'
+    import './history-search.html'
+    import './history-track-list.html'
+    import '../../tags/rs-fuzzy-search/rs-fuzzy-search.html'
+    import fuzzySearch from '../../js/def/fuzzy_search.js'
+    import { getAccessSql, clone, getDisPlayList } from '../../js/utils/utils.js'
+    import { queryTrackDef } from '../js/history_defs.js'
+    this.isShowHistory = () => {
+      let isShowHistory = false
+      let result = xdata.menus.find(item =>{
+        return item.includes('HS-A')
+      })
+      if (!xdata.hasMenus || result) isShowHistory = true
+      return isShowHistory
+    }
+
+    this.getClassName = (menuID, special) => {
+      let className = 'icon'
+      let specialName = ''
+      let checkedMenus = xdata.menus
+      if (!xdata.hasMenus || (xdata.menus.includes('HS-A-001') && xdata.menus.includes('HS-A-002'))) {
+        className = menuID === 'HS-A-001' ? 'icon active' : 'icon'
+      } else {
+        className = checkedMenus.includes(menuID) ? 'icon active' : 'icon hide'
+        specialName = 'hide'
+      }
+
+      let result = special ? specialName : className
+      return result
+    }
+
+    this.on('mount', () => {
+      this.mountFuzzy('staff')
+    })
+
+    this.dealShowResult = (matchs, s, keys) => {
+      if (xdata.objRange === 1 || xdata.isCheck === 1) {
+        matchs = matchs.filter((item) => item.need_display != 0)
+      }
+      let dittoname = clone(matchs)
+      if (keys.includes('staff_id')) {
+        dittoname.forEach(e => {
+          e.name = e.hasOwnProperty('reader_id') ? e.name : `${e.staff_id}-${e.name}-${xdata.metaStore.getNameByID('dept_id', e.dept_id)}`
+        })  
+      }
+      return dittoname
+    }
+
+    /*获取模糊查询结果*/
+    this.getResult = (result) => {
+      if (!result) return
+      let data = result.row
+      let desc = fuzzySearch['staff'].desc
+      let ele = this.fuzzy.refs['searchinput'] 
+      ele.value = data[desc]
+      this.row = data
+    }
+
+    /*获取查询组件message*/
+    this.getComponentMessage = (ident) => {
+      let searchArr = ident === 'staff' ? (xdata.metaStore.staffs && Array.from(xdata.metaStore.staffs.values())) : (xdata.metaStore.vehicles && Array.from(xdata.metaStore.vehicles.values()))
+      searchArr = getDisPlayList(searchArr, `${ident}_id`)
+      let typeDef = {
+        name: ident,
+        label: fuzzySearch[ident].label,
+        placeholder: fuzzySearch[ident].placeholder,
+        isShowResultList: false,
+        cb: this.getResult
+      }
+      let dataSet = {
+        desc: fuzzySearch[ident].desc,
+        keys: fuzzySearch[ident].keys,
+        data: searchArr
+      }
+      this.desc = fuzzySearch[ident].desc
+      return {
+        typeDef: typeDef,
+        dataSet: dataSet,
+        needSearchIcon: false,
+        dealShowResult: this.dealShowResult,
+        type: 'RADIO',
+        isShowPopup: true
+      }
+    }
+
+    /*人车查询切换*/
+    this.setCardTypeID = (evt, cardTypeID) => {
+      let v = evt && evt.currentTarget.getAttribute('value')
+      let cardType = 'staff'
+      this.cardTypeID = v ? parseInt(v, 10) : cardTypeID
+      if (this.cardTypeID === 1) {
+        cardType = 'staff'
+        this.refs.cardtypeid[0].classList.remove('active')
+        this.refs.cardtypeid[1].classList.add('active')
+      } else if (this.cardTypeID === 2) {
+        cardType = 'vehicle'
+        this.refs.cardtypeid[0].classList.add('active')
+        this.refs.cardtypeid[1].classList.remove('active')
+      }
+      this.mountFuzzy(cardType)
+    }
+
+    /*mount模糊查询*/
+    this.mountFuzzy = (cardType) => {
+      let message = this.getComponentMessage(cardType)
+      if (this.fuzzy) {
+        this.fuzzy.unmount(true)
+      }
+      this.fuzzy = riot.mount('div.identify-staff > div', 'rs-fuzzy-search', { message : message })[0]
+    }
+
+    /*获取time去执行查询估计sql*/
+    this.doQueryList = () => {
+      this.objID = null
+      this.accompanyName = null
+      let cardType = this.cardTypeID === 1 ? 'staff_id' : 'vehicle_id'
+      let objID = this.row && this.row[cardType]
+      let value = this.fuzzy.refs['searchinput'].value
+      if (!objID || !value) {
+        this.tags["history-track-list"] && this.tags["history-track-list"].init()
+        window.xMessage.open({ type: 'error', message: '请输入查询的人员或车辆。'})
+        return
+      }
+      let time = this.root.querySelectorAll('.calendar-select')
+      let stime = time && time[0] && time[0].value
+      let etime = time && time[1] && time[1].value
+      if (!stime || !etime) return window.xMessage.open({ type: 'error', message: '输入的时间有误，请检查后重新输入！'})
+      window.xhint.showLoading()
+      this.queryTrackList(objID, {
+        startTime: new Date(stime).format('yyyy-MM-dd hh:mm:ss'),
+        endTime: etime ? new Date(etime).format('yyyy-MM-dd hh:mm:ss') : new Date().format('yyyy-MM-dd hh:mm:ss')
+      })
+    }
+
+    xbus.on('ACCOMPANY-TRACK-DATA-UPDATE', (msg) => {
+      if (msg.objID) {
+        const staffs = xdata.metaStore.staffs
+        const staff = staffs && staffs.get(msg.staffID)
+        let deptID = staff && staff.dept_id
+        let name = `${msg.staffID}-${msg.name}-${xdata.metaStore.getNameByID('dept_id', deptID)}`
+        this.fuzzy.refs['searchinput'].value = name
+        this.fuzzy.refs['searchinput'].setAttribute('data-type', msg.objID)
+        this.tags["history-search"] && (this.tags["history-search"].refs["tstart_time"].value = msg.startTime)
+        this.tags["history-search"] && (this.tags["history-search"].refs["tend_time"].value = msg.endTim)
+        this.tags["history-search"] && this.tags["history-search"].changeDate()
+        let queryTime = {
+          startTime: msg.startTime,
+          endTime: msg.endTime
+        }
+        let objID = msg.objID.join(',')
+        this.objID = msg.objID
+        this.accompanyName = msg.name
+        this.queryTrackList(objID, queryTime)
+      }
+      
+    })
+
+    /*查询轨迹函数*/
+    this.queryTrackList = (objID, queryTime) => {
+      let sql = this.queryTrackSql(objID, queryTime)
+      let message = {
+        cmd: 'query',
+        data: {
+          name: 'TrackList',
+          sql: sql
+        }
+      }
+      // console.log(message)
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: { name: 'TrackList' }
+      })
+      // this.sql = sql
+    }
+
+    /*查询轨迹的sql*/
+    this.queryTrackSql = (objID, queryTime) => {
+      // this.checkoutWork = this.refs["checkout-work"].querySelector('input').checked	
+      this.checkoutWork = true
+      let mapID = parseInt(xdata.metaStore.defaultMapID, 10)
+      let cardType = this.cardTypeID === 1 ? 'staff' : 'vehicle'
+      let isAttendance = this.checkoutWork ? 'attendance' : 'notattendance'
+      let trackDef = queryTrackDef[isAttendance]
+      let sqlObj = trackDef[cardType]
+      let timeExpr = sqlObj && sqlObj.timeExpr
+      let sql = sqlObj && sqlObj.sql
+      timeExpr = timeExpr.replace('{startTime}', queryTime.startTime).replace('{endTime}', queryTime.endTime)
+      sql = sql.replace('{objID}', objID).replace('{mapID}', mapID).replace('{timeExpr}', timeExpr)
+      return sql
+    }
+
+    this.fastQuery = (cardID, numberId, time, endtime) => {
+      let cardTypeID = xdata.metaStore.getCardTypeID(cardID)
+      this.setCardType(cardTypeID)
+      this.setQueryKey(cardTypeID, cardID, numberId, time, endtime)  // set the query key input value
+    }
+
+    /*设置cardType*/
+    this.setCardType = (cardTypeID) => {
+      this.cardTypeID = cardTypeID
+      let value = this.cardTypeID === 1 ? 'staff' : 'vehicle'
+      this.init(value)
+      this.update()
+    }
+
+    /*设置快速查询的key*/
+    this.setQueryKey = (cardTypeID, cardID, numberId, time, endtime) => {
+      this.objID = null
+      let name = ''
+      let objID = -1
+      let obj = xdata.metaStore.getCardBindObjectInfo(cardID)
+      this.row = obj
+      if (obj) {
+        name = cardTypeID === 1 ? `${obj.staff_id}-${obj.name}-${xdata.metaStore.getNameByID('dept_id', obj.dept_id)}` : obj.name
+        if (numberId) {
+          objID = numberId
+        } else {
+          objID = cardTypeID === 1 ? obj.staff_id : obj.vehicle_id
+        }
+        this.setCardTypeID('', cardTypeID)
+        this.fuzzy.refs['searchinput'].value = name
+        this.fuzzy.refs['searchinput'].setAttribute('data-type', objID)
+        this.tags["history-search"] && (this.tags["history-search"].refs["tstart_time"].value = new Date(time).format('yyyy-MM-dd hh:mm:ss'))
+        endtime && this.tags["history-search"] && (this.tags["history-search"].refs["tend_time"].value = new Date(endtime).format('yyyy-MM-dd hh:mm:ss'))
+        this.tags["history-search"] && this.tags["history-search"].changeDate()
+        window.xhint.showLoading()
+        this.queryTrackList(objID, {
+          startTime: new Date(time).format('yyyy-MM-dd hh:mm:ss'),
+          endTime: endtime ? new Date(endtime).format('yyyy-MM-dd hh:mm:ss') : new Date().format('yyyy-MM-dd hh:mm:ss')
+        })
+      }
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.cardTypeID = 1
+      this.fuzzy = null
+      this.row = null
+    }
+
+    /*执行初始化函数*/
+    this.init(opts)
+  </script>
+</history-query>

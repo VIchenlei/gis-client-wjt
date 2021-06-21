@@ -1,0 +1,495 @@
+<basic-msg class="basic-msg">
+  <div data-is="basic-head" data-title="基本信息"></div>
+  <div class="basic-first" ref="content">
+    <div class="basic-left-row">
+      <div each={row in firstRows} class="basic-wp">
+        <rs-text-field data={row} ref={row.field_name} data-name={tableName} data-oldvalue= {dealValue(row)} if={isShow(row)}></rs-text-field>
+        <rs-select-field data={row} ref={row.field_name} data-name={tableName} if={row.field_type === 'SELECT'}></rs-select-field>
+        <rs-date if={row.field_type === 'DATE'} ref={row.field_name} text={row.field_label} data-oldvalue= {row.field_value} value={row.field_value} modifycb={changeDate}></rs-date>
+      </div>
+    </div>
+    <div class="basic-right-row">
+      <div each={ row in secondRows } name={ row.field_name } class="basic-second">
+        <span class="picture">
+          <img ref="imgpicture" name="imgpicture" src={ row.field_value ? '/resource/' + opts.name + '/' + row.field_value : '/img/pic' + opts.name + '.png' } alt="">
+          <span class="file-btn">
+            <button class="file-input" type="text" ref={ row.field_name } placeholder="上传图片" value={  row.field_value ? row.field_value : '/img/pic' + opts.name + '.png' }  name={ row.field_name } onclick={ modifyFile } data-name="uploadPic">上传图片</button>
+            <button class="file-input" type="text" ref="{ row.field_name }_del" placeholder="删除图片" value={ row.field_value } name={ row.field_name } onclick={ modifyFile } data-name="deletePic">删除图片</button>
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+  <div class="basic-third-row hide" ref="basic-third-row">
+    <div each={row in thirdRows}  class="basic-wp">
+      <rs-text-field data={row} ref={row.field_name} data-name={tableName} if={row.field_type !== 'SELECT'} data-oldvalue= {dealValue(row)}></rs-text-field>
+      <rs-select-field data={row} ref={row.field_name} data-name={tableName} if={row.field_type === 'SELECT'}></rs-select-field>
+    </div>
+  </div>
+  <rs-more if={opts.name === 'staff'} name="basic-third-row"></rs-more>
+  <script>
+    import '../sass/basic-msg.sass'
+    import '../tags/basic-head.html'
+    import '../../tags/rs-text-field/rs-text-field.html'
+    import '../../tags/rs-more/rs-more.html'
+    import '../../tags/rs-import-file-dialog/tags/rs-file-dialog.html'
+    import '../../tags/rs-date/tags/rs-date.html'
+    import  { getRows, trim, formatFieldValue, editDetail, composeUpdateDBReq, messageTip } from '../../js/utils/utils.js'
+    import { getTextValue, checkCertification } from '../js/utils.js'
+    let self = this
+    let store = xdata.metaStore
+    const btns = [{'name': 'insert', 'label': '新增信息'}, {'name': 'update', 'label': '修改信息'}]
+
+    /*执行保存、重置*/
+    this.handleDB = (name) => {
+      if (name === 'btn-sure') this.doInsertPopup()
+      if (name === 'btn-reset') this.doReset()
+    }
+
+    this.isShow = (row) => {
+      if (row.field_type === 'SELECT' || row.field_type === 'DATE') return false
+      return true
+    }
+
+    /*修改日期显示保存、重置按钮*/
+    this.changeDate = (value, target) => {
+      let name = target.getAttribute('idname')
+      if (typeof this.parent.hideFill === 'function') {
+        !this.checkOldValue(name, value) && this.parent.hideFill()
+      }
+    }
+
+    //输入框值展示特殊处理
+    this.dealValue = (row) => {
+      const msg = {
+        row: row,
+        tableName: this.tableName,
+        cmd: this.cmd
+      }
+      let fieldValue = getTextValue(msg)
+      return fieldValue
+    }
+
+    // 人车信息修改保存弹出提示框
+    this.doInsertPopup = () => {
+      let isShowSpecialMsg = this.judgeShowSpecialMsg()
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认是否要更改信息？',
+        tips: '',
+        isShow: isShowSpecialMsg,
+        btns: btns,
+        cb: this.doInsert
+      })[0]
+    }
+
+    // 判断弹出提示框是否显新增、编辑按钮
+    this.judgeShowSpecialMsg = () => {
+      let fieldValue = this.refs[opts.name + '_id'].refs[opts.name + '_id'].value
+      let keyvalue = fieldValue && parseInt(fieldValue, 10)
+      if (keyvalue && keyvalue !== this.key) return true
+      return false
+    }
+
+    this.completeFiled = (row, fieldValue) => {
+      const { field_name, field_enableNull } = row
+      if ((!field_enableNull && !fieldValue) || field_name === 'rank') {
+        const enterInput = {
+          name: (function () {
+            return `${self.keyValue}`
+          })(),
+          certification: (function () {
+            return ''
+          })(),
+          birthday: (function () {
+            return null
+          })(),
+          vehicle_type_id: (function () {
+            const vehicleType = xdata.metaStore.data.vehicle_type && xdata.metaStore.data.vehicle_type.get(1)
+            return vehicleType && vehicleType.name
+          })(),
+          rank: (function () {
+            return 0
+          })(),
+          sex_id: (function () {
+            return 1
+          })(),
+          is_vip: (function () {
+            return 0
+          })(),
+        }
+        fieldValue = enterInput[field_name]
+      }
+      return fieldValue
+    }
+
+    //执行新增
+    this.doInsert = (doType) => {
+      let keyvalue = this.refs[opts.name + '_id'].refs[opts.name + '_id'].value
+      let isExitKeyvalue = store.data[opts.name] && store.data[opts.name].get(Number(keyvalue))
+      if (doType === 'doUpdate' || isExitKeyvalue) {
+        this.doUpdate(doType === 'doInsert' ? 'INSERT' : 'UPDATE')
+      } else {
+        let fields = '', values = '', detail = ''
+        this.keyValue = null
+        const type = 'warning'
+        const xmsg = '输入的内容存在非法值，请检查输入项！'
+        if (this.tips) return messageTip(xmsg, type)
+        for (let i = 0, len = this.rows.length; i < len; i++) {
+          const { field_name, field_type, field_enableNull } = this.rows[i]
+          let fieldValue = null, textValue = null
+          if (!xdata.isControl && !['staff_id', 'vehicle_id'].includes(field_name)) {
+            
+          } else if (field_type === 'SELECT') {
+            fieldValue = this.refs[field_name].refs[field_name].getAttribute('oldvalue')
+            let value = this.refs[field_name].refs[field_name].getAttribute('name')
+            textValue = this.refs[field_name].refs[field_name].innerText
+
+            if (value && fieldValue !== value) fieldValue = value
+
+            if (!fieldValue || !(/\d/ig).test(fieldValue)) fieldValue = 0
+
+            if (!field_enableNull && fieldValue !== 0 && !fieldValue) return messageTip(xmsg, type)
+          } else if (field_type === 'FILE') {
+            fieldValue = this.refs[field_name].getAttribute('value')
+            fieldValue = formatFieldValue(field_type, fieldValue)
+            if (fieldValue.indexOf('pic') !== -1 || fieldValue === '' || fieldValue === 'undefined') {
+              fieldValue = null
+            }
+          } else {
+            fieldValue = this.refs[field_name].refs[field_name].value
+          }
+
+          if (!xdata.isControl && !['staff_id', 'vehicle_id'].includes(field_name)) {
+            fieldValue = this.completeFiled(this.rows[i], fieldValue)
+          } else {
+            if (!field_enableNull && !fieldValue) return messageTip(xmsg, type)
+          }
+          fieldValue = fieldValue === null ? fieldValue : formatFieldValue(field_type, fieldValue)
+          textValue = field_type === 'SELECT' ? textValue : fieldValue
+
+          if (i === 0) {
+            this.keyValue = fieldValue
+          } else {
+            fields += ','
+            values += ','
+          }
+          detail = editDetail(field_name, textValue, detail, opts.name)
+          fields += field_name
+          values += fieldValue
+        }
+        if (opts.name === 'staff') {
+          fields += ',user_id'
+          values += `,'${xdata.userName}'`
+        }
+        this.sql = `REPLACE into ${this.tableName} (${fields}) VALUES(${values})`
+        this.detail = detail
+        this.parent.tags["business-msg"] && this.parent.tags["business-msg"].doInsert()
+      }
+    }
+
+    this.insertSql = (optype) => {
+      if (!this.sql) return
+      let req = composeUpdateDBReq(optype || 'INSERT', opts.name, this.keyValue, this.sql)
+      req.data['detail'] = this.detail
+      req.data['user_id'] = xdata.userName
+      console.log('req', req)
+      xbus.trigger('META-UPDATE-DB', { req: req })
+    }
+
+    //更新数据
+    this.doUpdate = (doType) => {
+      let sql = '', detail = '', preDetail = ''
+      for (let i = 0, len = this.rows.length; i < len; i++) {
+        const { field_name, field_type } = this.rows[i]
+        let fieldValue = null, textValue = null
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+          textValue = this.refs[field_name].refs[field_name].innerText
+          if (!fieldValue || !fieldValue.match(/\d/ig)) fieldValue = 0
+        } else if (field_type === 'FILE') {
+          fieldValue = this.refs[field_name].getAttribute('value')
+          if (fieldValue.indexOf('pic') !== -1 || fieldValue === '' || fieldValue === 'undefined') {
+            fieldValue = null
+          }
+        } else {
+          fieldValue = this.refs[field_name].refs[field_name].value
+          textValue = fieldValue
+        }
+        if (this.rows[i].field_value != fieldValue) {
+          if (!xdata.isControl && !['staff_id', 'vehicle_id'].includes(field_name)) {
+            fieldValue = this.completeFiled(this.rows[i], fieldValue)
+          }
+          fieldValue = fieldValue === null ? fieldValue : formatFieldValue(field_type, fieldValue)
+          if (sql != '') {
+            sql += ','
+          }
+          sql += `${field_name}=${fieldValue}`
+          detail = editDetail(field_name, textValue, detail, opts.name)
+          preDetail = editDetail(field_name, this.rows[i].field_value, preDetail, opts.name)
+        }
+      }
+      if (sql != '') {
+        this.keyValue = this.refs[`${opts.name}_id`].root.querySelector('input').value
+        this.sql = `UPDATE ${this.tableName} set ${sql} where ${opts.name + '_id'}=${this.key}`
+      }
+      this.detail = preDetail + '->' + detail
+      this.parent.tags["business-msg"] && this.parent.tags["business-msg"].doUpdate(doType)
+    }
+
+    //删除数据
+    this.doDelete = (name) => {
+      let keyname = opts.name + '_id'
+      let sql = `DELETE from ${this.tableName} where ${keyname}=${name}`
+      let detail = editDetail(keyname, name, '', opts.name)
+      let deletename = store.data[opts.name] && store.data[opts.name].get(name)
+      detail = editDetail('name', deletename && deletename.name, detail, opts.name)
+      let req = composeUpdateDBReq('DELETE', opts.name, name, sql)
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      req.username = xdata.userName
+      xbus.trigger('META-UPDATE-DB', {req: req})
+      this.rows = getRows(null, this.def)
+      this.divisionRows(this.rows)
+      this.update()
+    }
+
+    this.checkObjID = (value) => {
+      if (!(/^[1-9]\d*$/g).test(value)) {
+        return '请输入非0数字'
+      } else if (store.data[opts.name] && store.data[opts.name].get(parseInt(value, 10))) {
+        return '已存在该编号'
+      }
+    }
+
+    this.checkTelephone = (value) => {
+      const reg = /(^([1-9]{1}[0-9]{6,7})$)|(^0{0,1}1[3|4|5|6|7|8|9][0-9]{9}$)/
+      return !reg.test(value) && value !== '' ? '请输入11位手机号或座机号' : ''
+    }
+
+    this.checkOldValue = (name, value) => {
+      let oldValue = this.refs[name] && this.refs[name].root.getAttribute('data-oldvalue')
+      if (oldValue === null) oldValue = ''
+      return oldValue === value
+    }
+
+    this.leaveInput = (evt, tips) => {
+      let reg = null
+      let target = evt.currentTarget
+      let inputname = target.getAttribute('idname')
+      let type = target.getAttribute('data-type')
+      let value = target.value
+      value = trim(value)
+
+      if (typeof this.parent.hideFill === 'function') {
+        !this.checkOldValue(inputname, value) && this.parent.hideFill()
+      }
+
+      if (!xdata.isControl && ['staff_id', 'vehicle_id'].includes(inputname)) return ''
+
+      const checkInput = {
+        staff_id: this.checkObjID(value),
+        vehicle_id: this.checkObjID(value),
+        certification: checkCertification(value, this.key),
+        name: (function (value) {
+          const reg = (/^[0-9A-Za-z\u4e00-\u9fa5]{1,}$/g)
+          return opts.name === 'staff' && !reg.test(value) && value !== '' ? '请输入字母或汉字' : ''
+        })(value),
+        height: (function (value) {
+          const reg = (/^[1-2]\d{2}$/g)
+          return !reg.test(value) && value !== '' ? '请输入正确身高，不能包含特殊字符' : ''
+        })(value),
+        weight: (function (value) {
+          const reg = (/^[\d]{2,3}|[\d\.]{4,5}$/g)
+          return !reg.test(value) && value !== '' ? '请输入正确体重' : ''
+        })(value),
+        blood: (function (value) {
+          const reg = (/^[A|B|O|AB]{1,2}$/ig)
+          return !reg.test(value) && value !== '' ? '请输入正确血型(A/B/O/AB)' : ''
+        })(value),
+        telephone: this.checkTelephone(value),
+        relative_telephone: this.checkTelephone(value)
+      }
+
+      if (checkInput[inputname]) tips = checkInput[inputname]
+
+      this.tips = tips
+      return tips
+    }
+
+    this.modifyFile = (evt) => {
+      evt.stopPropagation()
+      let modifyType = evt.target.getAttribute('data-name')
+      if (modifyType === 'uploadPic') {
+        this.modifyFileUpload(evt)
+      } else {
+        this.modifyFileDelete(evt)
+      }
+    }
+
+    //上传图片
+    this.modifyFileUpload = (evt) => {
+      let remoteFileName = evt.target.value
+      let fieldName = evt.target.getAttribute('name')
+      let fileNamePrefix = this.refs[opts.name + '_id'].refs[opts.name + '_id'].value // fileNamePrefix
+      let data = {
+        cmd: this.key ? 'UPDATE' : 'INSERT',
+        key: opts.name === 'staff' ? 'staff_id' : 'vehicle_id',
+        maxid: fileNamePrefix,
+        name: opts.name,
+        table: 'dat_' + opts.name,
+        title: opts.name === 'staff' ? '人员' : '车辆',
+        rows: this.rows
+      }
+      let msg = {
+        cmd: this.key ? 'UPDATE' : 'INSERT',
+        fieldName: fieldName,
+        fileType: opts.name,
+        fileName: remoteFileName,
+        fileNamePrefix: fileNamePrefix,
+        data: data,
+        parenTag: this
+      }
+      msg['cb'] = this.updateIMG
+      this.showFileDialog(msg)
+      xbus.trigger('FILEDIALOG-DATA-SHOW')
+    }
+
+    //删除图片
+    this.deletePicMsg = (evt) => {
+      this.parent.registerGlobalEventHandlers()
+      const row = this.picTarget.item.row
+      const value = row && row.field_value
+      const keyValue = this.rows[0].field_value
+      if (value) {
+        xbus.trigger('DELETE-PIC', {
+          cmd: 'delete-pic',
+          data: {
+            name: opts.name,
+            pic: value,
+            keyValue: keyValue
+          }
+        })
+      }
+    }
+
+    //执行弹出上传图片对话框
+    this.showFileDialog = (msg) => {
+      if (this.fileDialog) this.fileDialog.unmount(true)
+      this.fileDialog = riot.mount('rs-file-dialog', msg)[0]
+    }
+
+    //删除图片
+    this.modifyFileDelete = (evt) => {
+      let row = evt.item.row
+      let value = row && row.field_value
+      let picvalue = this.refs['pic'].getAttribute('value')
+      picvalue = picvalue.includes('pic') ? '' : picvalue
+      if (!value && !picvalue ) {
+        let xmsg = `该${opts.name === 'staff' ?  '人员' : '车辆'}没有照片！`
+        return messageTip(xmsg, 'warning')
+      } 
+      if (value) {
+        this.picTarget = evt
+        if (this.activePanel) this.activePanel.unmount(true)
+        this.activePanel = riot.mount('rs-dialog', {
+          content: '您确认删除所选信息吗？',
+          tips: '提示：数据删除后将无法恢复！',
+          cb: this.deletePicMsg
+        })[0]
+      } else {
+        this.refs['pic'].setAttribute('value', '')
+        this.refs['imgpicture'] && this.refs['imgpicture'].setAttribute('src', '/img/pic' + opts.name + '.png')
+      }
+    }
+
+    //重置
+    this.doReset = () => {
+      this.rows = getRows(null, this.def)
+      this.divisionRows(this.rows)
+      this.parent.tags['business-msg'] && this.parent.tags['business-msg'].doReset()
+      this.parent.tags['credentials-msg'] && this.parent.tags['credentials-msg'].updateList(null) 
+      this.update()
+    }
+
+    // 选择下拉结果展示保存、按钮
+    this.chooseItem = (fieldName, index, target) => {
+      const value = target.getAttribute('name')
+      const oldValue = target.getAttribute('oldvalue')
+      const isSame = oldValue === value
+      if (typeof this.parent.hideFill === 'function') {
+        !isSame && this.parent.hideFill()
+      }
+    }
+
+    // 切换基本信息展示
+    this.updateList = (value) => {
+      this.key = value  //更新基本信息用于sql语句中
+      const obj = store.data[opts.name]
+      const msg = obj.get(value)
+        ? {
+            row: obj.get(value)
+          } 
+        : null
+        
+      this.rows = getRows(msg, this.def)
+      this.divisionRows(this.rows)
+      this.refs['content'].setAttribute('data-type', 'update')
+      this.update()
+    }
+
+    //基本信息展示更多
+    this.showDown = () => {
+      let thirdTag = this.refs['basic-third-row']
+      thirdTag.classList.toggle('hide')
+    }
+
+    //拆分数据默认展示第一部分
+    this.divisionRows = (rows) => {
+      if (opts.name === 'staff') {
+        this.firstRows = rows.slice(0, 6)
+        this.secondRows = rows.slice(6, 7)
+        this.thirdRows = rows.slice(7)
+      } else if (opts.name === 'vehicle') {
+        this.firstRows = rows.slice(0, 4)
+        this.secondRows = rows.slice(4, 5)
+        this.thirdRows = rows.slice(5)
+      }
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('FILE-MODIFIED', (msg) => {
+        this.refs['pic'].setAttribute('value', '')         
+      })
+    }
+
+    this.on('mount', () => {
+      this.registerGlobalEventHandlers()
+    })
+
+    this.init = (opts) => {
+      this.tableName = 'dat_' + opts.name
+      this.def = store.defs[opts.name]
+      this.rows = getRows(null, this.def)
+      this.divisionRows(this.rows)
+      this.parenTag = this.parent.parenTag
+    }
+
+    this.init(opts)
+
+    this.updateIMG = (source) => {
+      let imgpicture = this.refs['imgpicture']
+      if (source !== 'pic') {
+        imgpicture && imgpicture.setAttribute('src', '../resource/' + opts.name + '/' + source)
+      } else {
+        imgpicture && imgpicture.setAttribute('src', '/img/pic' + opts.name + '.png')
+      }
+      this.refs['pic'] && this.refs['pic'].setAttribute('value', source)
+      this.tags['basic-head'] && this.tags['basic-head'].refs['buttons'].classList.remove('hide')
+    }
+
+    this.on('unmount', () => {
+      xbus.off('FILE-MODIFIED')
+    })
+  </script>
+</basic-msg>

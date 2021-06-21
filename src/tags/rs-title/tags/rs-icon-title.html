@@ -1,0 +1,21 @@
+<rs-icon-title class="rs-icon-title">
+  <i></i>
+  <span class="title">{title}</span>
+  <span class="tips">{tips}</span>
+
+  <script>
+    import '../sass/rs-icon-title.sass'
+
+    this.updateTitleTips = () => {
+      this.title = opts.title
+      this.tips = opts.tips
+      this.update()
+    }
+
+    this.init = (opts) => {
+      this.title = opts.title
+      this.tips = opts.tips
+    }
+    this.init(opts)
+  </script>
+</rs-icon-title>

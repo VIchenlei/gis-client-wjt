@@ -1,0 +1,64 @@
+<light-control>
+  <div class="control">
+    <p class="title">红绿灯控制</p>
+    <p class="control-state">
+      <span>选择红绿灯控制状态:</span>
+      <span class="light-img">
+        <img class="choose-img" each={img in imgs} path={img.path} src={img.src} name={img.name} onclick={chooseStateImg}/>
+      </span>
+    </p>
+    <p class="control-state">
+      <span>将要切换的红绿灯状态:</span>
+      <span class="light-img">
+        <img src='/img/{changeState}'/>
+      </span>
+    </p>
+    <p class="control-state" if={opts.data['ctrlUser'] === xdata.userName}>
+      <span>是否取消控制:</span>
+      <span class="light-radio">
+        <input type="radio" name="ctrl" id="yes" rules = '0' onclick= { changeRadio }/>
+        <label for="yes" >是</label>
+        <input type="radio" id="not" name="ctrl" rules = '1' checked onclick= { changeRadio }/>
+        <label for="not" >否</label>  
+      </span>
+    </p>
+  </div>
+  <script>
+    import '../sass/light-control.sass'
+    import { lightImgs } from '../js/light_img.js'
+
+    this.sendState = () => {
+      let msg = {
+        rules: this.rules,
+        stateId: this.stateId,
+        cancleRules: this.cancleRules
+      }
+      this.parent.sendState instanceof Function && this.parent.sendState(msg)
+    }
+
+    this.changeRadio = (evt) => {
+      this.cancleRules = Number(evt.target.getAttribute('rules'))
+      this.update()
+    }
+
+    // 选择红绿灯状态
+    this.chooseStateImg = (evt) => {
+      let target = evt.target
+      this.changeState = target.getAttribute('path')
+      let name = target.getAttribute('name')
+      let deviceStateData = Array.from(xdata.metaStore.data.device_state.values()).filter(item => item.name === name)
+      this.stateId = deviceStateData && deviceStateData[0]? deviceStateData[0].device_state_id : console.warn('pleace check device_state config!')
+    }
+
+    this.init = () => {
+      this.imgs = lightImgs
+      this.changeState = 'lightgreenpage.png' // 初始化默认状态图片 
+      this.rules = 1 //默认为不取消控制
+      this.cancleRules = 1
+      let initDeviceState = xdata.metaStore.data.device_state && Array.from(xdata.metaStore.data.device_state.values()).filter(item => item.name === '绿')//默认更改绿灯
+      this.stateId = initDeviceState && initDeviceState[0]? initDeviceState[0].device_state_id : console.warn('pelace check device_state config!')
+    }
+
+    this.init()
+  </script>
+</light-control>

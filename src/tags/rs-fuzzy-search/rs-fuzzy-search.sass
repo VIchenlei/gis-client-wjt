@@ -1,0 +1,33 @@
+@import ../../style/defs
+
+.rs-fuzzy-search
+  max-height: 2.56rem
+  overflow-x: hidden
+  overflow-y: auto
+  background: #fff
+  box-shadow: 0 3px 4px 2px rgba(0,0,0,0.10)
+  border-radius: 4px
+  margin-top: 7px
+  z-index: 1
+  .search-icon
+    position: relative
+    img
+      height: 22px
+      width: auto
+      cursor: pointer
+      position: absolute
+      top: 0.08rem
+    .left
+      left: 0
+    .right
+      right: 0
+    .searchinput
+      padding: 0 25px
+  .tips
+    @include wh(100%, auto)
+    font-size: $font-s
+    display: inline-block
+    text-align: center
+    margin-left: 0
+    background: $font-white
+    padding: .1rem 0

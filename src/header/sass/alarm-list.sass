@@ -1,0 +1,58 @@
+@import '../../style/defs'
+
+.alarm-list
+  @include absolute-right-top(0, 50px, 99)
+  font-size: $font-s
+  background: $color-white
+  box-shadow: 0 5px 6px 4px rgba(0,0,0,0.14)
+  width: 5.9rem
+  overflow: hidden
+  @media screen and (max-width: $width-medium)
+    width: 3.5rem
+    left: 50%
+    margin-left: -1.75rem
+  .rs-title 
+    background: $alarm-color
+  .r-btn
+    padding: 0 .2rem
+    @include flex-between-center
+    .btn-alarm
+      @include wh(auto, auto)
+      padding: .05rem .2rem
+      border: 1px solid $alarm-color
+      margin: .1rem
+      border-radius: 2px
+  .alarm-body
+    max-height: 4.5rem
+    overflow-y: auto
+    margin-left: 20px
+  .alarm-class
+    padding: .05rem 0
+
+  .rs-table-icon-btn
+    tbody
+      overflow: inherit
+    button
+      background: rgba(255,204,49,0.10)
+      color: $alarm-color
+      @media screen and (max-width: $width-medium)
+        width: 0.5rem
+        right: 12px
+    .islink
+      .active
+        color: #009fff
+    .islink:hover
+      color: #009fff
+      cursor: pointer
+    .redText
+      color: red
+      cursor: pointer
+    tr
+      display: table
+      width: 100%
+      .check, .locate
+        width: .4rem
+      .operate
+        width: .6rem
+    tbody
+      display: block

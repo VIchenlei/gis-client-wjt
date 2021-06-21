@@ -1,0 +1,299 @@
+<history-track-list class="track-result-panel">
+  <div if={ hasTracks } class="track-list-panel grey-scroll">
+    <div each={ name in Array.from(tracks.keys()) }>
+      <span class="title" if={isShowTitle(name)}>陪同人员</span>
+      <div each={ row, i in tracks.get(name) } data-index={ i } attr={row.staff_id ? row.staff_id : row.vehicle_id} data-name={ name } class="track-tag" id={ "track-tag" + i} onclick={doQueryTrackData}>
+        <p cardID={ row.card_id }>
+          <span if={isPC}>{ name }</span>
+          <span>
+            <span if={!isPC}>{ name }</span>
+            <span>{ row.deptName }</span>
+            <span if={isPC} class="reader-detail" data-card={row.card_id} data-start={row.start_time} data-end={row.end_time} onclick={gotoReaderList}>进出分站明细</span>
+          </span>
+          <span>时间：{ row['start_time'] }</span>
+          <span>时长：{ row.duration }</span>
+        </p>
+      </div>
+      <span class="title" if={isShowTitle(name)}>来宾</span>
+    </div>
+  </div>
+  <div if={ !hasTracks } data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message"></div>
+  </div>
+
+  <script>
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import '../sass/history-track-list.sass'
+    import { formatElapsedTime } from '../../js/utils/utils.js'
+    import { sqlDefs } from '../js/history_defs.js'
+
+    this.isShowTitle = (name) => {
+      if (this.parent.accompanyName && this.parent.accompanyName === name) return true
+      return false
+    }
+
+    xbus.on('REPT-SHOW-RESULT', (msg) => {
+      if (msg.def.name === 'TrackList') {
+        this.dealTrackListResult(msg)
+      } else if (msg.def.name === 'TrackData') {
+        xbus.trigger('TRACK-DATA-UPDATE', (msg))
+      } else if (msg.def.name === 'trackAlarms') {
+        xbus.trigger('TRACK-ALARM-UPDATE', (msg))
+      }
+    })
+
+    /*处理轨迹数据*/
+    this.dealTrackListResult = (ds) => {
+      let tracks = ds && ds.rows
+      this.isCheckout = this.parent.parent.tags["history-query"] ? this.parent.parent.tags["history-query"].checkoutWork : this.parent.checkoutWork // 是否是按照考勤查询
+      window.xhint.close()
+      if (!tracks || tracks.length <= 0) {
+        this.hasTracks = false
+        window.xMessage.open({
+          type: 'error',
+          message: '当前系统中没有满足条件的轨迹。'
+        })
+        this.update()
+        return
+      }
+      this.hasTracks = true
+      this.beforeTracks = tracks
+      this.tracks = this.getTracks(tracks)
+      this.update()
+    }
+
+    /*获取处理轨迹数据*/
+    this.getTracks = (tracks) => {
+      if (this.isCheckout) {
+        let ts = new Map()
+        for (let i = 0, len = tracks.length; i < len; i++) {
+          let track = tracks[i]
+          let cardID = track.card_id
+          let obj = null
+          let deptName = null
+          let vehicleID = track.vehicle_id
+          let staffID = track.staff_id
+          if (vehicleID) {
+            obj = xdata.metaStore.vehicles && xdata.metaStore.vehicles.get(vehicleID)
+          } else if (staffID) {
+            obj = xdata.metaStore.staffs && xdata.metaStore.staffs.get(staffID)
+          }
+          let name = obj && obj.name
+          deptName = xdata.metaStore.getNameByID('dept_id', obj.dept_id)
+          track.deptName = deptName
+          let recs = ts.get(name)
+          if (!recs) {
+            recs = []
+            ts.set(name, recs)
+          }
+          if (!track.start_time) track.start_time = track.cur_time
+          if (!track.end_time) track.end_time = this.getEndTime(track.start_time)
+          let durationTime = new Date(track.end_time).getTime() - new Date(track.start_time).getTime()
+          track.duration = formatElapsedTime(durationTime)
+          track.startp = track.sname + track.sdir + (track.sdis ? track.sdis.toFixed(1) + '米' : '')
+          track.endp = track.ename + track.edir + (track.edis ? track.edis.toFixed(1) + '米' : '')
+          recs.push(track)
+        }
+        return ts
+      } else {
+        let ts = new Map()
+        if (this.parent.objID && this.parent.objID.length > 0) {
+          let gusetTracks = []
+          for (let i = 0; i < this.parent.objID.length; i++) {
+            let objID = this.parent.objID[i]
+            let specificTracks = tracks.filter(item =>item.staff_id === objID)
+            ts = this.getTs(ts, specificTracks)
+          }
+          return ts
+        }
+        return this.getTs(ts, tracks)
+      }
+    }
+
+    this.getTs = (ts, tracks) => {
+      let start = tracks[0]
+      if (!start) return ts
+      let end = tracks[tracks.length - 1]
+      let cardID = start.card_id
+      let needDisplay = xdata.metaStore.needDisplay(cardID)
+      let track = {}
+      if (needDisplay) {
+        let name = null
+        let deptName = null
+        let vehicleID = start.vehicle_id
+        let staffID = start.staff_id
+        let obj = xdata.metaStore.getCardBindObjectInfo(cardID)
+        name = obj.name
+        deptName = xdata.metaStore.getNameByID('dept_id', obj.dept_id)
+        track.deptName = deptName
+        track.start_time = start.cur_time
+        track.end_time = end.end_time
+        track.vehicle_id = vehicleID
+        track.name = name
+        track.card_id = cardID
+        let durationTime = new Date(end.end_time).getTime() - new Date(start.cur_time).getTime()
+        track.duration = formatElapsedTime(durationTime)
+        track.startp = xdata.metaStore.getNameByID('landmark_id', start.landmark_id) + xdata.metaStore.getNameByID('direction_mapper_id', start.direction_mapper_id) + (start.direction_mapper_id ? start.landmark_dist.toFixed(1) + '米' : '')
+        track.endp = xdata.metaStore.getNameByID('landmark_id', end.landmark_id) + xdata.metaStore.getNameByID('direction_mapper_id', end.direction_mapper_id) + (end.direction_mapper_id ? end.landmark_dist.toFixed(1) + '米' : '')
+        ts.set(name, [track])
+        return ts
+      }
+    }
+
+    /*获取结束时间*/
+    this.getEndTime = (str) => { // 没有结束时间考勤默认查两小时
+      let time = new Date(Date.parse(str))
+      if (this.parent.cardTypeID === 1) {
+        time = time.getTime() + 8 * 60 * 60 * 1000
+      } else {
+        time = time.getTime() + 2 * 60 * 60 * 1000
+      }
+      return new Date(time).format('yyyy-MM-dd hh:mm:ss')
+    }
+
+    this.doQueryTrackData = (evt) => {
+      let target = event.currentTarget
+      this.setActiveTrackTag(target)
+      if(window.activeTrackTag){
+        let ele = document.getElementById(window.activeTrackTag)
+        ele && ele.classList.add('activated')
+      }
+      window.xhint.showLoading('系统正在加载数据，请稍候...')
+      // xbus.trigger('MAP-UPDATE-SIZE')
+      xbus.trigger('SHOW-VIEW-CHANGE')
+      this.tagPlayer && this.tagPlayer.ticker.stopPlay()
+      if (this.isCheckout) {
+        this.doQueryTrackDataCheckout(target)
+      } else {
+        this.doQueryTrackDataNoCheckout(target)
+      }
+    }
+
+    // 查询不按考勤轨迹详细数据
+    this.doQueryTrackDataNoCheckout = (target) => {
+      let tracks = this.tracks
+      let sindex = target.getAttribute('data-index')
+      let sname = target.getAttribute('data-name')
+      let trackGroup = tracks.get(sname)
+      let trackRec = trackGroup && trackGroup[sindex]
+      this.queryTrackAlarms(trackRec.card_id, trackRec.start_time, trackRec.end_time)
+      let beforeTracks = this.beforeTracks
+      if (this.parent.objID && this.parent.objID.length > 0) {
+        let name = target.getAttribute('data-name')
+        let cardID = tracks.get(name)[0].card_id
+        beforeTracks = this.beforeTracks.filter(item => item.card_id === cardID)
+      }
+      xbus.trigger('TRACK-DATA-UPDATE', (beforeTracks))
+    }
+
+    // 查询按考勤轨迹详细数据
+    this.doQueryTrackDataCheckout = (target) => {
+      let sindex = target.getAttribute('data-index')
+      let sname = target.getAttribute('data-name')
+      this.trackIndex = sindex && parseInt(sindex, 10)
+      this.trackName = sname
+      let trackGroup = this.tracks.get(this.trackName)
+      let trackRec = trackGroup && trackGroup[this.trackIndex]
+      let startTime = trackRec.start_time
+      let endTime = trackRec.end_time
+      let objID = target.getAttribute('attr')
+      let dataTable = null
+      let indenkey = null,baseTable
+      if(!this.parent.cardTypeID) this.parent.cardTypeID = this.parent.parent.tagQuery.cardTypeID
+      let typeName = this.parent.cardTypeID === 2 ? 'vehicle' : 'staff'
+      dataTable = `his_location_${typeName}_`
+      indenkey = `bt.${typeName}_id`
+      baseTable = `dat_${typeName}_extend`
+      if (!endTime) endTime = this.getEndTime(startTime)
+      let sql = `SELECT ${indenkey}, bt.card_id, begin_time, ifnull(last_time, current_timestamp()) last_time, speed, begin_pt, hl.area_id, map_id, direction FROM ${dataTable} hl, ${baseTable} bt WHERE hl.obj_id=${indenkey} AND ${indenkey}=${objID}  AND begin_time >= "${startTime}" AND begin_time <= "${endTime}" ORDER BY begin_time;`
+      let message = {
+        cmd: 'query',
+        data: {
+          name: 'TrackData',
+          pageSize: 5000,
+          pageIndex: 0,
+          sql: sql
+        }
+      }
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: {
+          name: 'TrackData'
+        }
+      })
+      this.queryTrackAlarms(trackRec.card_id, startTime, endTime)
+    }
+
+    this.getTrackAlarmsSql = (cardID, startTime, endTime) => {
+      let mapID = xdata.metaStore.defaultMapID
+      let cardType = this.parent.cardTypeID === 1 ? 'staff' : 'vehicle'
+      let sql = sqlDefs[cardType].sql, exprString = null
+      exprString = `and hed.map_id = ${mapID} and hed.obj_id = ${cardID} and  hed.cur_time >= '${startTime}' and hed.cur_time <= '${endTime}'`
+      sql = sql.replace('{exprString}', exprString)
+      return sql
+    }
+    
+    this.queryTrackAlarms = (cardID, startTime, endTime) => {
+      let trackAlarmsSql = this.getTrackAlarmsSql(cardID, startTime, endTime)
+      let message = {
+        cmd: 'query',
+        data: {
+          name: 'trackAlarms',
+          sql: trackAlarmsSql
+        }
+      }
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: {
+          name: 'trackAlarms'
+        }
+      })
+    }
+
+    this.setActiveTrackTag = (target) => {
+      if(window.activeTrackTag){
+        let ele = document.getElementById(window.activeTrackTag)
+        ele && ele.classList.remove('activated')
+      }
+      this.activeTrackTag && this.activeTrackTag.classList.remove('activated')
+      this.activeTrackTag = target
+      window.activeTrackTag = target.getAttribute('id')
+      this.activeTrackTag.classList.add('activated')
+    }
+
+    this.gotoReaderList = (evt) => {
+      let target = evt.currentTarget
+      let cardID = target.getAttribute('data-card')
+      let startTime = target.getAttribute('data-start')
+      let endTime = target.getAttribute('data-end')
+      let name = xdata.metaStore.getCardBindName(cardID)
+      if (cardID) {
+        xbus.trigger('REPORT-FAST-OPEN', {
+          cardID: cardID,
+          name: name,
+          title: 'fast-jump',
+          report: `${name === 'staff' ? 'person' : 'v'}_reader`,
+          startTime: startTime,
+          endTime: endTime
+        })
+      }
+      evt.stopPropagation()
+    }
+
+    xbus.on('MAP-LOAD-SUCESS', () => {
+      this.hasTracks = false
+      this.tracks = new Map()
+      this.update()
+    })
+
+    /*初始化函数*/
+    this.init = () => {
+      this.hasTracks = false
+      this.tracks = new Map()
+      this.isCheckout = false
+      this.isPC = window.isPC
+    }
+
+    /*执行初始化函数*/
+    this.init()
+  </script>
+</history-track-list>

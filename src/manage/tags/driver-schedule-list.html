@@ -1,0 +1,171 @@
+<driver-schedule-list class="driver-schedule-list">
+  <table>
+    <thead>
+      <tr>
+        <th each={ item, i in shiftNames} class="{i === 4 ? isHide : ''}">{item.name}</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr each={ vehicle, i in vehicles}>
+        <td each={ ats in shiftAts} class="{ats === 'ys' ? isHide : ''}">
+          <span class="driver-name" onclick={focus}>{vehicle[ats]}</span>
+          <input class="driver-input hide" value={vehicle[ats]} data-oldValue={vehicle[ats]}>
+          <span if={ats !== 'name'} class="{ats} hide" onclick={handle} name={ vehicle.vehicle_id } type={ vehicle.name }>
+            <button class="{ats} btn-sure" data-name="sure">确定</button>
+            <button class="btn-cancel" data-name="cancel">取消</button>
+          </span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <rs-select if={isShowResult} message={message} isSearch={isSearch} parenTag={parenTag}></rs-select>
+  <script>
+    import '../sass/driver-schedule-list.sass'
+    import '../../tags/rs-select/rs-select.html'
+    import { compare, messageTip } from '../../js/utils/utils.js'
+    
+    this.shiftAts = {0: 'name', 1:'es', 2:'ms', 3:'ns', 4:'ys'}
+    this.shiftNames = [{name: '车辆'}, {name: '0点班'}, {name: '8点班'}, {name: '4点班'}, {name: '夜班'}]
+    this.isShowBtn = false
+    this.isShowResult = false
+
+    this.chooseItem = (result) => {
+      let value = Array.from(result)[0][1].label
+      this.inputEle.value = value
+      this.spanTaregt.innerHTML = value
+      this.isShowResult = false
+      this.update()
+      let staff = this.staffs.find(item => item.name === value)
+      this.basicMsg = {
+        staff_id: staff.staff_id,
+        dept_id: staff.dept_id
+      }
+    }
+
+    this.focus = (evt) => {
+      if (this.isShowBtn) return messageTip('请先保存修改', 'warning')
+
+      let target = evt.target
+      target.classList.add('hide')
+      this.driver = target.innerHTML
+      this.spanTaregt = target
+      this.inputEle = evt.target.nextElementSibling
+      this.inputEle.classList.remove('hide')
+      let nextTarget = this.inputEle.nextElementSibling
+      nextTarget.classList.remove('hide')
+      this.isShowBtn = true
+      this.isShowResult = true
+      this.update()
+      this.tags['rs-select'] && this.tags['rs-select'].position(target)
+    }
+    
+    this.handle = (evt) => {
+      this.isShowBtn = false
+      const target = evt.target
+      const name = target.getAttribute('data-name')
+      if (name === 'sure') this.save(target)
+      if (name === 'cancel') this.close(target)
+      this.isShowResult = false
+      this.update()
+    }
+
+    this.save = (target) => {
+      this.parent.save(target, this.driver, this.basicMsg)
+      const inputEle = target.parentNode.previousElementSibling
+      const oldValue = inputEle.value
+      inputEle.setAttribute('data-oldValue', oldValue)
+      const previousEle = inputEle.previousElementSibling
+      previousEle.innerHTML = oldValue
+      this.close(target)
+    }
+
+    //关闭确定取消按钮 
+    this.close = (target) => {
+      const name = target.getAttribute('data-name')
+      const parentNode = target.parentElement
+      parentNode.classList.add('hide')
+      const inputEle = parentNode.previousElementSibling
+      const oldValue = inputEle.getAttribute('data-oldValue')
+      inputEle.classList.add('hide')
+      const previousEle = inputEle.previousElementSibling
+      previousEle.classList.remove('hide')
+      if (name === 'cancel') {
+        inputEle.value = oldValue
+        previousEle.innerHTML = oldValue
+      }
+      this.basicMsg = null
+    }
+
+    this.fillvehicle = (row, searchvehicle) => {
+      const shiftID = row.shift_id
+      let index = 1
+      switch (shiftID) {
+        case 1:
+        case 4 :
+          index = 1
+          break
+        case 2:
+        case 5:
+          index = 2
+          break
+        case 3:
+        case 6:
+          index = 3
+          break
+        case 7:
+          index = 4
+          break
+      }
+      searchvehicle[this.shiftAts[index]] = `${row.name}-${row.da}`
+    }
+
+    this.createName = () => {
+      const staffs = xdata.metaStore.staffs
+      const staffDriverArr = []
+      const depts = xdata.metaStore.data.dept
+      if (staffs) {
+        let driverstaffs = Array.from(staffs.values()).filter(item => item.occupation_id === 100)
+        for (let i = 0, len = driverstaffs.length; i < len; i++) {
+          let driverstaff = driverstaffs[i]
+          let staffname = staffs.get(driverstaff.staff_id) ? staffs.get(driverstaff.staff_id).name : ''
+          let staffDeptName = depts.get(driverstaff.dept_id) ? depts.get(driverstaff.dept_id).name : ''
+          staffDriverArr.push({
+            staff_id: driverstaff.staff_id,
+            dept_id: driverstaff.dept_id,
+            card_name: staffDeptName + '-' + staffname,
+            name: staffname + '-' + staffDeptName
+          })
+        }
+        this.staffs = staffDriverArr.sort(compare('name', 'staff'))
+      }
+    }
+
+    this.init = (opts) => {
+      this.parenTag = this.parent.parenTag
+      this.isHide = opts.shifttype === 1 ? 'hide' : ''
+      const allVehicles = xdata.metaStore.vehicles && Array.from(xdata.metaStore.vehicles.values())
+      const filterVehciles = (xdata.objRange === 1 || xdata.isCheck === 1) ? allVehicles.filter(item => item.need_display === 1) : allVehicles
+      const vehicles = filterVehciles && [].concat(JSON.parse(JSON.stringify(filterVehciles)))
+
+      if (opts.data) {
+        for (let i = 0, len = opts.data.length; i < len; i++) {
+          let row = opts.data[i]
+          let vehicleID = Number(row.vehicle_id)
+          let searchvehicle = vehicles.find(item => item.vehicle_id === vehicleID)
+          this.fillvehicle(row, searchvehicle)
+        }
+      }
+      this.vehicles = vehicles && vehicles.sort(compare('name'))
+
+      this.createName()
+      this.isSearch = true
+      this.basicMsg = null
+      this.message = {
+        rows: this.staffs,
+        cb: this.chooseItem
+      }
+    }
+
+    this.init(opts)
+  </script>
+</driver-schedule-list>

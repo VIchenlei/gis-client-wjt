@@ -1,0 +1,51 @@
+
+@import '../../style/defs.sass'
+
+.worktime-title
+  font-size: .14rem
+  display: flex
+  justify-content: space-between
+  align-items: center
+  background: none
+  font-weight: 900
+  height: 30px
+  color: #000000
+
+.worktime-table
+  margin: 0
+  width: 100%
+  text-align: center
+  border-collapse: collapse
+  font-size: 0.08rem
+  thead
+    tr
+      height: 0.54rem
+      color: #3f3f3f
+      border-bottom: 1px solid #dedede
+      th
+        padding: 0 2px
+        cursor: pointer
+        &:nth-child(1)
+          padding-left: 14px
+        &:nth-last-child(1)
+          padding-right: 14px
+  tbody
+    background: #fff
+    tr
+      height: 0.54rem
+      color: #3f3f3f
+      border-bottom: 1px solid #dedede
+      opacity: 0.8
+      cursor: pointer
+      td
+        padding: 0 2px
+        max-width: 114px
+        overflow: hidden
+        text-overflow: ellipsis
+        white-space: nowrap
+        &:nth-child(1)
+            padding-left: 14px
+        &:nth-last-child(1)
+            width: 12rem
+            padding-right: 14px
+            overflow: inherit

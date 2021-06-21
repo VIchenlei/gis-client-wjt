@@ -1,0 +1,13 @@
+@import '../../style/defs'
+
+.main-nav, nav
+  height: 100%
+  flex: 1 1 auto
+  @include flex-row-center
+  span
+    @include wh(.5rem, 100%)
+    @include flex-center-center
+    cursor: pointer
+    &.active
+      border-top: 2px solid $color-white
+    

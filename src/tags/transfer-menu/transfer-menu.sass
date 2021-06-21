@@ -1,0 +1,28 @@
+@import ../../style/defs
+
+.homepage
+    display: flex
+    @include wh(103%,100%)
+    overflow-y: scroll
+    .changeTag
+        @include wh(0.4rem,0.4rem)
+        @include fixed-left-top(95%,45%)
+        border-radius: 100%
+        text-align: center
+        line-height: 0.368rem
+        cursor: pointer
+        background: #e1ecf4
+        color: #29a7fd
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3)
+    .changeLeft
+        left: 96%
+    .changeRight
+        left: 46%
+
+    .menu
+        display: flex
+        flex: 1
+        width: 100%
+        padding: 0.8rem 1.44rem
+        justify-content: flex-start
+        flex-wrap: wrap

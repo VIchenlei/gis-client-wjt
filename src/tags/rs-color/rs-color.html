@@ -1,0 +1,24 @@
+<rs-color class="rs-color">
+  <label class="rs-color-warp" for="color">
+    <span>{text}</span>
+    <input type="color" ref={fieldName} value={fieldValue} id="color" disabled={disabled}>
+  </label>
+  <script>
+    import './rs-color.sass'
+
+    this.init = (opts) => {
+      let msg = opts.data
+      this.parenTag = this.parent.parenTag
+      this.text = msg.field_label
+      this.fieldName = msg.field_name
+      this.fieldType = msg.field_type
+      this.fieldValue = msg.field_value
+      this.enableNull = msg.field_enableNull
+      this.tips = !this.enableNull ? '*' : ''
+      this.disabled = opts.disabled ? opts.disabled : false
+      console.log(this)
+    }
+
+    this.init(opts)
+  </script>
+</rs-color>

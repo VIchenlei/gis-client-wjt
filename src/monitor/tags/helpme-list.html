@@ -1,0 +1,79 @@
+<helpme-list>
+  <div class="dlg-window helpme-dialog hide-on-mb {hasData ? '' : 'hide'}">
+    <rs-title title="呼救" closer="no"></rs-title>
+    <div class="hm-item-warp grey-scroll">
+      <div each={ row in list } class="hm-item">
+        <span class="hm-label">{ row.name }</span>
+        <span class="hm-pos" data-id={ row.obj_id } onclick={ locate }><img class="ticon" src="../img/location.png">{ xdata.metaStore.getPositionDesc(row.lmid, row.lmdirect, row.lmdistance) }</span>
+        <span class="hm-map">{ xdata.metaStore.getNameByID('map_id', row.map_id) }</span>
+        <span class="hm-time">{ new Date(row.cur_time).format('MM-dd hh:mm') }</span>
+        <button class="btn" data-id={ row.obj_id } onclick={ settled }>标记</button>
+      </div>
+    </div>
+    
+  </div>
+
+  <script>
+    import '../sass/helpme-list.sass'
+    this.on('mount', () => {
+      window.setDialogDraggable(this.root)
+    })
+
+    this.show = () => {
+      if (this.helpList.size > 0) {
+        this.list = Array.from(this.helpList.values())
+        this.hasData = true
+      } else {
+        this.list = null
+        this.hasData = false
+      }
+    }
+
+    xbus.on('HELPME-LIST-CHANGED', () => {
+      // this.helpList = xdata.helpmeStore.helpms
+      this.helpList = xdata.helpmeStore.hms
+      this.show()
+      this.update()
+    })
+
+    this.settled = (evt) => {
+      let target = evt.currentTarget
+      let eventID = target.getAttribute('data-id')
+      this.helpList.delete(eventID)
+      let msg1 = {
+        cards: [eventID],
+        type: 'HELP'
+      }
+      window.cardStopLocating(msg1)
+
+      let msg = {
+        cmd: 'call_help_confirm',
+        data: {
+          card_id: eventID,
+          confirm_time: new Date().format('yyyy-MM-dd hh:mm:ss')
+        }
+      }
+      xbus.trigger('HELP-ME-CONFIRM', msg)
+      this.show()
+      this.update()
+    }
+
+    this.locate = (evt) => {
+      let target = evt.currentTarget
+      let id = target.getAttribute('data-id')
+
+      let msg = {
+        cards: [id],
+        type: 'HELP'
+      }
+
+      window.cardStartLocating(msg)
+    }
+    this.init = (opts) => {
+      this.helpList = opts.list
+      this.hasData = false
+      this.list = null
+    }
+    this.init(opts)
+  </script>
+</helpme-list>

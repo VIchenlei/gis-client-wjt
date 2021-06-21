@@ -1,0 +1,210 @@
+<dept-staff-manage>
+  <span class="export">
+    <svg class="icon black-icon" aria-label="批量导出" onclick={askFile} name="csv">
+      <use xlink:href="/icons/icons.svg#icon-export"></use>
+    </svg>
+  </span>
+  <rs-fuzzy-search class="fuzzy" message={ message }></rs-fuzzy-search>
+  <div 
+    data-is="rs-table-icon-btn" 
+    rows={ subRows } 
+    key={ key } 
+    fields={ fields }>
+  </div>
+  <div 
+    if={ totalPage>1 }
+    class="pagination" 
+    data-is="rs-pagination" 
+    totalpage={ totalPage } 
+    pageindex={ pageIndex } 
+    tablename={ opts.name }>
+  </div>
+  <div 
+    if={ !hasdata } 
+    data-is="rs-blank-message" 
+    message="没有符合条件的记录！请确认您的查询条件后再试。" 
+    class="rs-blank-message" >
+  </div>
+  <script>
+    import '../sass/dept-staff-manage.sass'
+    import '../../tags/rs-fuzzy-search/rs-fuzzy-search.html'
+    import '../../tags/rs-table/tags/rs-table-icon-btn.html'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import { manages } from '../../js/def/manage_def.js'
+    import { copySubRows, initPagination, clone, filterTeam } from '../../js/utils/utils.js'
+    import fuzzySearch from '../../js/def/fuzzy_search.js'
+
+    let rsTableTag = null
+
+    this.getList = () => {
+      const store = xdata.metaStore.staffs
+      let datas = store && Array.from(store.values())
+      datas = datas && datas.filter(data => !xdata.depts || xdata.depts.includes(data.dept_id))
+
+      return datas
+    }
+
+    this.getAskFileSql = (def) => {
+      const keyIndex = this.key
+      const deptID = xdata.depts && !this.deptID ? xdata.depts.join(',') : this.deptID
+      let condition = deptID ? `and dept_id in (${deptID})` : ''
+      if (xdata.isCheck === 1) {
+        condition = `${condition} and dse.need_display`
+      }
+      const sql = `select ds.staff_id, name, dept_id, lampNo from dat_staff ds LEFT JOIN dat_staff_extend${xdata.isCheck === 1? '_ck' : ''} dse ON dse.staff_id = ds.staff_id  where ds.staff_id = dse.staff_id ${condition} order by ${keyIndex};`
+      return sql
+    }
+
+    //批量导出
+    this.askFile = (evt) => {
+      window.xhint.close()
+      window.xhint.showLoading()
+      const opName = evt.currentTarget.getAttribute('name')
+      const sqlString = this.getAskFileSql(this.def)
+      const name = opts.name
+      const reptTime = new Date().getTime()
+      const msg = {
+        cmd: 'file',
+        exprList: [],
+		    name: name,
+		    labels: this.def.fields.labels,
+		    title: this.def.label,
+		    namesInShort: this.def.fields.names,
+		    types: this.def.fields.types,
+		    fileType: opName,
+        reptIndex: reptTime,
+        sql: sqlString,
+        userName: xdata.userName
+      }
+		  xbus.trigger('REPT-FETCH-FILE', msg)
+    }
+
+    this.getAllResult = () => {
+      this.deptID = null
+      this.rows = this.getList()
+      this.subRows = copySubRows(this.rows)
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      this.getPages()
+      this.update()
+      
+    }
+
+    //获取模糊查询选择结果
+    this.getResult = (result) => {
+      if (!result) return this.getAllResult()
+      let data = result.row
+      if (['staff_lamp'].includes(opts.name)) name = 'dept'
+      this.desc = fuzzySearch[name].desc
+      let rows = this.rows.filter(item => item.dept_id === data.dept_id)
+      this.deptID = rows.length >= 1 ? data.dept_id : null
+      this.subRows = copySubRows(rows)
+      this.hasdata = this.subRows.length > 0 ? true : false
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      let ele = this.tags['rs-fuzzy-search'].refs['searchinput'] 
+      ele.value = data[this.desc]
+      this.rows = rows
+      this.getPages()
+      this.update()
+    }
+
+    /*根据name处理模糊查询的结果*/
+    this.dealShowResult = (matchs, s, keys) => {
+      const dittoname = clone(matchs)
+      if (keys.includes('staff_id')) {
+        dittoname.forEach(e => {
+          e.name = e.hasOwnProperty('reader_id') ? e.name : `${e.staff_id}-${e.name}-${xdata.metaStore.getNameByID('dept_id', e.dept_id)}`
+        })  
+      }
+      return dittoname
+    }
+
+    // 获取xdata中数据
+    this.getCacheData = (data, name) => {
+      if (typeof this.parenTag.getCallBackData === 'function') {
+        let resData = this.parenTag.getCallBackData(data, name)
+        data = resData.data
+        name = resData.name
+      } else {
+        data = xdata.metaStore.data[name] && Array.from(xdata.metaStore.data[name].values())
+      }
+      return {data, name}
+    }
+
+    //获取检索所需结果集
+    this.getComponentMessage = () => {
+      let data = null, name = null
+      if (['staff_lamp'].includes(opts.name)) name = 'dept'
+      let cacheData = this.getCacheData(data, name)
+      data = filterTeam(cacheData.data) || []
+      name = cacheData && cacheData.name
+      let fuzzy = fuzzySearch[name]
+      let typeDef = {
+        name: fuzzy.name,
+        label: fuzzy.label,
+        placeholder: fuzzy.placeholder,
+        cb: this.getResult
+      }
+      let dataSet = {
+        desc: fuzzy.desc,
+        keys: fuzzy.keys,
+        data: data
+      }
+      return {
+        typeDef: typeDef,
+        dataSet: dataSet,
+        needSearchIcon: 'right',
+        type: 'RADIO', //rs-choose-select所需type控制单选、多选
+        isShowPopup: true,
+        dealShowResult: this.dealShowResult,
+        doClear: true
+      }  
+    }
+
+    //获取分页数据
+    this.getPages = (pageIndex) => {
+      let pages = initPagination(this.rows,pageIndex)
+      this.total = pages.total
+      this.totalPage = pages.totalPage
+      this.pageIndex = pages.pageIndex
+    }
+
+    this.on('PAGEINDEX-CHANGE', (msg) => {
+      if (msg.name === opts.name) {
+        this.pageIndex = msg.pageIndex
+        this.subRows = copySubRows(this.rows, this.pageIndex)
+        rsTableTag && rsTableTag.updateRows(this.subRows)
+        this.update()
+        window.xhint.close()
+      }
+    })
+
+    this.on('mount', () => {
+      this.root.classList.remove('hide')
+      rsTableTag = this.tags['rs-table-icon-btn']
+      const self = this
+      typeof this.parenTag.setInputValue && this.parenTag.setInputValue(opts, self)
+    })
+
+    this.init = (opts) => {
+      this.parenTag = opts.parenTag
+      this.def = manages[opts.name]
+      this.fields = this.def.fields
+      this.labels = this.fields.labels
+      this.names = this.fields.names
+      this.rows = this.getList()
+      this.key = this.def.fields.names[this.def.keyIndex]
+      this.message = this.getComponentMessage()
+      this.hasdata = !!(this.rows && this.rows.length > 0) //有无数据
+      if (this.hasdata) {
+        this.getPages(this.pageIndex)
+        this.subRows = copySubRows(this.rows, this.pageIndex) // 初始化显示第一页        
+      }
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+    })
+  </script>
+</dept-staff-manage>

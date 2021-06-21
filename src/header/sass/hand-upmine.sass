@@ -1,0 +1,45 @@
+@import '../../style/defs'
+
+.hand-upmine-dialog
+    width: 11.5rem
+    font-size: 0.128rem
+    .dlg-body
+        width: 100%
+    .ctrl-panel
+        display: flex
+        align-items: center
+        justify-content: space-between
+        padding: 0 .08rem
+        flex: 0 0 0.48rem
+        background: #eee
+        .condition-builder
+            display: flex
+            .condition
+                display: flex
+                align-items: center
+                margin: 0.1rem 0.16rem 0 0
+        .button-list
+            button
+                margin-left: 0.1rem
+            .timecard
+                width: 1.5rem
+    .content-panel
+        max-height: 600px
+        overflow-y: auto
+        overflow-x: auto
+        padding: 0px
+        color: #666
+        display: flex
+        flex-flow: column
+        table tbody
+            max-height: fit-content
+            input
+                width: 0.16rem
+                height: 0.3rem
+                vertical-align: middle
+            .person-forbid
+                color: #09F
+        table tr
+            cursor: default
+        table tbody tr td:last-child,table thead tr th:last-child
+            flex-basis: 200%

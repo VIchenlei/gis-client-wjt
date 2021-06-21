@@ -1,0 +1,40 @@
+@import '../../style/defs'
+
+.shortcut-operation
+  display: flex
+  border-right: 1px solid $color-ccc
+  .shortcut-item
+    display: flex
+    @include wh(.2rem, .2rem)
+    margin: 0 .05rem
+    &:hover
+      background: $color-white
+      border-radius: 50px
+    .icon
+      @include wh(100%, 100%)
+      background: url('/img/icon.png') no-repeat
+      background-size: 2.81rem 3.32rem
+    .alarm
+      @include bp-hover(-.02rem, 0, -.04rem, -.23rem)
+    .location
+      @include bp-hover(-.52rem, 0, -.52rem, -.23rem)
+    .sendcall
+      @include bp-hover(-.76rem, 0, -.76rem, -.23rem)
+    .stopcall
+      @include bp-hover(-1rem, 0, -1rem, -.23rem)
+    .handupMine
+      @include bp-hover(-1.2rem, 0, -1.2rem, -.23rem)
+    .leave
+      @include bp-hover(-1.41rem, 0, -1.41rem, -.23rem)
+    .staffcurve
+      @include bp-hover(-1.63rem, 0, -1.63rem, -.23rem)
+    .geowarn
+      @include bp-hover(-2.6rem, 0, -2.6rem, -.23rem)
+    .aboutus
+      @include bp-hover(-1.87rem, 0, -1.87rem, -.23rem)
+    .fullscreen
+      @include bp-hover(-2.37rem, 0, -2.37rem, -.23rem)
+    .accompany
+      @include bp-hover(-1.12rem, -2.29rem, -1.12rem, -2.51rem)
+
+

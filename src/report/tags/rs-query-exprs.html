@@ -1,0 +1,477 @@
+<rs-query-exprs>
+  <div class="filter-warp">
+    <div each={ exprField in exprFields} 
+      data-is={ getComponentName(exprField) } 
+      data-def={ exprField } 
+      data-value={ getComponentValue(exprField) } 
+      name={ def.name } 
+      ref={ exprField.name } 
+      ident={ getSpecialIdent(exprField) }
+      data={ getData(exprField) }
+      >
+    </div>
+  </div>
+  <button class='select-button' onclick={ doQuery }>筛选</button>
+  <script>
+    import '../sass/rs-query-exprs.sass'
+    import '../../tags/rs-time-filter/rs-time-filter.html'
+    import '../../tags/rs-condition-filter/rs-condition-filter.html'
+    import '../..//tags/rs-text-field/rs-text-field.html'
+    import { getAccessSql, getDisplaySql, dealMonth, clone, getSqlByIsCheck } from '../../js/utils/utils.js'
+    import { reptPageGetPageSize, chooseSqlByType } from '../js/report_utils.js'
+    import { graphNames, alarmSqlDef } from '../js/report_defs.js'
+    import reptGraphQuery from '../js/rept_graph_query.js'
+    const ABSENCEARR = ['vehicle_no_updown_mine', 'person_absence']
+    const DAYARR = ['operation_rate', 'time_rate', 'regular_cycle', 'rept_worktime_dept', 'rugular_total']
+    const QUERYPARENT = ['rs_efficiency_overview','rept_efficiency_manage', 'rugular_total', 'rept_worktime_dept']
+    const BATARR = ['person', 'person_special', 'person_card_battery_alarm', 'person_well_overtime']
+    const CREATARR = ['person_month', 'leader_month', 'driver_dept_month', 'v_vehicle_month', 'v_vehicle_day']
+    let noexprs = ''
+    let self = this
+
+    /*获取筛选组件的具体组件名*/
+    this.getComponentName = (exprField) => {
+      let type = exprField.type
+      // let componentName = ['SELECT', 'CHECKBOX', 'RADIO'].includes(type) ? 'rs-condition-filter' : 'rs-time-filter'
+      let componentName = null
+      if (['SELECT', 'CHECKBOX', 'RADIO'].includes(type)) {
+        componentName = 'rs-condition-filter'
+      } else if (['NUMBER','STRING'].includes(type)) {
+        componentName = 'rs-text-field'
+      } else {
+        componentName = 'rs-time-filter'
+      }
+      return componentName
+    }
+
+    /*获取筛选组件的old-value*/
+    this.getComponentValue = (exprField) => {
+      let fieldsName = null, type = null, fieldName = null
+      if (exprField.hasOwnProperty('name')) {
+        fieldsName = exprField.name
+        type = exprField.type
+        fieldName = fieldsName.indexOf('.') === -1 ?  fieldsName :  fieldsName.split('.')[1]
+      }
+      
+      let value = ''
+      if (this.choosepreset) {
+        if (['SELECT', 'CHECKBOX', 'RADIO'].includes(type)) {
+          value = this.choosepreset[fieldName] ? this.choosepreset[fieldName] : ''
+        } else {
+          value = this.choosepreset.defaultTime
+        }
+      }
+      return value
+    }
+
+    /*获取特殊的ident传到子组件*/
+    this.getSpecialIdent = (exprField) => {
+      let specialIdent = null
+      if (typeof(exprField.name) === 'string') {
+        let label = exprField.label
+        let ident = exprField.name.includes('as') ? exprField.name.split(' as')[0] : exprField.name
+        ident = ident.indexOf('.') === -1 ?  ident :  ident.split('.')[1]
+        if (ident === 'staff_id' && label === '员工编号') specialIdent = 'staff_number'
+        if (ident === 'obj_id') specialIdent = 'card_id'
+        if (ident === 'deviceAddress') specialIdent = 'reader_id'
+      }
+      return specialIdent
+    }
+
+    /*获取rs-text-field 初始化的数据*/
+    this.getData = (exprField) => {
+      let item = null
+      if (['NUMBER', 'STRING'].includes(exprField.type)) {
+        item =  {
+          field_name: exprField.name,
+          field_label: exprField.label,
+          field_type: exprField.type,
+          field_enableNull: true
+        }
+      } 
+      return item
+    }
+
+    /*接收翻页消息，重新查询数据*/
+    this.on('PAGEINDEX-CHANGE-REPT', (msg) => {
+      if(msg.name && this.def.name && msg.name === this.def.name){
+        self.doQuery('', msg)
+      }
+    })
+
+    /*点击执行筛选函数*/
+    this.doQuery = (evt, msg) => {
+      this.sqlTmpl = (!evt && opts.def.isDealSqlTmp) ? this.dealSqlTmpl : this.noDealsqlTmpl
+      let timeStr = null
+      if (!msg) {
+        let conditionComponents = this.tags['rs-condition-filter'] || []
+        let timeComponents = this.tags['rs-time-filter']
+        let str = '', scondition, econdition, alarmArr = null
+        conditionComponents = Object.prototype.toString.call(conditionComponents) === '[object Object]' 
+                              ? [conditionComponents] 
+                              : conditionComponents
+        for (let i = 0, len = conditionComponents.length; i < len; i++) {
+          let component = conditionComponents[i]
+          let type = component.def.type
+          let conditionData = component.store
+          let label = component.label
+          if (this.def.name === 'his_alarm' && label === '告警类型') alarmArr = conditionData
+          if (conditionData) {
+            let nameObj = this.dealNameObj(component.name, component.ident, conditionData)    
+            let keyName = nameObj && nameObj.ident
+            let allKeyName = nameObj && nameObj.name
+            if (keyName === 'staff_number') keyName = 'staff_id'
+            if (keyName && keyName !== 'is_enough') {
+              for (let j = 0, leng = conditionData.length; j < leng; j++) {
+                let concatstr = conditionData.length > 1 ? ' and (' : ' and '
+                let keyValue = keyName === 'user_id' ? `"${conditionData[j][keyName]}"` : conditionData[j][keyName]
+                j === 0 ? str += concatstr + allKeyName + '=' + keyValue :  str += ' OR '+ allKeyName + '=' + keyValue 
+              }
+              str += conditionData.length > 1 ? ')' : ''
+            } else {
+              if (conditionData && conditionData.length === 1) {
+                str += conditionData[0].label === '足班' ? ' and TIMESTAMPDIFF(MINUTE, IFNULL(ras.start_time, CURRENT_TIMESTAMP()), ras.end_time) >= da.min_minutes*60' : ' and TIMESTAMPDIFF(MINUTE, IFNULL(ras.start_time, CURRENT_TIMESTAMP()), ras.end_time) < da.min_minutes*60'
+              }
+            }
+          } 
+        }
+
+        let textComponents = this.tags['rs-text-field'] || []
+        textComponents = Object.prototype.toString.call(textComponents) === '[object Object]' 
+                              ? [textComponents] 
+                              : textComponents
+        for(let i = 0, len = textComponents.length; i < len; i++) {
+          let textComponent = textComponents[i]
+          let fieldName = textComponent.fieldName
+          let fieldValue = textComponent.refs[fieldName].value
+          if (fieldValue || fieldValue === 0) {
+            if (fieldName === 'detail') {
+              str += fieldValue ? ` AND detail LIKE "%${fieldValue}%"` : ''
+            } else {
+              str += ' and ' + fieldName + '=' + fieldValue
+            }
+          }
+        }
+
+        let timeResult = timeComponents && timeComponents.getResult()
+        if (timeResult && timeResult.tips) {
+          let msg = {
+            type: 'error',
+            message: timeResult.tips
+          }
+          window.xMessage.open(msg)
+          return
+        }
+        let innerStrObj = this.getQueryInnerStr(str, timeResult)
+        let sqlResult = this.getQueryInnerSql(innerStrObj, alarmArr)
+        noexprs = innerStrObj && innerStrObj.noexprs
+        if (!sqlResult) return
+        this.sqlString = sqlResult.sqlString  
+        this.countSql = sqlResult.countSql
+        timeStr = sqlResult.timeStr
+      }
+      let pageIndex = msg ? msg.pageIndex : 0
+      let total = msg ? msg.total : -1
+      let page_size = reptPageGetPageSize(this.def.name)
+      this.queryMessage = {
+        cmd: 'query',
+        data: {
+          name: this.def.name,
+          // pageSize: page_size,
+          // pageIndex: pageIndex,
+          // total: total,
+          sql: this.sqlString,
+          countSql: this.countSql
+        }
+      }
+      console.log('获取table数据', this.queryMessage)
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: this.queryMessage,
+        def: this.def,
+        monthTime: this.monthTime
+      })
+      
+      if (graphNames.includes(this.def.name)) this.doQueryGraphs(timeStr)
+    }
+
+    this.dealNameObj = (name, ident, store) => {
+      let specialIdent = '', specialName = ''
+      if (this.def.name === 'person_reader_detail') {
+        if (store && store.length > 1) return
+        let identObj = {
+          reader_id: 'r.reader_id',
+          staff_id: 's.staff_id'
+        }
+        let fieldsName = Object.keys(identObj)
+        for (let i = 0; i < fieldsName.length; i++) {
+          if (store[0].hasOwnProperty(fieldsName[i])) {
+            specialIdent = fieldsName[i]
+            specialName = identObj[fieldsName[i]]
+            break
+          }
+        }
+      } else {
+        specialIdent = ident
+        specialName = name
+      }
+      return {
+        ident: specialIdent,
+        name: specialName
+      }
+    }
+    /*查询图表sql*/
+    this.doQueryGraphs = (timeStr) => {
+      let exprList = []
+      let graphDef = reptGraphQuery[this.def.name]
+      let exprs = graphDef.exprFields
+      let sqlString = graphDef.sqlTmpl.replace('{exprString}', timeStr)
+      let message = {
+        cmd: 'query',
+        data: {
+          name: 'graphChart',
+          sql: sqlString
+        }
+      }
+      console.log('获取图表数据', message)
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: {
+          name: 'graphChart',
+          rept: this.def.name
+        },
+        monthTime: this.monthTime
+      })
+    }
+
+    /*接收ASK-FILE打印通知，执行打印函数*/
+    xbus.on('ASK-FILE', (msg) => {
+      if (msg.name === this.def.name && msg.reptIndex === this.def.reptIndex) this.doQueryFile(msg)
+    })
+
+    /*打印函数，触发REPT-FETCH-FILE，通知打印*/
+    this.doQueryFile = (msg) => {
+      let noAttendanceArr = ['vehicle_no_updown_mine', 'person_absence']
+      let sqlString = this.sqlString
+      if (noAttendanceArr.includes(msg.name)) {
+        sqlString = sqlString.replace('{noexprString}', noexprs)
+      } else if (msg.name === 'person_month') {
+        sqlString = sqlString.replace('date_format(ras.att_date, "%Y-%m") as month,', '')
+      } else if (['worktime_dept_shift', 'rept_efficiency_manage'].includes(msg.name)) {
+        sqlString = msg.sql
+      }
+      if (msg.name === 'worktime_dept_shift') {
+        let time = this.stime || new Date().format('yyyy-MM-dd')
+        msg.title = `${time}${msg.title}`
+      }
+      msg.sql = sqlString
+      msg.userName = xdata.userName
+      msg.exprList = this.exprList.slice(1)
+
+      if ((msg.fileType === 'pdf' || msg.fileType === 'printPDF') && msg.searchTotal && msg.searchTotal > 5000) {    
+        window.xhint.close()
+        let msg = {
+          type: 'error',
+          message: '数据过多，请使用CSV导出！'
+        }
+        window.xMessage.open(msg)
+        return 
+      }
+      console.log(msg)
+      xbus.trigger('REPT-FETCH-FILE', msg)
+    }
+
+    /*获取查询的sql中的str条件*/
+    this.getQueryInnerStr = (str, timeResult) => {
+      let scondition = null, econdition = null, timeStr = '', lastStr = null, noexprs = '', searchtime = '', lessSearchtime = ''
+      let accessSql = getAccessSql(this.def.name)
+      let displaySql = getDisplaySql(this.def.name)
+      let objRange = xdata.objRange
+      let isCheck = xdata.isCheck
+      this.stime = timeResult && timeResult.stime
+      this.etime = timeResult && timeResult.etime
+      scondition = timeResult && timeResult.scondition
+      econdition = timeResult && timeResult.econdition
+      this.type = timeResult && timeResult.type
+      if (CREATARR.includes(this.def.name) && this.type === 'DATE') {
+        this.monthTime = {
+          stime: this.stime,
+          etime: this.etime
+        }
+      }
+      if (this.sign && this.sign == 1) str += accessSql
+      if ((isCheck === 1 || objRange === 1) && this.needDisplay && this.needDisplay == 1) str += displaySql
+      if (this.type === 'MONTH') {
+        if (this.def.name === 'person_month') {
+          searchtime = ` and ${scondition} between ${dealMonth(this.stime)}`
+          timeStr = ` and ${scondition} between ${dealMonth(this.stime)}`
+        } else {
+          scondition ? timeStr += ` and ${scondition} between ${dealMonth(this.stime)}`: ''
+        }
+      } else {
+        if (DAYARR.includes(this.def.name)) {
+          scondition ? timeStr += ' AND ' + scondition + '= "' + this.stime + '"': ''
+        } else if (this.def.name === 'worktime_detail_table') {
+          let beforeTime = this.stime ? new Date(this.stime) - 24 * 60 * 60 * 1000 : new Date() - 24 * 60 * 60 * 1000
+          beforeTime = new Date(beforeTime).format('yyyy-MM-dd')
+          let shift = xdata.metaStore.data.shift && xdata.metaStore.data.shift.get(1)
+          let shiftime = shift ? shift.start_time : '23:59:59'
+          // searchtime = this.stime ? `between '${beforeTime} ${shiftime}' and '${this.stime} 23:59:59'` : `between '${beforeTime} ${shiftime}' and '${new Date().format('yyyy-MM-dd')} 23:59:59'`
+          let theDay = this.stime ? this.stime : new Date().format('yyyy-MM-dd')
+          searchtime = `((start_work_time between '${beforeTime} ${shiftime}' and '${beforeTime} 23:59:59' and shift_id = 1) or (start_work_time between '${theDay} 00:00:00' and '${theDay} ${shiftime}') or (start_work_time between '${theDay} ${shiftime}' and '${theDay} 00:00:00' and shift_id != 1))`
+          lessSearchtime = `((start_time between '${beforeTime} ${shiftime}' and '${beforeTime} 23:59:59' and shift_id = 1) or (start_time between '${theDay} 00:00:00' and '${theDay} ${shiftime}') or (start_time between '${theDay} ${shiftime}' and '${theDay} 00:00:00' and shift_id != 1))`
+        } else if (['battery_vehicle_rept', 'battery_rept', 'vehicle_check'].includes(this.def.name)) {
+          scondition ? timeStr += ` and ${scondition} = '${new Date(this.stime).format('yyyy-MM-dd')}'`: ''
+        } else if (this.def.name === 'person_location_area') {
+          timeStr += `and hlas.enter_time >= '${new Date(this.stime).format('yyyy-MM-dd 00:00:00')}' and hlas.enter_time <= '${this.stime}' and (hlas.leave_time >= '${this.stime}' or hlas.leave_time is null)`
+        } else if (this.def.name === 'person_month') {
+          scondition ? searchtime += ' AND ' + scondition + '>= "' + this.stime + '"': ''
+          econdition ? searchtime += ' AND ' + econdition + '<= "' + this.etime + '"' : ''
+        } else if (this.def.name === 'person_time') {
+          searchtime = ` start_time <= '${this.stime}' and (end_time >= '${this.stime}' or end_time is null)`
+        } else if (this.def.name === 'person_hour') {
+          let now = new Date()
+          let time =new Date(now.getTime() - 1 * 60 * 60 * 1000).format('yyyy-MM-dd hh:mm:ss')
+          timeStr = ` and (ras.start_time between '${time}' and '${now.format('yyyy-MM-dd hh:mm:ss')}' or ras.end_time between '${time}' and '${now.format('yyyy-MM-dd hh:mm:ss')}')`
+        } else {
+          if (ABSENCEARR.includes(this.def.name)) noexprs = str
+          scondition ? timeStr += ' AND ' + scondition + '>= "' + this.stime + '"' : ''
+          econdition ? timeStr += ' AND ' + econdition + '<= "' + this.etime + '"' : ''
+        }
+      }
+      lastStr = str + timeStr
+      return {
+        lastStr,
+        timeStr,
+        noexprs,
+        searchtime,
+        lessSearchtime
+      }
+    }
+
+    this.getPersonReaderDetail = (lastStr) => {
+      if (this.def.exprFields.length === 1) {
+        let {objID, type} = this.parent.def
+        lastStr = type === 'staff' ? `and s.staff_id = ${objID} ${lastStr}` : `and r.reader_id = ${objID} ${lastStr}`
+      }
+      if (!lastStr.includes('staff_id') && !lastStr.includes('reader_id')) {
+        let msg = {
+          type: 'error',
+          message: '请选择名称'
+        }
+        window.xMessage.open(msg)
+        return
+      }
+      if (lastStr.includes('staff_id')) {
+        let staffSql = clone(this.sqlTmpl.staff)
+        for (let i = 0; i < Object.keys(staffSql).length; i++) {
+          let name = Object.keys(staffSql)[i]
+          if (name === 'wellSql') lastStr = lastStr.replace(/hed.cur_time/g, 'ras.start_time')
+          staffSql[name] = staffSql[name].replace('{exprString}', lastStr)   
+        }
+        this.sqlString = staffSql
+      } else {
+        let readerSql = this.sqlTmpl.reader
+        this.sqlString = readerSql.replace('{exprString}', lastStr)
+      }
+    }
+
+    /*获取查询的sql中的详细信息*/
+    this.getQueryInnerSql = (innerStrObj, alarmArr) => {
+      let {timeStr, lastStr, noexprs, searchtime, lessSearchtime} = innerStrObj || ''
+      let sqlIsString = typeof this.sqlTmpl == 'string'
+      let isCludeFields = sqlIsString && this.sqlTmpl.includes('{resultFields}')
+      let noCludeSql = sqlIsString && this.sqlTmpl.split('where 1=1')[0] +'where 1=1' + lastStr
+      let sqlTmplReplaceJoin = sqlIsString && this.sqlTmpl.replace('{resultFields}', this.resultFields.join(','))
+      let sqlTmplReplaceCount = sqlIsString && this.sqlTmpl.replace('{resultFields}', 'count(1) as total')
+
+      if (QUERYPARENT.includes(this.def.name)) {
+        let tagName = this.def.name.replace(/\_/g,'-')
+        this.parent.tags[tagName] && this.parent.tags[tagName].doQuery(this.def, this.stime)
+        return
+      }
+
+      switch (this.def.name) {
+        case 'person_time':
+          let exprString1 = ` start_time <= '${this.stime}' and (end_time >= '${this.stime}' or end_time is null)`
+          this.sqlString = sqlTmplReplaceJoin.replace('{exprString1}', exprString1).replace('{exprString}', lastStr)
+          this.countSql = sqlTmplReplaceCount.replace('{exprString1}', exprString1).replace('{exprString}', lastStr)
+          break
+        case 'worktime_detail_table':
+          this.sqlString = sqlTmplReplaceJoin.replace('{exprString}', searchtime).replace('{exprStringLess}', lessSearchtime).replace('{exprStringDept}', lastStr)
+          this.countSql = sqlTmplReplaceCount.replace('{exprString}', searchtime).replace('{exprStringLess}', lessSearchtime).replace('{exprStringDept}', lastStr)
+          break
+        case 'person_reader_detail':
+          this.getPersonReaderDetail(lastStr)
+          break
+        case 'person_day':
+          this.sqlString = isCludeFields ? sqlTmplReplaceJoin.replace('{exprString}', lastStr) : noCludeSql
+          this.countSql = `select count(1) as total from (${this.sqlString}) aa`
+          break
+        case 'his_alarm':
+          if (alarmArr) {
+            let sql = ''
+            for (let i = 0; i < alarmArr.length; i++) {
+              let alarm = alarmArr[i]
+              let eventTypeId = alarm.event_type_id
+              let eventName = chooseSqlByType(eventTypeId)
+              let alarmSql = alarmSqlDef[eventName]
+              sql += alarmSql.replace(new RegExp('{eventString}', 'g'), `and event_type_id = ${eventTypeId}`).replace('{exprString}', timeStr)
+              if (i === alarmArr.length -1) {
+                sql += ' order by event_type_id, cur_time desc'
+              } else {
+                sql += ' union '
+              }
+            }
+
+            this.sqlString = sql
+            this.countSql = `select count(1) as total from(${sql}) as a`
+          }
+          break
+        case 'person_month':
+          let personMonthUnisCludeFields = this.sqlTmpl.replace('{exprStringTime}', searchtime).split('where 1=1')[0] +'where 1=1' + lastStr
+          sqlTmplReplaceJoin = isCludeFields ? sqlTmplReplaceJoin.replace('{exprStringTime}', searchtime) : personMonthUnisCludeFields 
+          sqlTmplReplaceCount = isCludeFields ? sqlTmplReplaceCount.replace('{exprStringTime}', searchtime) : personMonthUnisCludeFields
+          timeStr = searchtime
+        case 'vehicle_no_updown_mine':
+        case 'person_absence':
+          sqlTmplReplaceJoin = isCludeFields ? sqlTmplReplaceJoin.replace('{noexprString}', noexprs) : noCludeSql
+          sqlTmplReplaceCount = isCludeFields ? sqlTmplReplaceCount.replace('{noexprString}', noexprs) : noCludeSql
+        default:
+          this.sqlString = isCludeFields ? sqlTmplReplaceJoin.replace('{exprString}', lastStr) : noCludeSql
+          this.countSql = isCludeFields ? sqlTmplReplaceCount.replace('{exprString}', lastStr) : noCludeSql
+      }
+      
+      if (BATARR.includes(this.def.name)) {
+        this.sqlString = this.sqlString.replace('{batlogExprString}', `and time >= '${this.stime}' and time <= '${this.etime}'`)
+        this.countSql = this.countSql.replace('{batlogExprString}', `and time >= '${this.stime}' and time <= '${this.etime}'`)
+      }
+
+      return {
+        sqlString: this.sqlString,
+        countSql: this.countSql,
+        timeStr: timeStr
+      }
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.def = opts.def
+      this.exprFields = opts.def.exprFields
+      this.resultFields = opts.def.fields.names
+      this.exprList = opts.def.exprList
+      this.sqlTmpl = null
+      this.noDealsqlTmpl = getSqlByIsCheck(opts.def.name, opts.def.sqlTmpl)
+      this.dealSqlTmpl = opts.def.isDealSqlTmp ? getSqlByIsCheck(opts.def.name, opts.def.dealSqlTmpl) : ''
+      this.sign = opts.def.sign
+      this.needDisplay = opts.def.needDisplay
+      this.choosepreset = opts.def.choosepreset
+      this.sqlString = null
+      this.countSql = null
+      this.queryMessage = null
+      this.monthTime = null
+      this.parenTag = this
+    }
+
+    this.init(opts)
+  </script>
+</rs-query-exprs>

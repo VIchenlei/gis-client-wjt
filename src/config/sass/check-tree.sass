@@ -1,0 +1,22 @@
+@import '../../style/defs'
+.checktree
+  max-height: 4rem
+  display: flex
+  font-size: $font-m
+  .origin, .unorigin
+    width: 50%
+    border: 1px solid #cdcaca
+    overflow: auto
+    span
+      @include flex-row-center
+      cursor: pointer
+      height: 0.28rem
+      .point
+        @include wh(0.16rem, 0.16rem)
+        display: inline-block
+        border: 0.04rem solid #949494
+        border-radius: 100%
+        margin: 0.05rem
+    input
+      width: 100%
+      text-align: center

@@ -1,0 +1,886 @@
+<sp-config>
+  <aside data-is="side-bar" id="config-menu" name="CONFIG" menus={ configMenu } class="sidebar"></aside>
+  <div class="config grey-scroll">
+    <div class="back-homepage hide" onclick={backHomepage}>
+      <img src="/img/back.png" alt="">
+    </div>
+    <div id="config-menu" class="homepage grey-scroll" menus={ configMenu } name="CONFIG"></div>
+    <div class="config-table hide"></div>
+    <div class="system-report rept-page-content hide"></div>
+  </div>
+  <script>
+    import '../sass/sp-config.sass'
+    import '../tags/swap-dialog.html'
+    import '../tags/area-reader-dialog.html'
+    import '../tags/device-net-dialog.html'
+    import '../tags/device-net-table.html'
+    import '../tags/basic-battery-table.html'
+    import configMenu from '../js/config_menu.js'
+    import manageQuery from '../../manage/js/manage_menu.js'
+    import numberTurnText from '../../js/def/number_turn_text_def.js'
+    import reptQuery from '../../report/js/rept_query.js'
+    import { askFileDef } from '../../js/def/askfile_query.js'
+    import { config } from '../js/config_def.js'
+    import { manages } from '../../js/def/manage_def.js'
+    import { formatFieldValue, fontDataChange, clone, concatAreaReader, messageTip, trim } from '../../js/utils/utils.js'
+    import { getInfo, dealAntennaData, isDisabled } from '../../manage/js/utils.js'
+    import { deviceUpdataDef } from '../js/device_updata_def.js'
+
+    const self = this
+    const specialPageName = ['area_reader', 'font_size', 'number_bars', 'occupation_info', 'dept_info', 'reader_rssi', 'shift_setting']
+    this.updateNames = ['font_size', 'number_bars', 'network_configuration', 'device_configuration', 'shift_setting'] // dialog更新特殊处理
+    this.names = ['dept_id_ck', 'sanlv_standart_id', 'install_date']
+    this.checkboxes = ['depts', 'access_id', 'business_type']
+    this.cascaders = ['menus']
+    this.spliceInputs = ['over_speed_vehicle']
+    const MENU = {
+      'area_reader': 'area-reader',
+      'dept_info': 'swap',
+      'occupation_info': 'swap',
+      'device_net_params': 'device-net',
+      'device_params': 'device-net',
+      'network_configuration': 'device-net',
+      'device_configuration': 'device-net',
+      'device_software_update': 'device-net',
+      'software_configuration': 'device-net',
+      'staff_software_update': 'device-net',
+      'device_power': 'basic-battery'
+    }
+    const DEVICENET = ['device_params', 'device_net_params', 'device_software_update']
+    const hideProcess = ['area_reader', 'font_size', 'number_bars', 'occupation_info', 'dept_info', 'reader_rssi', 'device_params', 'device_net_params', 'device_software_update', 'shift_setting'] // 隐藏导入、导出、新增 
+    const STORENAME = {
+      'network_configuration': 'netStore',
+      'device_configuration': 'paramsStore'
+    }
+    const TABLEMAP = {
+      'device_params': 'device_configuration',
+      'device_net_params': 'network_configuration',
+      'device_software_update': 'software_configuration'
+    }
+    const hideDeleteIcon = ['device_params', 'device_net_params', 'device_software_update', 'network_configuration','device_configuration', 'shift_setting'] // 隐藏删除图标
+    
+    //获取合并页面下table数据
+    this.getTable = (name) => {
+      this.sencondTable = {
+        def: xdata.metaStore.defs['antenna'],
+        rows: xdata.metaStore.dataInArray.get('antenna'),
+        maxid: xdata.metaStore.maxIDs['antenna'],
+      }
+      this.thirdTable = {
+        def: xdata.metaStore.defs['reader_path_tof_n'],
+        rows: xdata.metaStore.dataInArray.get('reader_path_tof_n'),
+        maxid: xdata.metaStore.maxIDs['reader_path_tof_n'],
+      }
+    }
+
+    this.getProcess = (process, name) => {
+      const prohibitImport = ['area', 'sensor', 'user', 'role', 'goaf'] //不需要导入功能界面
+      if (prohibitImport.includes(name)) {
+        process = process.filter(item => item.name !== 'import')
+      } else if (this.name === 'staff_software_update') {
+        process = process.filter(item => item.name === 'csv')
+      } else if (hideProcess.includes(this.name)) {
+        process = []
+      }
+      return process
+    }
+
+    // 导出功能获取sql特殊处理
+    this.getSpecialAskFile = (def) => {
+      const names = def.fields.names
+      const fstring = names.join(',')
+      const keyIndex = def.fields.names[def.keyIndex]
+      let sql = `select ${fstring} from ${def.table} order by ${keyIndex};`
+      if (def.name === 'staff_software_update') {
+        sql = 'SELECT dc.card_id,dc.card_type_id,dc.ident,dc.hw_version, dd.name AS dname, ds.name FROM dat_card dc LEFT JOIN dat_staff_extend dse ON dse.card_id = dc.card_id LEFT JOIN dat_staff ds ON dse.staff_id = ds.staff_id LEFT JOIN dat_dept dd ON dd.dept_id = dse.dept_id;'
+      }
+      return sql
+    }
+
+    // 获取需要传入子页面的参数
+    this.getSpecialParameter = (name) => {
+      const isFuzzySearch = this.isFuzzySearch(name) // 列表检索是否显示
+      const isDeleteIcon = this.isDeleteIcon(name) // 列表删除图标是否显示
+      const hidetds = this.getHideTds(name) // 列表需要隐藏的字段
+      return { 
+        isFuzzySearch: isFuzzySearch,
+        isDeleteIcon: isDeleteIcon,
+        hidetds: hidetds,
+        dealShowResult: this.dealShowResult
+      }
+    }
+
+    this.switchTopic = (name) => {
+      this.name = name
+      let store = xdata.metaStore
+      let table = null
+      const specialParameter = this.getSpecialParameter(name)
+
+      if (['operate_log', 'his_staff_change'].includes(name)) {
+        this.root.querySelector('.homepage').classList.add('hide')
+        this.root.querySelector('.config-table').classList.add('hide')
+        this.root.querySelector('.system-report').classList.remove('hide')
+        let def = clone(reptQuery[name])
+        this.rsMetaTable = riot.mount('.system-report', 'rept-page-content', {
+          def: def,
+          parentag: self
+        })[0]
+      } else if (name === 'staff_software_update') {
+        const rows = store.data.card && Array.from(store.data.card.values())
+        this.getMountTableMsg(rows, name)
+      } else if (DEVICENET.includes(name)) {
+        xbus.trigger('GET-NET-IP')
+      } else if (name === 'device_power') {
+        const powers = xdata.metaStore.data.device_power && Array.from(xdata.metaStore.data.device_power.values())
+        const powersLength = powers ? powers.length : 0
+        xbus.trigger('GET-POWER-MSG', powersLength)
+      } else {
+        this.root.querySelector('.system-report').classList.add('hide')
+        if (specialPageName.includes(name)) {
+          table = this.getSpecialPageData(name)
+        } else {
+          if (name === 'dept_ck' && xdata.isCheck === 1) name = 'dept'
+          let def = store.defs[name]
+          let rows = store.dataInArray.get(name)
+          if (name === 'area') {
+            def = xdata.isCheck === 1 ? config['area_ischeck'].def : config['area'].def
+            rows =  xdata.isCheck === 1 ? rows.filter(item => item.need_display != 0) : rows
+          }
+          if (name === 'map' ) {
+            def = xdata.isCheck === 1 ? config['check_map'].def : config['map'].def
+          }
+          table = {
+            def: def,
+            rows: rows,
+            maxid: store.maxIDs[name],
+            parenTag: self,
+            specialParameter: specialParameter
+          }
+          if (this.name === 'dept_ck' && xdata.isCheck === 1) {
+            table.def.table = 'dat_dept_ck'
+            table.def.name = 'dept_ck'
+          }
+        }
+        this.mountTable(table, name)
+      }
+    }
+
+    this.mountTable = (table, name) => {
+      if (this.rsMetaTable) this.rsMetaTable.unmount(true)
+      this.root.querySelector('.homepage').classList.add('hide')
+      this.root.querySelector('.back-homepage').classList.remove('hide')
+      this.root.querySelector('.system-report').classList.add('hide')
+      if (DEVICENET.includes(name) || ['area_reader','dept_info', 'occupation_info'].includes(name)) name = 'rs-meta'
+      let routeName = MENU[name] ? `${MENU[name]}-table` : 'rs-meta-table'
+      this.rsMetaTable = riot.mount('.config-table', routeName, table)[0]
+    }
+
+    this.backHomepage = (evt) => {
+      if (this.rsMetaTable) {
+        this.rsMetaTable.unmount(true)
+        this.root.querySelector('.config-table') && this.root.querySelector('.config-table').classList.add('hide')
+      }
+      this.root.querySelector('.homepage').classList.remove('hide')
+      this.sidebar = riot.mount('div#config-menu', 'transfer-menu', {
+        name: 'CONFIGS',
+        menus: this.configMenu
+      })[0]
+      this.root.querySelector('.back-homepage').classList.add('hide')
+    }
+
+    this.on('mount', () => {
+      if (this.sidebar) this.sidebar.unmount(true)
+      this.root.querySelector('.homepage').classList.remove('hide')
+      this.sidebar = riot.mount('div#config-menu', 'transfer-menu', {
+        name: 'CONFIGS',
+        menus: this.configMenu
+      })
+      // this.init()      
+    })
+
+    // 配置页面分站新增弹出是否跳转实时界面信息
+    this.jumpTips = () => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      let cb = this.jumpSpMonitor
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '是否跳转实时界面添加？',
+        tips: '提示：继续执行将会进入实时界面！',
+        cb: cb
+      })[0]
+    }
+
+    // 执行跳转实时界面新增分站
+    this.jumpSpMonitor = () => {
+      let tagMonitor = opts.papa
+      tagMonitor.gotoPage('sp_monitor', null)
+      let name = 'edit_forbid_bstation'
+      xbus.trigger('MAP-READER-EDIT', name)
+    }
+
+    this.chooseShowDialog = (msg) => {
+      msg.papa = opts.papa
+      const { cmd, name, table } = msg
+      if (xdata.isCheck === 1 && msg.name === 'dept_ck') {
+        msg.rows = msg.rows.filter(item => item.field_name !== 'hm_dept_id')
+      }
+      if (['reader'].includes(name)) {
+        this.getTable(name)
+        cmd === 'INSERT' ? this.jumpTips() : this.showMergeDialog(msg)
+      } else {
+        if (cmd === 'UPDATE' && ['occupation_info', 'dept_info'].includes(this.name)) msg.alias = this.name
+        if (cmd === 'DELETE' && table === 'dat_area_persons_dynamic_thre') msg.key = 'area_id'
+        this.showMetaDialog(msg)
+      }
+    }
+
+    // 设备管理二级菜单是否显示操作
+    this.isOperate = (name) => {
+      let names = ['software_configuration', 'staff_software_update']
+      if (names.includes(name)) return false
+      return true
+    }
+
+    this.getMountTableMsg = (rows, name) => {
+      const specialParameter = this.getSpecialParameter(name)
+      const operate = this.isOperate(name)
+      const table = {
+        def: deviceUpdataDef[name],
+        rows: rows,
+        name: this.name,
+        specialParameter: specialParameter,
+        operate: operate,
+        parenTag: self
+      }
+      this.mountTable(table, name)
+    }
+    
+    /*初始化函数*/
+    this.init = () => {
+      this.selects = null
+      this.tag = null
+      this.allDatas = new Map()
+      this.configMenu = configMenu
+
+      xbus.on('CONFIG-SWITCH-MENU', (msg) => {
+        this.switchTopic(msg.menuname)
+      })
+
+      this.on('META-INSERT-ROW', (msg) => {
+        this.chooseShowDialog(msg)
+      })
+
+      this.on('META-UPDATE-ROW', (msg) => {
+        this.chooseShowDialog(msg)
+      })
+
+      this.on('META-DELETE-ROW', (msg) => {
+        this.chooseShowDialog(msg)
+      })
+
+      xbus.on('NET-RESPONSE', (data) => {
+        this.getMountTableMsg(data, 'device_net_params')
+      })
+
+      // 设备网络参数、设备参数
+      xbus.on('DEVICE-UPDATE-HARDWARE', ({name, storename}) => {
+        const isTableMaping = TABLEMAP[this.name] === name
+        if (!isTableMaping) return
+
+        let store = xdata.deviceUpdateStore[storename]
+        let data = store && Array.from(store.keys())
+        let initDatas = []
+        data && data.forEach(item => {
+          let result = store.get(item) && Array.from(store.get(item).values())
+          initDatas = initDatas.concat(result)
+        })
+        this.getMountTableMsg(initDatas, name)
+      })
+
+      xbus.on('DEVICE-UPDATE-POWER', ({name, storename}) => {
+        const powers = xdata.deviceUpdateStore[storename] && Array.from(xdata.deviceUpdateStore[storename].values())
+        let datas = this.updateDeviceData(powers, name)
+        if (this.configTable && this.configTable.name === name) {
+          this.configTable.updateDeviceData(datas.allDatas)
+        } else {
+          this.getMountTableMsg(datas, name)
+        }
+      })
+    }
+
+    /*执行初始化函数*/
+    this.init()
+
+    /*获取整合电源设备数据*/
+    this.updateDeviceData = (powers, name) => {
+      powers = powers ? powers : xdata.deviceUpdateStore.powerStore && Array.from(xdata.deviceUpdateStore.powerStore.values())
+      return this.dealDeviceDatas(powers, name)
+    }
+
+    this.allDeviceDatas = (name, data, powers) => {
+      let allDatas = {}
+      if (name === 'device_power') {
+        let powersLevels = Array.from(xdata.metaStore.data.power_levels.values()).filter(item => item.device_power_id === data.device_power_id)
+        let rows = []
+        if (powers.length > 0 && powersLevels && powersLevels.length > 0) {
+          for (let i = 0; i < powersLevels.length; i++) {
+            let power = powers.find(item => item.deviceAddress === powersLevels[i].device_power_id)
+            power && rows.push(power)
+          }
+        }
+        powers = rows
+        allDatas['device_power'] = data
+        allDatas['power_levels'] = powersLevels
+        allDatas['powers'] = powers
+        return allDatas
+      }
+    }
+
+    /*电源设备数据整合*/
+    this.dealDeviceDatas = (powers, name) => {
+      let datas = xdata.metaStore.data[name] && Array.from(xdata.metaStore.data[name].values())
+      if (datas && datas.length > 0) {
+        datas.forEach(data => {
+          let allDatas = this.allDeviceDatas(name, data, powers)
+          this.allDatas.set(data.device_power_id, allDatas)
+        })
+      }
+      return {rows: datas, allDatas: this.allDatas}
+    }
+
+    // 获取需要打开对话框前缀
+    this.getPrefixName = (msg) => {
+      let prefixName = 'rs-meta'
+      if (MENU[this.name]) {
+        prefixName = MENU[this.name]
+        if (['dept_info', 'occupation_info'].includes(this.name)) {
+          prefixName = msg.cmd === 'UPDATE' ? prefixName : 'rs-meta'
+        } else if (['network_configuration', 'device_configuration'].includes(msg.name)) {
+          prefixName = 'rs-meta'
+        }
+      }
+      return prefixName
+    }
+
+    // 执行弹出新增、编辑对话框
+    this.showMetaDialog = (msg) => {
+      if (this.rsMetaDialog) {
+        this.rsMetaDialog.unmount(true)
+      }
+      msg.checkboxes = this.checkboxes
+      msg.cascaders = this.cascaders
+      msg.spliceInputs = this.spliceInputs
+      const prefixName = this.getPrefixName(msg)
+      if (DEVICENET.includes(this.name)) msg['tableName'] = this.name
+      this.rsMetaDialog = riot.mount(`${prefixName}-dialog`, { message: msg, parenTag: self })[0]
+    }
+
+    //处理合并页面下的基础数据
+    this.getMergeData = (msg) => {
+      const value = msg.rows[0].field_value
+      const { cmd, key, papa} = msg
+      const sencondMsg = getInfo(this.sencondTable, value, cmd, key) //获取天线数据
+      const thirdMsg = getInfo(this.thirdTable, value, cmd, key) // 获取分站路径数据
+
+      if (!sencondMsg.length) { //未配置天线时，默认新增天线展示，可保存添加
+        for (let i = 0; i < 2; i++) {
+          let antennaMsg = getInfo(this.sencondTable, value, 'INSERT', key)[0]
+          antennaMsg = dealAntennaData(msg, antennaMsg, i + 1)
+          sencondMsg.push(antennaMsg)
+        }
+      }
+
+      const datas = {
+        firstMsg: msg,
+        sencondMsg: sencondMsg,
+        thirdMsg: thirdMsg,
+        papa: papa
+      }
+      return datas
+    }
+
+    //执行弹出合并弹出窗
+    this.showMergeDialog = (msg) => {
+      if (this.rsMergeDialog) {
+        this.rsMergeDialog.unmount(true)
+      }
+      const datas = this.getMergeData(msg)
+      this.rsMergeDialog = riot.mount('rs-merge-dialog', { message: datas, parenTag: self })[0]
+    }
+
+    this.setInputValue = (msg, currenTag) => {
+      if (msg.hasOwnProperty('value')) {
+        let ele = currenTag.tags['rs-fuzzy-search'].refs['searchinput'] 
+        ele.value = msg.value
+      }
+    }
+
+    // 获取特殊页面数据
+    this.getSpecialPageData = (name) => {
+      let table = null
+      let store = xdata.metaStore
+      if (name === 'occupation_info') name = 'occupation'
+      if (name === 'dept_info') name = 'dept'
+      const specialParameter = this.getSpecialParameter(name)
+      if (['shift_setting', 'area_reader'].includes(name)) {
+        let rows = name === 'area_reader' ? concatAreaReader() : xdata.metaStore.data.shift_setting && Array.from(xdata.metaStore.data.shift_setting.values())
+        table = {
+          def: manages[name],
+          rows: rows,
+          parenTag: self,
+          specialParameter: specialParameter
+        }
+      } else if (['font_size', 'number_bars'].includes(name)) {
+        table = {
+          def: config[name].def,
+          rows: JSON.parse(window.localStorage.getItem('fontDataNumber')),
+          parenTag: self,
+          specialParameter: specialParameter
+        }
+      } else {
+        table = {
+          def: store.defs[name],
+          rows: store.dataInArray.get(name),
+          maxid: store.maxIDs[name],
+          parenTag: self,
+          specialParameter: specialParameter
+        }
+      }
+      return table
+    }
+
+    this.editSearchData = (msg) => {
+      let { rows, name } = msg
+      let searchName = name
+      let result = []
+      name = ['area_reader', 'area_persons_dynamic_thre'].includes(name) ? 'area' : name
+      if (name === 'dept_ck' && xdata.isCheck === 1) name = 'dept'
+      let data = xdata.metaStore.data[name] && Array.from(xdata.metaStore.data[name].values())
+      data = data || rows
+      if (searchName === 'area_persons_dynamic_thre') {
+        //区域人员上限按区域名称检索
+        let rows = xdata.metaStore.data[searchName] && Array.from(xdata.metaStore.data[searchName].values())
+        if (rows) {
+          for (let i = 0; i < data.length; i++) {
+            for (let j = 0; j < rows.length; j++) {
+              if (data[i].area_id === rows[j].area_id) result.push(data[i])
+            }
+          }
+        }
+        data = result
+      }
+      return {data, name}
+    }
+
+    // 是否显示检索输入框
+    this.isFuzzySearch = (name) => {
+      let names = ['font_size', 'number_bars', 'shift_setting']
+      names = names.concat(DEVICENET)
+      if (names.includes(name)) return true
+      return false
+    }
+
+    // 配置页面是否显示删除图标
+    this.isDeleteIcon = (name) => {
+      const names = ['font_size', 'number_bars', 'area_reader']
+      if (names.includes(name)) return true
+      return false
+    }
+
+    // 删除特殊处理sql
+    this.deleteSql = (tableName, tableKeyName, keyValue, rows) => {
+      let sql = null,
+          sqlObj = {}
+      if (tableName === 'dat_user') keyValue = `"${keyValue}"`
+      if (tableName === 'dat_area_persons_dynamic_thre') {
+        sql = `DELETE from ${tableName} where ${rows[0].field_name}=${rows[0].field_value}`
+      } else if (tableName === 'dat_area') {
+        sql = `DELETE from ${tableName} where ${tableKeyName}=${keyValue}`
+        let deleteSql = `DELETE from dat_att_rule_area where area_id =${keyValue}`
+        sqlObj['deleteSql'] = deleteSql
+      } else {
+        sql = `DELETE from ${tableName} where ${tableKeyName}=${keyValue}`
+      }
+      sqlObj['sql'] = sql
+      return {sqlObj, keyValue}
+    }
+
+    // 获取下拉输入框数据
+    this.getItems = (fieldName, topicName, tableFieldName) => {
+      let items = []
+      if (['sanlv_standart_id', 'judge_id'].includes(fieldName)) {
+        topicName = fieldName === 'judge_id' ? 'map' : topicName
+        if (numberTurnText.hasOwnProperty(topicName)) {
+          let hasTurnName = numberTurnText[topicName][fieldName]
+          if (hasTurnName) {
+            for (let rec in hasTurnName) {
+              items.push({
+                value: Number(rec),
+                label: hasTurnName[rec]
+              })
+            }
+          }
+        }
+      } else if (fieldName === 'state_id') {
+        return [{label: '启用', value: 0}, {label: '停用', value: 1}]
+      } else {
+        let key = 'name'
+        if (topicName === 'device' && fieldName === 'device_id') {
+          topicName = 'reader'
+          tableFieldName = 'reader_id'
+        }
+        if (topicName === 'device_type') key = 'detail'
+        if (['shape_id', 'color_id'].includes(fieldName)) {
+          topicName = fieldName === 'shape_id' ? 'light_shape' : 'light_color'
+          tableFieldName = fieldName === 'shape_id' ? 'light_shape_id' : 'light_color_id'
+          key = fieldName === 'shape_id' ? 'shape_name' : 'color_name'
+        }
+        let ds = xdata.metaStore.data[topicName]        
+        if (!ds) {
+          console.warn(`metaselect: 没有以 ${tableFieldName} 为 KEY 的数据。`)
+          return items
+        }
+        for (let rec of ds.values()) {
+          let item = {
+            label: rec[key],
+            value: rec[tableFieldName]
+          }
+          items.push(item)
+        }
+      }
+
+      return items
+    }
+
+    //执行编辑、新增获取keyValue
+    this.getKeyValue = (ele, type, tableName, cmd) => {
+      let keyValue = type === 'SELECT' ? ele.getAttribute('name') : ele.value
+      if (tableName === 'dat_user' && cmd !== 'DELETE') keyValue =`"${keyValue}"`
+      return keyValue
+    }
+
+    // 设置操作中编辑、删除显示隐藏
+    this.setOperate = (msg) => {
+      const { editTag, deleteTag, name } = msg
+      if (name === 'area') {
+        // 分区管理编号为0的隐藏删除图标
+        if (Array.isArray(deleteTag)) {
+          deleteTag.forEach(el => {
+            if (Number(el.getAttribute('name')) === 0) el.classList.add('hide')
+          })
+        } else {
+          if (Number(deleteTag.getAttribute('name')) === 0) deleteTag.classList.add('hide')
+        }
+      } else if (hideDeleteIcon.includes(name)) {
+        Array.isArray(deleteTag) ? deleteTag.forEach(el => {el.classList.add('hide')}) : deleteTag.classList.add('hide') 
+      } else if (name === 'device_power') {
+        Array.isArray(editTag) ? editTag.forEach(el => {el.classList.add('hide')}) : editTag.classList.add('hide') 
+      }
+    }
+
+    // 编辑字体、条数
+    this.updateLocalStorage = (currenTag) => {
+      let fontDataStore = JSON.parse(window.localStorage.getItem('fontDataNumber'))
+      let optName = ''
+      const {tableName} = currenTag
+      if (tableName === 'font_size') optName = 'fontSize'
+      if (tableName === 'number_bars') optName = 'dataNumber'
+      let optNameNumber = currenTag.refs[optName].root.querySelector('input').value
+      fontDataStore[0][optName] = Number(optNameNumber)
+      window.localStorage.setItem('fontDataNumber', JSON.stringify(fontDataStore))
+      xbus.trigger('CONFIG-SWITCH-MENU', {
+        menuname: tableName,
+        msg: null
+      })
+      fontDataChange('update')
+      currenTag.close()
+    }
+
+    //是否检索
+    this.isSearch = (tableName, fieldName) => {
+      if (fieldName === 'select_card' || fieldName === 'hw_version') return true
+      if (tableName === 'dat_light_rd_spec_process' && ['light_id', 'reader_id'].includes(fieldName)) return true
+      return false
+    }
+
+    this.jumpCycle = (fieldName, tableName) => {
+      if (fieldName === 'hm_dept_id' && tableName === 'dat_dept') return true
+      return false
+    }
+
+    //分站所属区域等特殊页面过滤出检索的数据
+    this.getSpeicalData = (msg) => {
+      let { data, name, self } = msg
+      let ele = self.tags['rs-fuzzy-search'].refs['searchinput'] 
+      ele.value = data[self.desc]
+      if (['area_reader','area_persons_dynamic_thre'].includes(name)) {
+        data = self.rows.find(item => item.area_id === data.area_id)
+      }
+      self.updateData(data)
+    }
+
+    //清除检索框获取特殊页面全部数据特殊
+    this.dealSpeicalData = (msg) => {
+      let { rows, name } = msg
+      switch (name) {
+        case 'area_reader':
+          rows = concatAreaReader()
+          break
+        case 'dept_ck':
+        case 'dept':
+          rows = rows && rows.filter(item => {
+            if (!xdata.depts || xdata.depts.includes(item.dept_id)) return item
+          })
+          break
+      }
+      return rows
+    }
+
+    // 获取需要隐藏名称、字段
+    this.getHideTds = (name) => {
+      let hidetds = null
+      if (xdata.isCheck === 1) {
+        hidetds =  {
+          labels: ['是否对外展示', '用户类别', '虹膜部门编号', '界面是否显示', '班次早退时间', '检查图层'],
+          names: ['need_display', 'is_check', 'hm_dept_id', 'leave_time', 'check_layers']
+        }
+      }
+
+      if (xdata.isCheck === 0) {
+        hidetds =  {
+          labels: ['区域核对人数上限', '班次早退时间'],
+          names: ['over_count_person_rp', 'leave_time']
+        }
+      } 
+      return hidetds
+    }
+
+    /*根据name处理模糊查询的结果*/
+    this.dealShowResult = (matchs, s, keys) => {
+      if(this.name === 'dept'){
+        matchs = matchs && matchs.filter(item => {
+          if (!xdata.depts || xdata.depts.includes(item.dept_id)) return item
+        })
+      } else if (['staff', 'vehicle'].includes(this.name) && (xdata.objRange === 1 || xdata.isCheck === 1)) {
+        matchs = matchs.filter((item) => item.need_display != 0)
+      }
+      let dittoname = clone(matchs)
+      if (keys.includes('staff_id')) {
+        dittoname.forEach(e => {
+          e.name = e.hasOwnProperty('reader_id') ? e.name : `${e.staff_id}-${e.name}-${xdata.metaStore.getNameByID('dept_id', e.dept_id)}`
+        })  
+      }
+      return dittoname
+    }
+
+    // 增删改后更改列表展示
+    this.updateList = (msg) => {
+      let { data, self } = msg
+      if (data.def.name === self.name || (self.name === 'area_reader' && data.def.name === 'reader') || (self.name === 'shift_setting' && data.def.name === 'setting')) {
+        let rows = data.rows
+        let maxid = data.maxid
+        if (self.name === 'area_reader') {
+          rows = concatAreaReader()
+        }
+        if (self.name === 'shift_setting') {
+          rows = rows.filter(item => item.setting_id === 15)
+        }
+        return { rows, maxid }
+      }
+      return null
+    }
+
+    this.isIP = (tag, deviceAddress, deviceType) => {
+      const storemsg = xdata.deviceUpdateStore[STORENAME[tag.tableName]]
+      let msg = storemsg && storemsg.get(`${deviceAddress}-${deviceType}`)
+      if (!msg) {
+        msg = msg.get(`${deviceAddress}-${deviceType}`)
+      }
+      const {isIP} = msg
+      return isIP
+    }
+
+    this.dealFixedData = (tag, key) => {
+      const FIXED = {
+        network_configuration: ['ip', 'deviceAddress', 'deviceType'],
+        device_configuration: ['ip', 'deviceAddress', 'deviceType']
+      }
+      let fixedMsg = {}
+      const store = xdata.deviceUpdateStore[STORENAME[tag.tableName]]
+      let oldData = store.get(key)
+      if (Object.prototype.toString.call(oldData) === '[object Map]') {
+        oldData = oldData.get(key)
+      }
+      if (!oldData) {
+        let rows = Array.from(store.values())
+        const [deviceAddress, deviceType] = key.split('-')
+        oldData = rows.find(item => (item.deviceAddress === Number(deviceAddress) || item.childDeviceAddress === Number(deviceAddress)) && item.deviceType === Number(deviceType))
+      }
+      const dataFixed = FIXED[tag.tableName]
+      dataFixed.forEach(item => {
+        fixedMsg[item] = oldData[item]
+      })
+      return fixedMsg
+    }
+
+    // 拼接固定发送数据（必须）
+    this.getFixed = (tag) => {
+      let deviceUpdateSelects = tag.opts.message.selects
+      this.selects = deviceUpdateSelects
+      let key = null
+      if (Array.isArray(deviceUpdateSelects)) {
+        key = deviceUpdateSelects.shift()
+
+
+        // let fixedArray = [] 
+        // for (let i = 0; i < deviceUpdateSelects.length; i++) {
+        //   let key = deviceUpdateSelects[i]
+        //   fixedArray.push(this.dealFixedData(tag, key))
+        // }
+        // return {
+        //   fixeds: fixedArray
+        // }
+      } else {
+        const {rows} = tag
+        key = `${rows.find(item => item.field_name === 'deviceAddress' || item.field_name === 'childDeviceAddress').field_value}-${rows.find(item => item.field_name === 'deviceType').field_value}`
+        // let fixedMsg = this.dealFixedData(tag, key)
+        // return fixedMsg
+      }
+      let fixedMsg = this.dealFixedData(tag, key)
+      return fixedMsg
+    }
+
+    // 补全设备更新数据
+    this.completeData = (tag, msg) => {
+      let data = Object.keys(msg)
+      let result = {}
+      if (tag.tableName === 'network_configuration') {
+        for (let i = 0; i < data.length; i++) {
+          let key = data[i]
+          if (/[a-zA-Z]{1,}[0-9]{1}$/.test(key)) {
+            let num = parseInt(key.slice(-1), 10)
+            let filterData = tag.rows.filter(item => item.field_name.includes(num))
+            filterData.forEach(item => {
+              if (item.field_name !== key) {
+                result[item.field_name] = msg[item.field_name] || item.field_value
+              }
+              result[key] = msg[key]
+            })
+          } else {
+            result[key] = msg[key]
+          }
+        }
+      }
+      if (Object.keys(result).length > 0) return result
+    }
+
+    this.dealNets = (tag, oldvalue) => {
+      return [oldvalue]
+      // let deviceUpdateSelects = tag.opts.message.selects
+      // if (Array.isArray(deviceUpdateSelects)) {
+      //   let values = []
+      //   let stores = xdata.deviceUpdateStore[STORENAME[tag.tableName]]
+      //   deviceUpdateSelects.forEach(item => {
+      //     let row = stores.get(item)
+      //     let ip = row && row.ip
+      //     ip && values.push(ip)
+      //   })
+      //   return values
+      // } else {
+      //   return [oldvalue]
+      // }
+    }
+
+    // 设备管理批量修改
+    this.doUpdateDeviceUpdate = (tag) => {
+      this.tag = tag
+      let msg = this.getFixed(tag)
+      msg['data'] = {} // 存放修改的数据
+      for (let i = 0; i < tag.rows.length; i++) {
+        let row = tag.rows[i]
+        let isEdit = isDisabled(tag.topicName, row, tag.tableKeyName, tag)
+        if (isEdit === 'disabled') continue
+
+        let name = row.field_name
+        let oldValue = row.field_value
+        let fieldType = row.field_type
+        let ele = tag.refs[name].refs[name]
+        let value = null
+        if (fieldType === 'SELECT') {
+          value = ele.getAttribute('name')
+        } else {
+          value = ele && ele.value
+        }
+        if (value) value = trim(value)
+        if (value != oldValue) {
+          msg.data[name] = value
+        }
+      }
+      if (Object.keys(msg.data).length > 0) {
+        let completeDataResult = this.completeData(tag, msg.data)
+        if (completeDataResult) msg.data = completeDataResult
+        msg['nets'] = this.dealNets(tag, msg.ip) // server端需要连接的IP地址
+        msg['isIP'] = this.isIP(tag, msg.deviceAddress, msg.deviceType)
+        xbus.trigger('SEND-MANAGER-MSG', {
+          cmd: tag.tableName,
+          data: msg
+        })
+      } else {
+        messageTip('数据没有修改，请确认后再提交！', 'warning')
+      }
+    }
+
+    this.doHandle = () => {
+      if (this.selects && this.selects.length > 0) {
+        this.doUpdateDeviceUpdate()
+      }
+    }
+
+    this.getLocate = (msg) => {
+      const {name} = msg
+      if (['light', 'landmark'].includes(name)) return true
+      return false
+    }
+
+    // 根据name:函数名 调用对应的函数
+    this.commentFn = (msg, name) => {
+      if (name === 'setOperate') this.setOperate(msg)
+      if (name === 'allResult') return this.dealSpeicalData(msg) // 清空输入框特殊数据处理
+      if (name === 'specialData') this.getSpeicalData(msg)
+      if (name === 'updateList') return this.updateList(msg) // 更新列表特殊处理
+      if (name === 'editSearchData') return this.editSearchData(msg) // 修改检索集数据
+      if (name === 'getLocate') return this.getLocate(msg) // 是否显示定位图标
+    }
+
+    // rs-meta-dialog中特殊更新
+    this.doSpecialUpdate = (self) => {
+      let { tableName } = self
+      if (['font_size', 'number_bars'].includes(tableName)) this.updateLocalStorage(self)
+      if (['network_configuration', 'device_configuration'].includes(tableName)) this.doUpdateDeviceUpdate(self)
+    }
+
+    // 批量导入列表值特殊处理
+    this.getImportName = (msg) => {
+      let { fieldName, value, tableName, fieldType } = msg
+      if (tableName === 'dat_area_persons_dynamic_thre') {
+        if (fieldType === 'TIME') {
+          if (typeof value !== 'string') { 
+            value = new Date(new Date(value).getTime()-5*60*1000).format('hh:mm:ss')
+          }
+        }
+      }
+      if (fieldType === 'DATE' && value) {
+        if (typeof value !== 'string') {
+          value = new Date(value).getTime() - value.getTimezoneOffset() * 60 * 1000
+        }
+        value = new Date(value).format('yyyy-MM-dd')
+      }
+      return value
+    }
+
+    // 更新时topicname特殊处理
+    this.getTopicName = (topicName) => {
+      if (topicName === 'shift_setting') return 'setting'
+      return topicName
+    }
+  </script>
+</sp-config>

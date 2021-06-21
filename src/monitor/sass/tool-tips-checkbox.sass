@@ -1,0 +1,26 @@
+@import '../../style/defs'
+
+.tips-checkbox
+  @include flex-around-center
+  line-height: .3rem
+  .value
+    flex: auto
+    text-align: right 
+  input
+    @include wh(.14rem, .14rem)
+    vertical-align: middle
+    cursor: pointer
+  input[type=checkbox]:after
+    @include wh(.14rem, .14rem)
+    cursor: pointer
+    color: $font-white
+    display: inline-block
+    visibility: visible
+    border-radius: 3px
+    vertical-align: top
+    line-height: .14rem
+  input[type=checkbox]:checked:after
+    background-color: #0099FF
+    content: "✓"
+    color: #ffffff
+    font-size: $font-s

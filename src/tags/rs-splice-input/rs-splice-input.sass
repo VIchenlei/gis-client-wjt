@@ -1,0 +1,45 @@
+@import '../../style/defs'
+
+.rs-splice-input
+  font-size: $font-xs
+  .text-field-label
+    display: flex
+    color: $font-weight-grey
+    .icon
+      margin-left: .1rem
+      cursor: pointer
+  .splice-inner
+    @include flex-row-center
+    margin: .1rem 0
+    .splice-inner-box
+      margin-right: .05rem
+    fieldset
+      display: flex
+      height: 0.48rem
+      border: 1px solid $color-border
+      border-radius: 5px
+      margin: 2px 0
+      legend
+        height: 0.17rem
+        font-size: $font-xs
+        color: $font-weight-grey
+        line-height: 0.17rem
+        margin-left: 8px
+        white-space: nowrap
+        padding: 0 2px
+      input
+        width: auto
+        padding: 5px 9px
+        border: none
+        outline: none
+        height: 0.3rem
+    .operat
+      margin-bottom: .1rem
+.over_speed_vehicle
+  .splice-inner
+    display: block
+    .splice-inner-box
+      display: inline-block
+      input
+        width: 1.17rem !important
+

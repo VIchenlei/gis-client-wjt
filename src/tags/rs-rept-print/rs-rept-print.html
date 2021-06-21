@@ -1,0 +1,22 @@
+<rs-rept-print>
+  <span each={printdef in printdefs} class="printButton hint--bottom-left" aria-label={printdef.label} name={printdef.name} onclick="{askFile}">
+    <svg class="icon black-icon"><use xlink:href="/icons/icons.svg#{ printdef.icon }"></use></svg>
+  </span>
+  <script>
+    import './rs-rept-print.sass'
+
+    /*执行cb回调函数*/
+    this.askFile = (evt) => { 
+      let opName = evt.currentTarget.getAttribute('name')
+      this.cb(opName)
+    }
+    
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.printdefs = opts.printdefs
+      this.cb = opts.cb
+    }
+
+    this.init(opts)
+  </script>
+</rs-rept-print>

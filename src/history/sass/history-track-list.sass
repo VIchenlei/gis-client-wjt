@@ -1,0 +1,46 @@
+@import '../../style/defs.sass'
+
+.track-result-panel
+  display: flex
+  flex-flow: column nowrap
+  max-height: 4rem
+  overflow-y: auto
+  flex: 1
+  padding: 1px
+  width: 100%
+  font-size: $font-s
+  .title
+    display: block
+    padding: .1rem
+    background-color: $color-grey-xs
+  .track-list-panel
+    display: flex
+    flex-flow: column
+    flex: auto
+    overflow-y: scroll
+    .track-group-title
+      @include line-center(0.32rem)
+      text-align: center
+      background: #f5f5f5
+    .track-tag
+      @include flex-between-center
+      flex-flow: column
+      cursor: pointer
+      border-top: 1px solid #f5f5f5
+      padding: 0.16rem
+      background: #FFF
+      p
+        display: flex
+        width: 100%
+        justify-content: space-around
+      &.activated
+        background: rgba(0, 153, 255, 0.5)
+      &:hover
+        background: rgba(0, 153, 255, 0.5)
+      .reader-detail:hover
+        font-weight: bold
+        color: rgba(0, 0, 139, 0.5)
+  @media screen and (max-width: $width-medium)
+    max-height: 2rem
+    .track-list-panel .track-tag p
+      display: inline-grid

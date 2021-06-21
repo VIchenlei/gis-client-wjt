@@ -1,0 +1,71 @@
+@import '../../style/defs.sass'
+
+.staff-curve
+  @include wh(11rem, 6.4rem)
+  font-size: $font-m
+  background: $color-grey-xs
+  box-shadow: 0 5px 6px 4px rgba(0,0,0,0.14)
+  .dlg-body
+    width: 100%
+    padding: .1rem .2rem
+    font-size: 0.128rem
+    .curve-title
+      display: flex
+      justify-content: center
+      height: 0.5rem
+      .selectchoose
+        display: flex
+        position: relative
+        select
+          width: 0.8rem
+          background: #f5f5f5
+          border: 0
+        img
+          position: absolute
+          margin-top: 0.08rem
+          right: 0
+      .date
+        position: absolute
+        right: 0.08rem
+        button
+          position: relative
+          top: -5px
+    .charts-title
+      display: flex
+      height: 0.48rem
+      line-height: 0.48rem
+      justify-content: flex-end
+      padding-top: 0.2rem
+      span
+        display: flex
+      .rs-rept-print
+        display: flex
+        align-items: center
+        .printButton
+          justify-content: center
+          margin-left: 0.16rem
+          margin-right: 0
+      input
+        height: 0.48rem
+        margin: 0 .08rem
+        border-radius: 2px
+        background: none
+        border: 1px solid #999
+        padding: 0 3px
+        width: 13px
+    .staff-curve-print
+      max-height: none
+    .staff-curve-cont
+      overflow: scroll
+      height: 4.8rem
+      margin-top: .1rem
+      table tbody tr td:nth-child(1),table thead tr th:nth-child(1)
+        flex-basis: 200%
+      thead
+        background: $color-grey-xs
+      th, td
+        padding: .1rem .05rem
+      tr
+        border-bottom: 1px solid rgba(179, 179, 179, 0.5)
+    .staff-curve-cont-print
+      height: auto

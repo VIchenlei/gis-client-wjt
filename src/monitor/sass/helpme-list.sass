@@ -1,0 +1,35 @@
+@import '../../style/defs'
+
+.helpme-dialog
+  position: absolute
+  right: 0.08rem
+  top: 0.48rem
+  font-size: $font-xs
+  color: #666
+  left: auto
+  width: 5.6rem
+  z-index: 9999
+  display: flex
+  flex-flow: column nowrap
+  .rs-title
+    background: #f80
+  .hm-item-warp
+    max-height: 5.5rem
+    overflow-y: auto
+    .hm-item
+      @include flex-row-center
+      justify-content: space-between
+      flex: 0 0 0.34rem
+      padding: 0.02rem 0.16rem
+
+      .hm-label
+        width: 0.96rem
+      .hm-map
+        width: 0.96rem
+      .hm-pos
+        width: 1.3rem
+        cursor: pointer
+      .hm-time
+        width: 1.28rem
+      .btn
+        background: #f80

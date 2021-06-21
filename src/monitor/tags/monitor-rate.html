@@ -1,0 +1,42 @@
+<monitor-rate>
+  <span class="panel-switcher" onclick={switchPanel}>
+    <span class="icon { isShowPanel ? 'icon-caret-left' : 'icon-caret-right'} "></span>
+  </span>
+  <div data-is="monitor-rate-total" class="monitor-rate-total"></div>
+  <div data-is="monitor-rate-dept" class="monitor-rate-dept grey-scroll"></div>
+  <script>
+    import '../sass/monitor-rate.sass'
+    import './monitor-rate-total.html'
+    import './monitor-rate-dept.html'
+  
+    this.switchPanel = () => {
+      let rateRight = this.tags['monitor-rate-total'].root
+      let rateBottom = this.tags['monitor-rate-dept'].root
+      let root = this.root.classList
+      let addRemove = this.isShowPanel ? 'add' : 'remove'
+      rateRight.classList[addRemove]('hide')
+      rateBottom.classList[addRemove]('hide')
+      root[addRemove]('monitor-rate-hide')
+      this.isShowPanel = !this.isShowPanel
+    }
+
+    this.initDate = (rows) => {
+      if (!rows) return
+      let overviewBD = rows['overview-boot']
+      let overviewWD = rows['overview-worktime']
+      let overviewRD = rows['overview-rugular']
+      this.tags['monitor-rate-total'] && this.tags['monitor-rate-total'].initDate(overviewBD, overviewWD, overviewRD)
+
+      let deptB = rows['dept_boot']
+      let deptW = rows['dept_worktime']
+      let deptR = rows['dept_rugular']
+      this.tags['monitor-rate-dept'] && this.tags['monitor-rate-dept'].initDate(deptB, deptW, deptR)
+    }
+
+    this.init = (opts) => {
+      this.isShowPanel = true
+    }
+
+    this.init(opts)
+  </script>
+</monitor-rate>

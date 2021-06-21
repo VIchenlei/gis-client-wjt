@@ -1,0 +1,98 @@
+<real-msg class="real-msg">
+  <span each={ row in rows }>
+    <rs-text-field
+      if={row.field_type !== 'COLOR'}  
+      data={row} 
+      ref={row.field_name} 
+      data-name='power' 
+      data-oldvalue= {dealValue(row)} 
+      disabled="true">
+    </rs-text-field>
+    <rs-color 
+      if={row.field_type === 'COLOR'} 
+      ref={row.field_name} data={fillColor(row)} 
+      disabled="true">
+    </rs-color>
+  </span>
+  <script>
+    import '../sass/real-msg.sass'
+    import { updateDef } from '../js/device_power_def.js'
+
+    const REALNAME = {
+      'power_levels': 'power'
+    }
+
+    this.fillColor = (row) => {
+      let { field_name, field_value } = row
+      if (field_name === 'excharge_state') {
+        row.field_label = `${row.field_label}: ${field_value === 1 ? '有' : '无'}`
+        row.field_value = field_value === 1 ? '#FD5F56' : ''
+      } else if (field_name === `power${opts.index+1}`) {
+        row.field_label = `${row.field_label}: ${field_value}%`
+        if (field_value > 80) row.field_value = '#27CA41'
+        if (field_value <= 80 && field_value >= 40) row.field_value = '#FFCC32'
+        if (field_value < 40) row.field_value = '#FD5F56'   
+      }
+      return row
+    }
+
+    // 输入框值展示特殊处理
+    this.dealValue = (row) => {
+      let { field_name, field_value, field_type } = row
+      if (field_name === 'power_rode') {
+        const powerLevelsID = opts.dataRow[1].field_value
+        field_value = field_value === powerLevelsID ? '是' : '否'
+      } else if (field_type === 'NUMBER') {
+        field_value = parseInt(field_value) === parseFloat(field_value) ? field_value : Math.round(field_value*100)/100
+      }
+      return field_value
+    }
+
+    this.isDisabled = () => {
+      return true
+    }
+
+    this.getRows = (values, def) => {
+      values = values ? values.row : null
+      let rows = []
+      let length = def.fields.names.length
+      for (let i = 0; i < length; i++) {
+        let v = null
+        if (this.commeName.includes(def.fields.names[i])) {
+          v = values ? values[def.fields.names[i]] : ''
+          const row = {
+            field_name: def.fields.names[i],
+            field_value: v,
+            field_type: def.fields.types[i],
+            field_label: def.fields.labels[i],
+            field_enableNull: def.fields.enableNull[i]
+          }
+          rows.push(row)
+        } else if (values.hasOwnProperty(`${def.fields.names[i]}${opts.index+1}`)) {
+          this.parent[`isShowRealMsg${opts+1}`] = true
+          v = values ? values[`${def.fields.names[i]}${opts.index+1}`] : ''
+          const row = {
+            field_name: `${def.fields.names[i]}${opts.index+1}`,
+            field_value: v,
+            field_type: def.fields.types[i],
+            field_label: def.fields.labels[i],
+            field_enableNull: def.fields.enableNull[i]
+          }
+          rows.push(row)
+        }
+      }
+      return rows
+    }
+
+    this.init = (opts) => {
+      this.data = opts.data
+      this.name = REALNAME[opts.name]
+      this.commeName = opts.commename
+      let def = updateDef[this.name]
+      this.rows = this.getRows({row: this.data}, def)
+      this.parenTag = this.parent.parenTag
+    }
+
+    this.init(opts)
+  </script>
+</real-msg>

@@ -1,0 +1,26 @@
+@import '../../style/defs'
+
+.rs-fieldset
+  font-size: $font-m
+  position: relative
+  fieldset
+    @include wh(2.2rem, .5rem)
+    border-radius: 5px
+    padding: .04rem 0 0 .1rem
+    border: 1px solid $color-ccc
+    position: relative
+    legend
+      color: $font-weight-grey
+      font-size: $font-xs
+      padding: 0 .1rem
+    .icon
+      display: inline-block
+      @include wh(.1rem, .1rem)
+      @include absolute-right-bottom(.1rem, .15rem)
+    .close
+      background: url('/img/close.png') center center no-repeat
+  .rs-list
+    position: absolute
+    z-index: 2
+    width: 100%
+    background: $color-white

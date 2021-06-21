@@ -1,0 +1,32 @@
+@import '../../style/defs'
+.rs-text
+  margin: .16rem 0
+  position: relative
+  font-size: $font-xs
+  @include flex-row-center
+  i
+    background-size: .2rem
+    @include wh(.2rem, .2rem)
+    display: inline-block
+    background-repeat: no-repeat
+    margin-right: .13rem
+  label
+    @include absolute-left-bottom(.39rem, .1rem)
+    transition: transform .3s
+    color: $font-ccc
+  input
+    color: $font-ccc
+  .bottom-line
+    @include wh(2rem, 2px)
+    @include absolute-left-bottom(.33rem, 0)
+    background: $color-main
+    transform: scale(0)
+    transition: transform 0.3s ease-in-out
+    transform-origin: right center 
+  input:focus ~ .bottom-line
+    transform: scale(1)
+    transform-origin: center center
+  input:focus ~ label
+    transform: translateY(-.3rem)
+  input:valid ~ label
+    transform: translateY(-.3rem)

@@ -1,0 +1,96 @@
+<sp-monitor>
+  <div class="mapcontainer">
+    <mb-map-head></mb-map-head>
+    <div class="map-canvas" onclick={ clickMap }>
+      <div id="{MAP_CONTAINER_NAME}" class="map" ></div>
+      <map-side papa={papa}></map-side>
+      <map-topbar></map-topbar>
+      <monitor-rate class="hide-on-mb"></monitor-rate>
+      <map-legend class="hide-on-mb"></map-legend>
+      <tool-tips></tool-tips>
+    </div>
+    <page-foot class="page-foot hide-on-pc"></page-foot>
+    <mb-map-tools></mb-map-tools>
+  </div>
+
+  <script>
+    import '../sass/sp-monitor.sass'
+    import ol from 'openlayers'
+    import OlMapService from '../../js/service/OlMapService.js'
+
+    import './map-topbar.html'
+    import './monitor-rate.html'
+    import './map-side.html'
+    import './map-legend.html'
+    import './card-tips.html'
+    import './tool-tips.html'
+    import './mb-map-tools.html'
+    import './mb-map-head.html'
+    // import '../../footer/tags/page-foot.html'
+    import './card-tips.html'
+    import { resetAll } from '../../js/utils/utils.js'
+
+    this.on('mount', () => {
+      this.mapService = new OlMapService(this.mapType)
+      this.registerGlobalEventHandler()
+    })
+
+    this.registerGlobalEventHandler = () => {
+      xbus.on('MAP-OPEN-MONITOR', (msg) => {
+        console.log('sp-monitor on MAP-OPEN-MONITOR: Going to load map.', msg)
+        this.mapService.loadMap(this.MAP_CONTAINER_NAME, msg.id, msg.map, msg.row)
+        xbus.trigger('MAP-INIT-LABEL', { mapID: this.mapID, mapType: this.mapType, deviceType: '*' })
+        xbus.trigger('MAP-INIT-CARD', { mapID: this.mapID, mapType: this.mapType, cardType: '*' })
+      })
+
+      xbus.on('REPT-SHOW-RESULT', (ds) => {
+        if (ds.def.name === 'three-credentials') {
+          this.tags['monitor-rate'] && this.tags['monitor-rate'].initDate(ds.rows)
+        }
+      })
+
+      xbus.on('MAP-TOGGLE-EDIT', (flag) => {
+        if (!this.mousePositionControl) {
+          this.mousePositionControl = new ol.control.MousePosition({
+            coordinateFormat: ol.coordinate.createStringXY(1),
+            undefinedHTML: '0,0',
+            target: document.getElementById('mouse-position')
+          })
+        }
+
+        let map = this.mapService.map
+        flag ? map.addControl(this.mousePositionControl) : map.removeControl(this.mousePositionControl)
+      })
+
+      xbus.on('RESET-MAP', (mapID) => {
+        xdata.metaStore.defaultMapID = mapID
+        xdata.mapStore.defaultMapID = mapID
+        if (window.monitormap.childNodes[0]) {
+          window.monitormap.removeChild(window.monitormap.childNodes[0])
+        }
+        this.mapService = new OlMapService(this.mapType)
+        this.mapService ? this.mapService.workspace = null : ''
+        let gisMap = xdata.mapStore.maps.get(mapID)
+        let row = xdata.mapStore.gisMap.get(mapID)
+        this.mapService.loadMap(this.MAP_CONTAINER_NAME, mapID, gisMap, row)
+        this.mousePositionControl = null
+        xbus.trigger('MAP-LOAD-SUCESS')
+        resetAll()
+      })
+
+      xbus.on('MAP-RESET-POS', (msg) => {
+        this.mapService.resetView()
+      })
+    }
+
+    this.init = (opts) => {
+      this.MAP_CONTAINER_NAME = 'monitormap'
+      this.mapType = 'MONITOR'
+      this.mapID = opts.mapID
+      this.papa = opts.papa
+      this.mousePositionControl = null
+    }
+
+    this.init(opts)
+  </script>
+</sp-monitor>

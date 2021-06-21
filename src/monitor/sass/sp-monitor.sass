@@ -1,0 +1,13 @@
+@import '../../style/defs'
+
+.mapcontainer
+  display: flex
+  flex: 1 1 auto
+  position: relative
+  overflow: hidden
+  @include wh(100%, 100%)
+  .map-canvas
+    flex: auto
+    .map
+      @include wh(100%, 100%)
+      background: url('/img/mapBgnew.png') center center

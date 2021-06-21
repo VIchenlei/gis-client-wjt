@@ -1,0 +1,34 @@
+<rs-message class="rs-message animate {bgColor}">
+  <span>{message}</span>
+  <i></i>
+
+  <script>
+    import './rs-message.sass'
+
+    this.bgColor = 'success'
+
+    this.setPosition = () => {
+      const box = this.root.getBoundingClientRect()
+      const width = box.width
+      this.root.style.left = `${(window.innerWidth - width) / 2}px`
+    }
+
+    this.open = (opts) => {
+      this.message = opts.message
+      this.bgColor = opts.type || 'success'
+      this.update()
+      this.root.classList.remove('slideOutUp')
+      this.root.classList.add('slideInDown')
+      this.setPosition()
+      this.close()
+    }
+
+    this.close = () => {
+      let self = this
+      window.setTimeout(function () {
+        self.root.classList.remove('slideInDown')
+        self.root.classList.add('slideOutUp')
+      }, 3000)
+    }
+  </script>
+</rs-message>

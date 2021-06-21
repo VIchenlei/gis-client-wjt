@@ -1,0 +1,39 @@
+@import '../../style/defs.sass'
+
+.rs-query-exprs
+  display: flex
+  justify-content: space-between
+  background-color: #eeeeee
+  border: 1px solid #aaaa
+  padding: 5px
+  border-radius: 8px
+  margin-top: 5px
+  .filter-warp
+    display: flex
+    flex: 1 1 auto
+    justify-content: start
+    flex-wrap: wrap
+    .rs-text-field
+      height: 0.48rem
+      margin-right: 0.13rem
+      margin-top: 2px
+  .select-button
+    outline: 0
+    width: 0.64rem
+    min-width: 0.64rem
+    height: 0.32rem
+    text-align: center
+    text-decoration: none
+    text-rendering: optimizeLegibility
+    font-size: 0.128rem
+    background: #09f
+    color: #f0f0f0
+    border: none
+    border-radius: 2px
+    transition: all 0.3s ease 0s
+    cursor: pointer
+  .rs-fuzzy-search, .chooseComponent
+    position: absolute
+    top: 0.44rem
+    .popup-list
+      height: 3.6rem

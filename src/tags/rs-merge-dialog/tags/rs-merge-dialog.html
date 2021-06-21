@@ -1,0 +1,525 @@
+<rs-merge-dialog>
+  <div class="dlg-bg animated" show={isShow}>
+    <div class="dlg-window rs-merge-dialog animated zoomIn">
+      <rs-title title={ title }></rs-title>
+      <div class="dlg-body grey-scroll">
+        <div>
+          <div class="merge-title">
+            <span>
+              <span>{firstTitle}</span>
+              <img class="merge-jump" if={name === 'reader' && cmd === 'UPDATE'} src="/img/jump.png" alt="" onclick={chooseReader}>
+            </span>
+          </div>
+          <div data-is="rs-merge-dialog-table" message={firstMsg} hidefield={firstHideField}></div>
+        </div>
+
+        <div>
+          <div class="merge-title">
+            <span>{sencondTitle}</span>
+            <img if={isSencondShowAddIcon(sencondName)} src="/img/addactive.png" alt="" onclick={addData} name={sencondName}>
+          </div>
+          <div class="merge-disc">
+            <div>
+              <div each={message,index in sencondMsg} data-is="rs-merge-dialog-table" message={message} hidefield={sencondHideField} index={index}></div>
+            </div>
+            <rs-disc if={name === 'reader'} coords={ coords } message={ sencondMsg } cmd={ cmd }></rs-disc>
+          </div>
+        </div>
+
+        <div if={name === 'drivingface'}>
+          <div>
+            <div class="merge-title">
+              <span>{pointTitle}</span>
+              <img src="/img/addactive.png" alt="" onclick={addData} name={pointName}>
+            </div>
+            <div each={message,index in pointMsg} data-is="rs-merge-dialog-table" message={message} hidefield={pointHideField} isshowdelicon="true" index={index}></div>
+          </div>
+          <div>
+            <div class="merge-title">
+              <span>{warnTitle}</span>
+              <img src="/img/addactive.png" alt="" onclick={addData} name={warnName}>
+            </div>
+            <div each={message,index in warnMsg} data-is="rs-merge-dialog-table" message={message} hidefield={warnHideField} isshowdelicon="true" index={index}></div>
+          </div>
+        </div>
+
+        <div>
+          <div class="merge-title">
+            <span>
+              <span>{thirdTitle}</span>
+              <!-- <img class="merge-jump" if={name === 'reader'} src="/img/jump.png" alt="" onclick={choosePath}> -->
+              <span class="button-list" if={name === 'reader'}>
+                <button onclick={ choosePath }>编辑路径</button>
+                <button onclick={ drawPath }>画取路径</button>
+              </span>
+            </span>
+            <img src="/img/addactive.png" alt="" onclick={addData} name={thirdName}>
+          </div>
+          <div class="more-message" each={message,index in thirdMsg} data-is="rs-merge-dialog-table" message={message} hidefield={thirdHideField} isshowdelicon="true" isshowaddicon="{isShowAddIcon}" index={index}></div>
+        </div>
+
+      </div>
+      <div class="dlg-foot" onclick={handleEvt}>
+        <button class="btn-sure" ref="btnSure" data-name="save">{cmd !== 'DELETE' ? '保存' : '删除' }</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/rs-merge-dialog.sass' 
+    import '../tags/rs-merge-dialog-table.html'
+    import { mergeMsg } from '../js/merge_def.js'
+    import { composeUpdateDBReq, metaUpdateRes, clone, messageTip } from '../../../js/utils/utils.js'
+    import { config } from '../../../config/js/config_def.js'
+    import { getInfo, getReaderPathOfMsg } from '../../../manage/js/utils.js'
+    import { getReaderCoord } from '../../rs-disc/rs-disc.js'
+    import '../../rs-disc/rs-disc.html'
+    const nameList = ['reader', 'coalface', 'drivingface']
+    const needNoticeName = ['reader', 'antenna', 'reader_path_tof_n', 'coalface', 'coalface_vehicle', 'drivingface', 'drivingface_vehicle','drivingface_warning_point', 'drivingface_ref_point'] // 需要通知采集name
+    const showNames = ['reader_path_tof_n', 'sensor', 'drivingface_ref_point', 'drivingface_warning_point']
+    this.isShow = true
+    this.isDoRun = true
+    this.isEnterManually = false //手动修改分站路径数据，编辑下新增、删除分站路径用于判断是否需要添加当前显示分战路径
+    this.state = 0
+    this.colorNames = ['antenna', 'reader_path_tof_n']
+
+    // 采煤面、掘进面未配置车辆显示添加ICON
+    this.isSencondShowAddIcon = (name) => {
+      if (['coalface_vehicle', 'drivingface_vehicle'].includes(name)) {
+        if (this.sencondMsg.length === 0) return true
+      }
+      return false
+    }
+
+    /*是否显示跳转图标*/
+    this.isJumpIcon = (name) => {
+      if (['reader', 'reader_path_tof_n'].includes(name)) return true
+      return false
+    }
+
+    /*是否显示添加图标*/
+    this.isAddIcon = (name) => {
+      if (showNames.includes(name)) return true
+      return false
+    }
+
+    //定位该分站 拖动 分站修改分站位置 
+    this.chooseReader = () => {
+      if (this.cmd !== 'UPDATE') return
+      this.isShow = false
+      let tagMonitor = opts.message.papa
+      if (tagMonitor) {
+        this.restMap()
+        tagMonitor.gotoPage('sp_monitor',null)
+      }
+      let msg = {
+        mapID: xdata.metaStore.defaultMapID,
+        symbolType: 'reader',
+        mapType: 'MONITOR',
+        isVisible: 'false',
+        id: [this.firstMsg.rows[0].field_value]
+      }
+      xbus.trigger('MAP-SHOW-READER', msg) 
+      xbus.trigger('MOVE-READER', this) //拖动分站
+      xbus.trigger('MAP-CHANGE-TOOLTIPS',{isToolTip: false}) //增加判断编辑定位拖动分站时不显示 toopitp 弹窗
+    }
+
+    // 画取分站路径
+    this.drawPath = () => {
+      if (this.cmd === 'DELETE' ) return
+      this.isShow = false
+      let tagMonitor = opts.message.papa
+      if (tagMonitor) {
+        this.restMap()
+        tagMonitor.gotoPage('sp_monitor',null)
+      }
+      const msg = {
+        value: this.firstMsg.rows[0].field_value,
+        currentTag: this
+      }
+      xbus.trigger('MAP-DRAW-READERPATH', msg) 
+    }
+
+    // 编辑分站路径
+    this.choosePath = () => {
+      if (this.cmd === 'DELETE' ) return
+      this.isShow = false
+      let tagMonitor = opts.message.papa
+      if (tagMonitor) {
+        this.restMap()
+        tagMonitor.gotoPage('sp_monitor',null)
+      }
+      let rows = clone(this.thirdMsg)
+      let showMsg = {
+        name: this.firstMsg.rows[0].field_value,
+        checked: true,
+        isModify: true,
+        rows: rows,
+        currentTag: this
+      }
+      xbus.trigger('MAP-SHOW-READERPATH', showMsg)
+    }
+
+    //停止拖动天线圆盘把角度换算成天线坐标
+    this.stopDragging = (angle, index) => { 
+      if (this.cmd === 'DELETE') return
+      let values = null
+      let x = this.coords[0]
+      let y = this.cmd === 'INSERT' ? -this.coords[1] : this.coords[1]
+      y = this.hasOwnProperty('isMoveReader') ? -y : y
+      values = getReaderCoord(x, y, 1, angle)
+      let antennaTagList = this.tags['rs-merge-dialog-table'].filter(item => item.topicName === 'antenna')
+      let antennaTag = antennaTagList.filter(item => item.index === index)[0]
+      let readerTag = this.tags['rs-merge-dialog-table'][0]
+      let readerY = readerTag.refs['y'].refs['y'].value
+      antennaTag.refs['x'].refs['x'].value = values.x
+      antennaTag.refs['y'].refs['y'].value = Number(readerY) >= 0 ? Math.abs(values.y) : values.y
+    }
+
+    this.handleEvt = (evt) => {
+      let target = evt.target
+      let name = target.getAttribute('data-name')
+      if (name === 'save') this.save()
+      if (name === 'cancel') this.close()
+    }
+
+    this.save = () => {
+      this.isDoRun = true
+      if (this.cmd === 'INSERT') this.doInsert()
+      if (this.cmd === 'UPDATE') this.doUpdate()
+      if (this.cmd === 'DELETE') this.doDelete()
+    }
+
+    //添加分站路径
+    this.addPath = () => {
+      if (this.cmd === 'DELETE') return
+      if (this.thirdMsg.length > 4) {
+        let xmsg = "分站覆盖范围最多只能添加4条"
+        return messageTip(xmsg, 'warning')
+      }
+      let pathMsg = getReaderPathOfMsg(this.firstMsg, 'INSERT', 1)[0]
+      if (!pathMsg) return messageTip('请查看路径集是否存在问题！', 'warning')
+      this.thirdMsg.push(pathMsg)
+      this.thirdMsg.forEach((item, i) => {
+        item.rows.filter(item => item.field_name === 'tof_flag')[0].field_value = i
+      })
+      this.isEnterManually = true
+      this.update()
+    }
+
+    //添加数据
+    this.addData = (evt) => {
+      if (this.cmd === 'DELETE' ) return
+      let name = evt.target.getAttribute('name')
+      if (name === 'reader_path_tof_n') {
+        this.addPath()
+        return
+      } 
+      let table = {
+        def: name === 'sensor' ? config['sensor'].def : xdata.metaStore.defs[name],
+        rows: xdata.metaStore.dataInArray.get(name),
+        maxid: xdata.metaStore.maxIDs[name]
+      }
+      let dataTable = clone(table)
+      let maxid = null
+      if (name === 'sensor') {
+        this.sensorMaxid = this.sensorMaxid + 1
+        dataTable.maxid = this.sensorMaxid
+      } else if (name === 'drivingface_warning_point') {
+        this.warnMaxid = this.warnMaxid + 1
+        dataTable.maxid = this.warnMaxid
+      } else {
+        dataTable.maxid = table.maxid
+      }
+      let message = getInfo(dataTable, '', 'INSERT')
+      if (name === 'sensor') this.thirdMsg.push(message[0])
+      if (name === 'drivingface_ref_point') this.pointMsg.push(message[0])
+      if (name === 'drivingface_warning_point') this.warnMsg.push(message[0])
+      if (['coalface_vehicle', 'drivingface_vehicle'].includes(name)) this.sencondMsg.push(message[0])
+      this.update()
+    }
+
+    //手动录入时处理分站路径sql
+    this.dealUpdateReaderPath = (sql, mergeDialogTable) => {
+      //编辑状态下新增、删除、修改分站路径录入框执行 
+      let readerPathTag = mergeDialogTable.filter(item => item.topicName === 'reader_path_tof_n')
+      if (readerPathTag && readerPathTag.length > 0) {
+        readerPathTag.forEach((e,i) => {
+          if (e.topicName === 'reader_path_tof_n') {
+            sql[`${e.topicName}Sql${i}`] = e.doInsert()
+          }
+        })
+      } else {
+        //编辑状态下 删除全部分站路径
+        let keyValue = mergeDialogTable[0].refs['reader_id'].refs['reader_id'].value
+        let readerPath = Array.from(xdata.metaStore.data.reader_path_tof_n.values()).filter(item => item.reader_id === Number(keyValue))
+        if (readerPath && readerPath.length > 0) {
+          sql[`reader_path_tof_nSql${mergeDialogTable.length}`] = `DELETE from dat_reader_path_tof_n where id=${readerPath[0].id}`
+        }
+      }
+      
+      return sql
+    }
+
+    //绑定分站、司机sql添加至sql对象内
+    this.getAddBindSensorSql = (sql,bindSql,index) => {
+      let bindSensorArray = Object.keys(bindSql)
+      if (bindSensorArray) {
+        bindSensorArray.forEach(item => {
+          sql[`${item}Sql${index}`] = bindSql[item]
+        })
+      }
+      return sql
+    }
+
+    /*新增天线时如果天线已绑定分站、添加删除已有天线sql*/
+    this.deleteAntennaSql = (sql, e, index) => {
+      let key = this.tableKeyName
+      let ele = this.tags['rs-merge-dialog-table'][0]
+      ele = ele.refs[key].refs[key]
+      let keyValue = ele.getAttribute('name') ? ele.getAttribute('name') : ele.value //分站id
+      let datas = Array.from(xdata.metaStore.data.antenna.values()).filter(item => item.reader_id === Number(keyValue))
+      if (datas && datas.length > 0) {
+        index = index + datas.length
+        datas.forEach((data, i) => {
+          let delSql = `DELETE from ${e.tableName} where ${e.tableKeyName}=${data[e.tableKeyName]}`
+          sql[`${e.topicName}Sql${index+i}`] = delSql
+        })
+      }
+      return sql
+    }
+    
+    this.getKeyValue = () => {
+      let key = this.tableKeyName
+      let mergeDialogTable = this.tags['rs-merge-dialog-table']
+      let ele = Array.isArray(mergeDialogTable) ? mergeDialogTable[0] : mergeDialogTable
+      ele = ele.refs[key].refs[key]
+      let keyValue = ele.getAttribute('name') ? ele.getAttribute('name') : ele.value
+      return keyValue
+    }
+
+    this.doInsert = () => {
+      let notifyID = ''
+      let sql = {}
+      let mergeDialogTable = this.tags['rs-merge-dialog-table']
+      mergeDialogTable && mergeDialogTable.forEach((e, i) => {
+        if (this.isDoRun && e.doRun()) {
+          sql[`${e.topicName}Sql${i}`] = e.doRun()
+          if (needNoticeName.includes(e.topicName)) {
+            const keyValue = e.topicName === 'antenna' ? e.keyValue : this.getKeyValue()
+            notifyID += `,${e.topicName};${keyValue}`
+          }
+        }
+        if (e.topicName === 'antenna' && e.opts.index === 0) {
+          sql = this.deleteAntennaSql(sql, e, i)
+        }
+        if (e.topicName === 'sensor') {
+          sql = this.getAddBindSensorSql(sql, e.bindSensorSql, i)
+        }
+      })
+      notifyID = notifyID.replace(',', '')
+      if (this.isDoRun) this.metaUpdate(sql, notifyID)
+    }
+
+    this.doUpdate = () => {
+      let notifyID = ''
+      let sql = {}
+      let mergeDialogTable = this.tags['rs-merge-dialog-table']
+      mergeDialogTable && mergeDialogTable.forEach((e,i) => {
+        if (this.isDoRun && e.doRun()) {
+          const keyValue = e.topicName === 'antenna' ? e.keyValue : this.getKeyValue()
+          if (this.isEnterManually && e.topicName === 'reader_path_tof_n') {
+            if (needNoticeName.includes(e.topicName)) notifyID += `,${e.topicName};${keyValue}`
+            return false
+          }
+          sql[`${e.topicName}Sql${i}`] = e.doRun()
+          if (needNoticeName.includes(e.topicName)) notifyID += `,${e.topicName};${keyValue}`
+        }
+        if (e.topicName === 'sensor') {
+          sql = this.getAddBindSensorSql(sql,e.bindSensorSql,i)
+        }
+      })
+      if (this.isEnterManually) {
+        sql = this.dealUpdateReaderPath(sql,mergeDialogTable)
+      }
+      let sqlArray = Object.keys(sql)
+      if (this.isDoRun && sqlArray.length > 0) {
+        // this.metaUpdate(sql, notifyName.join(','))
+        notifyID = notifyID.replace(',', '')
+        this.metaUpdate(sql, notifyID)
+      } else if (this.isDoRun && !sqlArray.length) {
+        let xmsg = '数据没有修改，请确认后再提交！'
+        return messageTip(xmsg)
+      }
+    }
+
+    this.doDelete = () => {
+      let cb = this.deleteMsg
+      this.deleteTip(cb)
+    }
+
+    //删除提示
+    this.deleteTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认删除所选信息吗？',
+        tips: '提示：数据删除后将无法恢复！',
+        cb: cb
+      })[0]
+    }
+
+    this.deleteMsg = () => {
+      let notifyID = ''
+      let sql = {}
+      let mergeDialogTable = this.tags['rs-merge-dialog-table']
+      if (Array.isArray(mergeDialogTable)) {
+        mergeDialogTable && mergeDialogTable.forEach((e,i) => {
+          if (e.cmd === 'INSERT') return false
+          sql[`${e.topicName}Sql${i}`] = e.doRun()
+          if (e.topicName === 'sensor') sql = this.getAddBindSensorSql(sql, e.bindSensorSql, i)
+          if (needNoticeName.includes(e.topicName)) {
+            const keyValue = e.topicName === 'antenna' ? e.keyValue : this.getKeyValue()
+            notifyID += `,${e.topicName};${keyValue}`
+          }
+        })
+      } else {
+        sql[`${mergeDialogTable.topicName}Sql`] = mergeDialogTable.doRun()
+      }
+      
+      let sqlArray = Object.keys(sql)
+      if (this.isDoRun && sqlArray.length > 0) {
+        notifyID = notifyID.replace(',', '')
+        this.metaUpdate(sql, notifyID)
+      }
+    }
+
+    this.metaUpdate = (sql, notifyID) => {
+      const keyValue = this.getKeyValue()
+      let req = composeUpdateDBReq(this.opType, this.name, keyValue, sql)
+      req.data['notify'] = notifyID
+      req['state'] = this.state
+      console.log(req)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+    }
+
+    xbus.on('SHOW-READEDIALOG', (message) => {
+      this.isShow = true
+      let pathMsg = message.thirdMsg
+      this.thirdMsg = pathMsg
+      this.update()
+    })
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        metaUpdateRes(res, this.name, this.cmd)
+        this.close()
+      })
+    }
+
+    //关闭对话框
+    this.close = () => {
+      let self = this
+      if (this.name === 'reader') {
+        xbus.trigger('MAP-CHANGE-TOOLTIPS',{isToolTip: true})
+        if (self.hasOwnProperty('isMoveReader')) {
+          xbus.trigger('DRAW-READER-UPDATE',{isCloseDialog: true})
+        }
+        
+      }
+      this.unmount(true)
+    }
+
+    // 获取合并页面下title、需要隐藏的字段
+    this.getMergeMsg = (name) => {
+      this.firstTitle = mergeMsg[name].firstTitle
+      this.sencondTitle = mergeMsg[name].sencondTitle
+      this.thirdTitle = mergeMsg[name].thirdTitle
+      this.firstHideField = mergeMsg[name].firstHideField
+      this.sencondHideField = mergeMsg[name].sencondHideField
+      this.thirdHideField = mergeMsg[name].thirdHideField
+      this.sencondName = mergeMsg[name].sencondName
+      this.thirdName = mergeMsg[name].thirdName
+      if (name === 'drivingface') {
+        this.pointTitle = mergeMsg[name].pointTitle
+        this.warnTitle = mergeMsg[name].warnTitle
+        this.pointHideField = mergeMsg[name].pointHideField
+        this.warnHideField = mergeMsg[name].warnHideField
+        this.pointMsg = opts.message.pointMsg
+        this.warnMsg = opts.message.warnMsg
+        this.pointName = mergeMsg[name].pointName
+        this.warnName = mergeMsg[name].warnName
+      }
+      
+    }
+
+    /*是否显示每条数据后的删除图标*/
+    this.showDelIcon = (name) => {
+      if (showNames.includes(name)) return true
+      return false
+    }
+
+    /*是否显示添加图标*/
+    this.showAddIcon = () => {
+      if (this.name === 'reader') return true
+      return false
+    }
+
+    this.on('mount', () => {
+      this.registerGlobalEventHandlers()
+      window.setDialogDraggable(this.root)
+    })
+
+    //获取分站中心点
+    this.getReaderCenterPoint = () => {
+      let coords = []
+      const keyValue = this.firstMsg.rows[0].field_value //分站id
+      const x = this.firstMsg.rows.filter(item => item.field_name === 'x')[0].field_value
+      const y = this.firstMsg.rows.filter(item => item.field_name === 'y')[0].field_value
+      coords.push(Number(x))
+      coords.push(-Number(y))
+      return coords
+    }
+
+    this.restMap = () => {
+      // let areaID = this.tags['rs-merge-dialog-table'][0] && this.tags['rs-merge-dialog-table'][0].refs['area_id'] && this.tags['rs-merge-dialog-table'][0].refs['area_id'].index
+      let areaID = this.firstMsg.rows && this.firstMsg.rows[5] && this.firstMsg.rows[5].field_value
+      let areaObj = xdata.metaStore.data.area && xdata.metaStore.data.area.get(parseInt(areaID))
+      let mapID = areaObj && areaObj.map_id
+      let defaultMapID = parseInt(xdata.metaStore.defaultMapID, 10)
+      if (mapID !== defaultMapID) {
+        xbus.trigger('RESET-MAP', (mapID))
+      }
+    }
+    
+    this.init = (opts) => {
+      let datas = opts.message
+      this.firstMsg = datas.firstMsg
+      this.sencondMsg = datas.sencondMsg
+      this.thirdMsg = datas.thirdMsg
+      this.parenTag = opts.parenTag
+      this.title = this.firstMsg.title
+      this.name = this.firstMsg.name
+      this.cmd = datas.firstMsg.cmd
+      this.opType = this.cmd
+      this.tableKeyName = datas.firstMsg.key
+      let sensorMaxid = xdata.metaStore.maxIDs['sensor']
+      this.sensorMaxid = this.cmd !== 'INSERT' ? (sensorMaxid > 0 ? sensorMaxid -1 : sensorMaxid) : sensorMaxid
+      let warnMaxid = xdata.metaStore.maxIDs['drivingface_warning_point']
+      this.warnMaxid = this.cmd !== 'INSERT' ? (warnMaxid > 0 ? warnMaxid -1 : warnMaxid) : warnMaxid
+      this.isShowAddIcon = this.showAddIcon()
+      this.getMergeMsg(this.name)
+      if (this.name === 'reader') this.coords = this.getReaderCenterPoint()
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.unregisterGlobalEventHandlers()
+    })
+
+    this.unregisterGlobalEventHandlers = () => {
+      xbus.off('META-UPDATE-DB-RES')
+      xbus.off('SHOW-READEDIALOG')
+    }
+  </script>
+</rs-merge-dialog>

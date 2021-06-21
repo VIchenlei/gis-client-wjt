@@ -1,0 +1,44 @@
+@import '../../style/defs.sass'
+.basic-msg
+  padding: .08rem
+  font-size: $font-xs
+  background: $color-white
+  .basic-first
+    display: flex
+    .basic-left-row
+      width: 64%
+      .basic-wp
+        display: inline-block
+        .rs-text-field, .rs-select-field, .rs-date
+          margin-left: .2rem
+          vertical-align: bottom
+          .rs-select
+            position: absolute
+            width: 100%
+            box-shadow: 4px 4px 4px $color-grey-line
+    .basic-right-row  
+      .picture
+        @include flex-column
+        img
+          @include wh(1.28rem, auto)
+        .file-btn
+          display: flex
+          .file-input
+            @include wh(100%, 100%)
+            min-width: .58rem
+            background: rgba(0,153,255,0.10)
+            border: 1px solid $color-main
+            font-size: $font-xs
+            color: $font-main
+            border-radius: 2px
+            margin: 1px
+  .basic-third-row
+    .basic-wp
+      display: inline-block
+      .rs-text-field, .rs-select-field
+        margin-left: .2rem
+        vertical-align: bottom
+        .rs-select
+          position: absolute
+          width: 100%
+          box-shadow: 4px 4px 4px $color-grey-line

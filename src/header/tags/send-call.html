@@ -1,0 +1,233 @@
+<send-call class="send-call">
+  <div class="dlg-bg">
+    <div class="dlg-window">
+      <rs-title title="发起呼叫"></rs-title>
+      <div class="send-content" if={ hasdata }>
+        <p>发起人：{xdata.userName}</p>
+        <div class="call-type">
+          <rs-fieldset  ref="callMode" data-attribute="callMode" legend="呼叫模式" data-lists={callMode}></rs-fieldset>
+          <rs-fieldset ref="callType" data-attribute="callType" legend="呼叫类型" data-lists={callType}></rs-fieldset>
+        </div>
+        <div each={ exprField in exprFields} class= { isDisabled ? 'call-field disabled' : 'call-field' }>
+          <div data-is="rs-condition-filter" data-def={ exprField } ref={ exprField.name } placeholder={ exprField.placeholder } disabled= { isDisabled } ident={ exprField.name }></div>
+        </div>
+        <div class="call-time">
+          <rs-fieldset ref="callTime" data-attribute="callTime" legend="持续时间" data-lists={callTime}></rs-fieldset>
+        </div>
+        <div class="send-btn">
+          <button class="btn-sure" onclick={ sendCall }>确定</button>
+          <button class="btn-cancel" onclick={ cancelCall }>取消</button>
+        </div>
+      </div>
+      <div if={ !hasdata } data-is="rs-blank-message" message="当前井下没有人员。" class="rs-blank-message"></div>
+    </div>
+  </div>
+
+  <script>
+    import '../../tags/rs-title/tags/rs-title.html'
+    import '../../tags/rs-text/rs-fieldset.html'
+    import '../../tags/rs-text/rs-nomal-list.html'
+    import '../../tags/rs-condition-filter/rs-condition-filter.html'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import Draggable from '../../js/utils/Draggable.js'
+
+    import '../sass/send-call.sass'
+
+    const CALLMODE = [{call_type_id: 0, name: '全员呼叫'}, {call_type_id: 1, name: '定员呼叫'}]
+    const CALLTYPE = [{call_level_id: 1, name: '一般呼叫'}, {call_level_id: 2, name: '紧急呼叫'}]
+    const CALLTIME = [
+      {call_time_id: 5, name: '5分钟'}, 
+      {call_time_id: 10, name: '10分钟'},
+      {call_time_id: 20, name: '20分钟'}, 
+      {call_time_id: 60, name: '60分钟'}
+    ]
+
+    this.dohandleItem = (msg) => {
+      if (msg.hasOwnProperty('call_type_id')) {
+        let callMode = msg.call_type_id
+        let rsFieldsets = this.tags['rs-fieldset']
+        if (callMode === 0) {
+          this.isDisabled = true
+          let areas = xdata.metaStore.data.area
+          let staffNumber = xdata.cardStore.getDetail(1, '*')
+          this.areaPlaceholder = `${areas.size || 0}个`
+          this.staffPlaceholder = staffNumber ? `${staffNumber.length}` : `0人`
+        } else {
+          this.isDisabled = false
+          this.areaPlaceholder = '新增区域'
+          this.staffPlaceholder = '新增人员'
+        }
+        let searchArr = []
+        let areacards = xdata.cardStore.getSearchData(1)
+        for (let i = 0, len = areacards.length; i < len; i++) {
+          let card = areacards[i]
+          let staff = xdata.metaStore.staffs.get(card.k)
+          searchArr.push(staff)
+        }
+        this.exprFields = [
+          {
+            name: 'area_id',
+            label: '井下区域',
+            type: 'SELECT',
+            placeholder: this.areaPlaceholder
+          },
+          {
+            name: 'staff_id',
+            label: '井下人员',
+            type: 'SELECT',
+            placeholder: this.staffPlaceholder,
+            searchArr: searchArr
+          }
+        ]
+        this.update()
+      }
+    }
+
+    this.on('mount', () => {
+      let dragTarget = this.root.querySelector('.dlg-window')
+      let dragHandle = null
+      Draggable(dragTarget, dragHandle)
+    })
+
+    this.getCards = (callTypeId) => {
+      let cards = []
+      if (callTypeId === 0) { 
+        // 全员呼叫
+        cards.push({
+          cardid: '0',
+          cardtype: 1
+        })
+      } else { // 定员呼叫
+        let areaStore = this.refs['area_id'] && this.refs['area_id'].store
+        let staffStore = this.refs['staff_id'] && this.refs['staff_id'].store
+        let hasArea = (areaStore && areaStore.length > 0) ? true : false
+        let hasStaff = (staffStore && staffStore.length > 0) ? true : false
+        if (!hasArea && hasStaff) {
+          staffStore.forEach(item => {
+            let cardID = item.card_id
+            cards.push({cardid:cardID ,cardtype: 1})
+          })
+        } else if (hasArea && !hasStaff) {
+          for (let i = 0, len = areaStore.length; i < len; i++) {
+            let areacards = xdata.cardStore.getDetail(1, 'area', areaStore[i].area_id)
+            for (let i = 0, len = areacards.length; i < len; i++) {
+              let card = areacards[i]
+              cards.push({cardid:card[0] ,cardtype: 1})
+            }
+          }
+          if (cards.length === 0) {
+            cards.push({
+              cardid: '0',
+              cardtype: 1
+            })
+          }
+        } else if (!hasArea && !hasStaff) {
+          cards.push({
+            cardid: '0',
+            cardtype: 1
+          })
+        }
+      }
+      return cards
+    }
+
+    this.sendCall = (evt) => {
+      let callTypeId = this.refs['callMode'] && this.refs['callMode'].defaultchoose.call_type_id
+      let callLeaveId = this.refs['callType'] && this.refs['callType'].defaultchoose.call_level_id
+      let choosedTime = this.refs['callTime'] && this.refs['callTime'].defaultchoose.call_time_id
+      let cards = this.getCards(callTypeId)
+      if (!cards) {
+			  window.xMessage.open({
+          type: 'error',
+          message: '该区域没有人员可以呼叫！'
+        })
+        return
+      }
+      let time = Number(new Date().getTime())
+      let msgData = {
+        cmd: 'call_card_req',
+        data: {
+          call_type_id: callTypeId, // 全员呼叫:0 定员呼叫:1
+          call_time_out: choosedTime, // 呼叫时长
+          call_level_id: callLeaveId, // 呼叫类型 一般呼叫:1 紧急呼叫:2
+          user_name: xdata.userName, // 呼叫人
+          call_time: time, // 呼叫时间戳
+          stations: [{ stationid: 0 }], // 分站 0为全员
+          cards: cards // 人员 0为全员
+        }
+      }
+      console.log(msgData)
+      xbus.trigger('CALL-CARD-START', msgData)
+      cards.forEach(card => {
+        let key = `${xdata.userName}-${card.cardid}`
+        xdata.callStore.selfcallCardList.set(key, card)
+      })
+      cards = null
+      this.cancelCall()
+    }
+
+    this.cancelCall = (evt) => {
+      this.unmount(true)
+    }
+
+    this.formatDetailData = (areacards) => {
+      for (let i = 0, len = areacards.length; i < len; i++) {
+        let card = areacards[i]
+        this.areastaffs.push(card)
+      }
+    }
+
+    this.changeCall = () => {
+      let areaStore = this.refs['area_id'] && this.refs['area_id'].store
+      let staffStore = this.refs['staff_id'] && this.refs['staff_id'].store
+      let searchArr = []
+      if (areaStore && areaStore.length && areaStore.length > 0) {
+        for (let i = 0, len = areaStore.length; i < len; i++) {
+          let areacards = xdata.cardStore.getDetail(1, 'area', areaStore[i].area_id)
+          for (let i = 0, len = areacards.length; i < len; i++) {
+            let card = areacards[i]
+            let staff = xdata.metaStore.staffs.get(card[3])
+            searchArr.push(staff)
+          }
+        }
+      } else {
+        let areacards = xdata.cardStore.getSearchData(1)
+        for (let i = 0, len = areacards.length; i < len; i++) {
+          let card = areacards[i]
+          let staff = xdata.metaStore.staffs.get(card.k)
+          searchArr.push(staff)
+        }
+      }
+      this.refs['staff_id'] && this.refs['staff_id'].updateSearchArr(searchArr)
+    }
+
+
+    this.init = (opts) => {
+      this.hasdata = !!xdata.cardStore.scards.size
+      let areas = xdata.metaStore.data.area
+      let staffNumber = xdata.cardStore.getDetail(1, '*')
+      this.areaPlaceholder = `${areas.size || 0}个`
+      this.staffPlaceholder = staffNumber ? `${staffNumber.length}` : `0人`
+      this.exprFields = [
+        {
+          name: 'area_id',
+          label: '井下区域',
+          type: 'SELECT',
+          placeholder: this.areaPlaceholder
+        },
+        {
+          name: 'staff_id',
+          label: '井下人员',
+          type: 'SELECT',
+          placeholder: this.staffPlaceholder
+        }
+      ]
+      this.callMode = CALLMODE
+      this.callType = CALLTYPE
+      this.callTime = CALLTIME
+      this.isDisabled = true // 默认全员呼叫，区域、人员不可选
+    }
+
+    this.init(opts)
+  </script>
+</send-call>

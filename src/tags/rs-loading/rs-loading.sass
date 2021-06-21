@@ -1,0 +1,51 @@
+@import '../../style/defs'
+
+.loadingWarp
+  .rs-loading
+    width: 6rem
+    background: none
+    .loading-text
+      font-size: $font-m
+    .progressbox
+      @include wh(75%, .2rem)
+      border: 1px solid $disabled-color
+      border-radius: 10px
+      background-color: #c0c0c0
+    .xhint-tips
+      margin: .2rem
+      color: $font-white
+    .xhint-button
+      margin-bottom: .2rem
+      background: none
+      border: 1px solid $color-main
+      color: $font-main
+    .progressBar
+      height: 100%
+      background: #c0c0c0
+      background: #27CA41
+      border-radius: 10px
+      .progess-done-left
+        background: #bdcb13
+        border-top-left-radius: 1rem
+        border-bottom-left-radius: 1rem
+      .progess-done-middle
+        background: #bdcb13
+      .progess-done-right
+        background: #bdcb13
+        border-top-right-radius: 1rem
+        border-bottom-right-radius: 1rem
+
+      .progess-fail-left
+        background: #ed6d34
+        border-top-left-radius: 1rem
+        border-bottom-left-radius: 1rem
+      .progess-fail-middle
+        background: #ed6d34
+      .progess-fail-right
+        background: #ed6d34
+        border-top-right-radius: 1rem
+        border-bottom-right-radius: 1rem
+    .progressTips
+      font-size: $font-m
+      color: $font-white
+      margin: .1rem 0

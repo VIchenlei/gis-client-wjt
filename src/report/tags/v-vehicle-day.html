@@ -1,0 +1,199 @@
+<v-vehicle-day>
+  <div class="rept-special">
+    <div if={ hasdata }>
+      <h2>车辆考勤日报</h2>
+      <nav>
+        <div>
+          <span>日期：</span>
+          <span>{startTime} ~ {endTime}</span>
+        </div>
+        <div>
+          <span>出车总数：</span>
+          <span>{ goOutTime }</span>
+        </div>
+      </nav>
+      <div class="rept-special-tools">
+        <div data-is="rs-rept-print" printdefs={reptSpecial} cb={askFile} class="rs-rept-print"></div>
+      </div>
+      <table class="repts-title">
+        <tr>
+          <td each={item in title} rowspan={ item.row} colspan={item.col}>{item.name}</td>
+        </tr>
+        <tr>
+          <td each={i in label}>{i}</td>
+        </tr>
+      </table>
+      <table each={ item in data} class='repts-content'>
+        <tr each={ i in item}>
+          <td if={ item.indexOf(i)===0 ? true : false} rowspan={ item.indexOf(i)===0 ? item.length: '' }>
+            {Number(data.indexOf(item)) + 1}</td>
+          <td if={ item.indexOf(i)===0 ? true : false} rowspan={ item.indexOf(i)===0 ? item.length: '' }>{ i.vname }</td>
+          <td if={ item.indexOf(i)===0 ? true : false} rowspan={ item.indexOf(i)===0 ? item.length: '' }>{ i.vtname }</td>
+          <td>{ i.name }</td>
+          <td>{ i.stime }</td>
+          <td>{ i.etime }</td>
+          <td>{ i.work_time }</td>
+          <td></td>
+          <td if={ item.indexOf(i)===0 ? true : false} rowspan={ item.indexOf(i)===0 ? item.length: '' }>{item.length}
+          </td>
+          <td if={ item.indexOf(i)===0 ? true : false} rowspan={ item.indexOf(i)===0 ? item.length: '' }>
+            {getNumTime(item)}</td>
+          <td if={ item.indexOf(i)===0 ? true : false} rowspan={ item.indexOf(i)===0 ? item.length: '' }>{
+            getOperationRate(item) }</td>
+        </tr>
+      </table>
+      <table class='repts-content-final'>
+        <tr>
+          <td>合计</td>
+          <td colspan="7"></td>
+          <td>{ goOutTime }</td>
+          <td>{ sumTime }</td>
+          <td>{ (averageRate/data.length).toFixed(1) }%</td>
+        </tr>
+      </table>
+    </div>
+    <div if={ !hasdata } data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message"></div>
+  </div>
+  <script>
+    import '../sass/rept-special.sass'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import '../../tags/rs-rept-print/rs-rept-print.html'
+    import { printDef } from '../js/report_defs.js'
+
+    this.reptSpecial = printDef.vehicleDay
+    this.label = ['司机', '出车时间', '回车时间', '时长', '目标地点']
+    this.title = [{
+      name: '序号',
+      row: '2',
+      col: '1'
+    }, {
+      name: '车牌号',
+      row: '2',
+      col: '1'
+    }, {
+      name: '车辆类型',
+      row: '2',
+      col: '1'
+    }, {
+      name: '出车明细',
+      row: '1',
+      col: '5'
+    }, {
+      name: '出车次数',
+      row: '2',
+      col: '1'
+    }, {
+      name: '合计时长(h)',
+      row: '2',
+      col: '1'
+    }, {
+      name: '运行率',
+      row: '2',
+      col: '1'
+    }]
+
+    this.updateDs = (ds) => {
+      this.averageRate = 0
+      this.dealResult(ds)
+    }
+
+    xbus.on('SEND-START-TIME', (msg) => {
+      this.startTime = msg.sTime
+      this.endTime = msg.eTime
+      this.hour = ((new Date(this.endTime) - new Date(this.startTime)) / 3600000)
+      this.update()
+    })
+
+    this.dealResult = (ds) => {
+      console.log(ds)
+      if (ds.def.name !== 'v_vehicle_day') return
+      this.def = ds.def
+      let rows = ds.rows, data = new Map()
+      this.startTime = ds.monthTime.stime
+      this.endTime = ds.monthTime.etime
+      this.hour = ((new Date(this.endTime) - new Date(this.startTime)) / 3600000)
+
+      this.hasdata = rows && rows.length > 0 ? true : false
+      this.sumTime = 0
+      this.rows = []
+      if (this.hasdata) {
+        for (let i = 0, len = rows.length; i < len; i++) {
+          rows[i].work_time && Number(rows[i].work_time) >= 0.5 ? this.sumTime += Number(rows[i].work_time) : ''
+          rows[i].work_time && Number(rows[i].work_time) >= 0.5 ? this.rows.push(rows[i]) : ''
+          let t = data.get(rows[i].vname)
+          if (t) {
+            t.push(rows[i])
+          } else {
+            t = [rows[i]]
+            data.set(rows[i].vname, t)
+          }
+        }
+        this.goOutTime = 0
+        let fresult = []
+        this.data = Array.from(data.values())
+        for (let i = 0; i < this.data.length; i++) {
+          let result = this.data[i].filter(item => Number(item.work_time) >= 0.5)
+          this.goOutTime += result.length
+          fresult.push(result)
+        }
+        this.data = fresult
+        this.sumTime = this.sumTime.toFixed(2)
+      }
+      window.xhint.close()
+      this.update()
+    }
+
+    this.getOperationRate = (item) => {
+      this.averageRate += Number(((this.getNumTime(item) / this.hour) * 100).toFixed(1))
+      return ((this.getNumTime(item) / this.hour) * 100).toFixed(1) + '%'
+    }
+
+    this.getNumTime = (data) => {
+      let numTime = 0
+      for (let i = 0, len = data.length; i < len; i++) {
+        numTime += Number(data[i].work_time)
+      }
+      return numTime.toFixed(2)
+    }
+
+    this.askFile = (opName) => {
+      this.types = this.def.fields.types
+      this.names = this.def.fields.names
+      this.namesInShort = this.getCleanName()
+
+      let msg = {
+        cmd: 'file',
+        name: this.def.name,
+        labels: this.def.fields.labels,
+        title: this.def.label,
+        namesInShort: this.namesInShort,
+        types: this.types,
+        fileType: opName,
+        reptIndex: this.reptIndex,
+        isQuery: true,
+        data: JSON.stringify(this.rows)
+      }
+      xbus.trigger('ASK-FILE', msg)
+    }
+
+    this.getCleanName = () => {
+      return this.names.map((item) => {
+        let name = item.split('.').pop()
+        return name.split(' ').pop()
+      })
+    }
+
+    this.init = (opts) => {
+      this.reptIndex = opts.def.reptIndex
+      this.hasdata = false
+      this.averageRate = 0
+      this.goOutTime = 0
+      this.startTime = null
+      this.endTime = null
+      this.hour = 0
+      this.rows = null
+    }
+
+    this.init(opts)
+  </script>
+</v-vehicle-day>

@@ -1,0 +1,39 @@
+@import '../../../style/defs'
+.merge-box
+  // width: 2rem
+  display: inline-block
+  margin: 0 .05rem
+  .rs-text-field
+    width: inherit
+  .bind-filter
+    display: inline-block
+    font-size: $font-xs
+    height: 0.74rem
+    .rs-condition-filter
+      margin-right: 0
+    .clickInput
+      height: .3rem
+      font-size: $font-xs
+    .rs-fuzzy-search
+      position: absolute
+      top: 0.48rem
+    .choose-result
+      margin-top: .04rem
+  fieldset
+    input
+      &:disabled
+        cursor: not-allowed
+.operat
+  @include wh(.24rem, .24rem)
+  display: inline-flex
+  justify-content: center
+  align-items: center
+  background: $color-main
+  line-height: .24rem
+  border-radius: 50%
+  cursor: pointer
+  margin-left: .1rem
+.path-color
+  @include wh(.2rem, .1rem)
+  display: block
+  margin-left: .05rem

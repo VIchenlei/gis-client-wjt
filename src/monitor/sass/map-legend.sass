@@ -1,0 +1,26 @@
+@import '../../style/defs'
+
+.legend-container
+  position: absolute
+  right: 0.48rem
+  bottom: 1px
+  width: 1.12rem
+  @media screen and (max-width: $width-medium)
+    display: none
+
+  .legend-img
+    @include wh(1.12rem,auto)
+    position: absolute
+    bottom: 1px
+
+  .legend-switcher
+    @include wh(0.32rem,0.32rem)
+    @include align-center-middle
+    position: absolute
+    right: -0.448rem
+    bottom: 1px
+    z-index: 9999
+    background: #09F
+    cursor: pointer
+    .icon
+      fill: #FFF

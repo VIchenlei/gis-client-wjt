@@ -1,0 +1,55 @@
+@import ../../style/defs
+
+.choose-select-warp
+  width: 100%
+  position: relative
+  overflow-y: auto
+  overflow-x: hidden
+  background: #fff
+  box-shadow: 0 3px 4px 2px rgba(0,0,0,0.10)
+  border-radius: 4px
+  ul
+    positon: absolute
+    width: 100%
+    font-size: $font-s
+    li
+      padding-left: 0.15rem
+      height: 0.36rem
+      width: 2rem
+      line-height: 0.36rem
+      white-space: nowrap
+      input
+        height: 12px
+        width: 12px
+        vertical-align: middle
+        cursor: pointer
+      input[type=checkbox]:after
+        width: 11px
+        height: 11px
+        cursor: pointer
+        color: #fff
+        display: inline-block
+        visibility: visible
+        border-radius: 3px
+        vertical-align: top
+        line-height: 12px
+      span
+        cursor: default
+        width: 1.5rem
+        overflow: hidden
+        text-overflow:ellipsis
+        white-space: nowrap
+      &:hover
+        color: #0099FF
+        background-color: #F1F1F1
+      &.active
+        color: #0099FF
+        input[type=checkbox]:after
+          background-color: #0099FF
+          content: "✓"
+          color: #ffffff
+          font-size: 12px
+      label
+        cursor: pointer
+        display: inline-block
+        width: 95%

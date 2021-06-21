@@ -1,0 +1,277 @@
+<basic-battery-table>
+  <div class="basic-battery-table">
+    <basic-message-title data={ data }></basic-message-title>
+    <div class="basic-content">
+      <div class="basic-left grey-scroll">
+        <div data-is="basic-search" class="basic-search" name={opts.name}></div>
+        <div data-is="basic-list" name={opts.name} data-title={listTitle} parentag={opts.parenTag}></div>
+      </div>
+      <div class="basic-right grey-scroll">
+        <div data-is="basic-battery-msg" name={name}></div>
+        <div class="power-levels-msg" data-is="power-levels-msg" name={name}></div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    import '../sass/basic-battery-table.sass'
+    import '../tags/basic-import-list.html'
+    import '../../manage/tags/basic-list.html'
+    import '../tags/basic-battery-msg.html'
+    import '../tags/power-levels-msg.html'
+    import { getRows, composeUpdateDBReq, editDetail, metaUpdateRes, messageTip } from '../../js/utils/utils.js'
+    import importDef from '../../tags/rs-batch-process/import_def.js'
+    import basicMessageMenu from '../../manage/js/basic_message_menu.js'
+
+    const names = ['device_power', 'power_levels']
+    let basicMsgTag = null
+
+    //显示、隐藏保存重置按钮
+    this.hideFill = () => {
+      let basicMsgTag = this.tags['basic-battery-msg']
+      let basicHead = basicMsgTag && basicMsgTag.tags['basic-head']
+      basicHead.refs['buttons'].classList.remove('hide')
+      basicHead.refs['buttons'].querySelector('.reset').classList.add('hide')
+    }
+
+    //删除提示
+    this.deleteTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认删除所选信息吗？',
+        tips: '提示：数据删除后将无法恢复！',
+        cb: cb
+      })[0]
+    }
+
+    //点击列表删除单条数据
+    this.deleteMsg = () => {
+      this.doDelete(this.curname)
+    } 
+
+    this.delete = (name) => {
+      this.curname = name
+      let cb = this.deleteMsg
+      this.deleteTip(cb)
+    }
+
+    this.editDefault = (evt) => {
+      let target = evt.currentTarget
+      target.classList.add('hide')
+      target.nextElementSibling.classList.remove('hide')
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        if (!names.includes(res.data.name)) return
+        metaUpdateRes(res, this.name, res.data.op, names)
+        this.updateName = res.data.name
+      })
+    }
+
+    this.getDeleteSql = (value) => {
+      let sql = `DELETE ddp, dpl from dat_device_power ddp left join dat_power_levels dpl on ddp.device_power_id = dpl.device_power_id where ddp.device_power_id in (${value})`
+      return sql
+    }
+
+    this.doDelete = (name) => {
+      let sql = this.getDeleteSql(this.curname)
+      let detail = editDetail(this.tableKeyName, name, '', this.name)
+      let req = composeUpdateDBReq('DELETE', this.name, name, sql)
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      req.username = xdata.userName
+      xbus.trigger('META-UPDATE-DB', {req: req})
+      this.registerGlobalEventHandlers()
+    }
+
+    this.composeImportDataMessage = (cmd, rows) => {
+      return {
+        cmd: cmd,
+        def: this.def,  // field definition
+        rows: rows,
+        cb: this.importCb,
+        parenTag: this.parenTag
+      }
+    }
+
+    /*执行导入*/
+    this.import = (name) => {
+      this.def = importDef[name] ? importDef[name] : xdata.metaStore.defs[name]
+      let rows = getRows(null, this.def, this.maxid)
+      let msg = this.composeImportDataMessage('IMPORT-DATA', rows)
+      this.showImportFileDialog(msg)
+      this.root.querySelector('.basic-import-list').classList.add('hide')
+    }
+
+    /*获取导出sql*/
+    this.getAskFileSql = (def) => {
+      let names = def.fields.names
+      let fstring = names.join(',')
+      let keyIndex = def.fields.names[def.keyIndex]
+      let sql = `select ${fstring} from ${def.table} order by ${keyIndex};`
+      return sql
+    }
+
+    /*执行导出*/
+    this.askFile = (name, opName) => {
+      window.xhint.close()
+      window.xhint.showLoading()
+      let def = xdata.metaStore.defs[name]
+      let fields = def.fields
+      let sqlString = this.getAskFileSql(def)
+      let reptTime = new Date().getTime()
+      let title = def.label
+      let msg = {
+        cmd: 'file',
+        exprList: [],
+		    name: name,
+		    labels: fields.labels,
+		    title: title,
+		    namesInShort: fields.names,
+		    types: fields.types,
+		    fileType: opName,
+        reptIndex: reptTime,
+        sql: sqlString,
+        userName: xdata.userName
+      }
+		  xbus.trigger('REPT-FETCH-FILE', msg)
+    } 
+
+    /*执行导入、导出*/
+    this.importOrExport = (name, opName) => {
+      opName !== 'csv' ? this.import(name) : this.askFile(name, opName)
+      this.root.querySelector('.basic-import-list').classList.add('hide')
+    }
+
+    /*执行批量删除弹出提示*/
+    this.deleteChoose = () => {
+      this.selectList = this.tags['basic-list'] && this.tags['basic-list'].selectInputs
+      this.deleteArr = Array.from(this.selectList.keys())
+      if (this.deleteArr.length <= 0) return messageTip('没有选中的数据', 'warning')
+      let cb = this.deleteAllMsg
+      this.deleteTip(cb)
+    }
+
+    //删除提示
+    this.deleteTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认删除所选信息吗？',
+        tips: '提示：数据删除后将无法恢复！',
+        cb: cb
+      })[0]
+    }
+
+    /*批量删除*/
+    this.deleteAllMsg = () => {
+      let length = this.deleteArr.length
+      if (!length) return
+      let deletes = this.deleteArr.join(',')
+      let deleteAllSql = this.getDeleteSql(deletes)
+      let detail = editDetail(this.tableKeyName, deletes, '', this.name)
+      let req = composeUpdateDBReq('DELETE', this.name, deletes, deleteAllSql)
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      req.username = xdata.userName
+      xbus.trigger('META-UPDATE-DB', {req: req})
+      this.registerGlobalEventHandlers()
+      this.tags['basic-list'] && this.tags['basic-list'].initChecked()
+    }
+
+    /*打开、关闭导入导出列表*/
+    this.showImportList = () => {
+      this.root.querySelector('.basic-import-list').classList.toggle('hide')
+    }
+
+    /*打开导入对话框*/
+    this.showImportFileDialog = (msg) => {
+      if (this.importFileDialog) {
+        this.importFileDialog.unmount(true)
+      }
+      this.importFileDialog = riot.mount('rs-import-file-dialog', msg)[0]
+    }
+
+    //切换列表数据展示是否弹出切换提示信息
+    this.updateList = (value) => {
+      let basicHead = basicMsgTag && basicMsgTag.tags['basic-head']
+      let basicMsgBtn = basicHead && basicHead.refs['buttons'].classList
+      if (basicMsgBtn && basicMsgBtn.contains('hide')) {
+        this.updatemsg(value)
+        this.value = value
+      } else if (value != this.value) {
+        if (this.activePanel) this.activePanel.unmount(true)
+        this.activePanel = riot.mount('rs-dialog', {
+          content: '您确认要切换信息吗？',
+          tips: '提示：切换后当前输入信息将丢失！',
+          cb: this.updatemsg,
+          value: value
+        })[0]
+      }
+    }
+
+    /*切换数据匹配对应设备的实时数据*/
+    this.getPower = (datas) => {
+      let devicePower = datas.device_power
+      let powers = datas.powers.filter(item => item.deviceAddress === devicePower.device_power_id)[0]
+      return powers ? powers : null
+    }
+
+    /*切换电源信息-更改右侧数据展示*/ 
+    this.updatemsg = (value) => {
+      if (!value) return
+      this.value = value
+      let datas = this.allDatas.get(value)
+      let powers = this.getPower(datas)
+      this.tags['basic-battery-msg'].updateList(datas.device_power, value)
+      this.tags['power-levels-msg'].updateList(datas.power_levels, powers, value)
+    }
+
+    /*实时更新右侧数据*/
+    this.updateData = (msg) => {
+      this.allDatas = msg
+      this.updateList(this.value)
+    }
+
+    xbus.on('META-DATA-UPDATE', (msg) => {
+      if (names.includes(msg.def.name)) {
+        if (names.includes(msg.def.name)) {
+          let allDatas = this.parenTag.updateDeviceData(null, this.name).allDatas
+          this.updateData(allDatas)
+        }
+      }
+    })
+
+    this.on('mount', () => {
+      basicMsgTag = this.tags['basic-battery-msg']
+      this.root.classList.remove('hide')
+    })
+
+    this.init = (opts) => {
+      this.def = opts.def
+      this.name = this.def.name
+      this.rows = opts.rows.rows
+      this.tableKeyName = this.def.fields.names[this.def.keyIndex]
+      this.tableName = this.def.table
+      let powerLength = this.rows ? this.rows.length : 0
+      this.title = `目前电源设备总共有${powerLength}个`
+      this.listTitle = '电源设备'
+      this.menus = basicMessageMenu[this.name]
+      this.data = {
+        title: this.title,
+        menus: this.menus,
+        parenTag: opts.parenTag
+      }
+      this.parenTag = opts.parenTag
+      this.allDatas = opts.rows.allDatas
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.value = null
+      this.root.classList.add('hide')
+    })
+
+  </script>
+</basic-battery-table>

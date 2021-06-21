@@ -1,0 +1,58 @@
+<rs-list class="rs-list {classname}">
+  <ul onclick={dohandleItem} class="ul-warp">
+    <li each={list, index in lists} data-handleitem={index} id={list.icon} class={isActive(list.icon)}> 
+      <i icon={list.icon} class={list.icon} if={list.icon}></i>
+      <span>{list.name}</span>
+    </li>
+  </ul>
+
+  <script>
+    /**
+     * rslist = [
+     *  {icon: 'icon', name: 'name'}
+     * ]
+     * callback: dohandleItem()
+    */
+    import './rs-list.sass'
+    
+    this.position = (target) => {
+      let ulWap = this.root.querySelector('.ul-warp')
+      let x = target.parentElement.offsetLeft
+      let y = target.parentElement.offsetTop
+      let width = target.parentElement.offsetWidth
+      let height = target.parentElement.offsetHeight
+      let scroll_T = this.parent.root.scrollTop
+      let top = document.documentElement.scrollTop
+      ulWap.style.position = 'absolute'
+      ulWap.style.left = x-width + 'px'
+      this.root.style.top = y + height + top - scroll_T + 'px'
+    }
+
+    this.isActive = (name) => {
+      if (typeof this.parent.istActive === 'function') {
+        let status = this.parent.istActive(name)
+        return status ? 'active' : ''
+      }
+      return '' 
+    }
+
+    this.dohandleItem = (evt) => {
+      let target = evt.target
+      let ptarget = target.parentElement
+      let handleItemIndex = ptarget.getAttribute('data-handleitem') || target.getAttribute('data-handleitem')
+      let handleItem = this.lists[parseInt(handleItemIndex)]
+      if (!handleItem) return
+      typeof this.parent.dohandleItem === 'function' && this.parent.dohandleItem(handleItem)
+    }
+
+    this.on('update', () => {
+      this.init(this.opts)
+    })
+
+    this.init = (opts) => {
+      this.lists = opts.rslist
+      this.classname = opts.class
+    }
+    this.init(opts)
+  </script>
+</rs-list>

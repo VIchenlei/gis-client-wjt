@@ -1,0 +1,63 @@
+<history-search class="history-search">
+  <rs-date modifycb={changeDate} type='DATETIME' ref="tstart_time" text="开始时间" enableNull='false' value={ startTime } isShowSecond='true'></rs-date>
+  <rs-date modifycb={changeDate} type='DATETIME' ref="tend_time" text="结束时间" enableNull='false' value={ endTime } isShowSecond='true'></rs-date>
+  <rs-select-field data={ selectData } data-name={ tableName } isshowdefault='true'></rs-select-field>
+  <script>
+    import '../../tags/rs-date/tags/rs-date.html'
+    import '../../tags/rs-select-field/rs-select-field.html'
+    import '../sass/history-search.sass'
+
+    this.chooseItem = (fieldName, value) => {
+      this.dealTime(value)
+    }
+
+    this.dealTime = (value) => {
+      let hours = parseInt(value, 10)
+      let endTimeTag = this.refs.tstart_time && this.refs.tstart_time.refs.tstart_time
+      this.startTime = new Date(new Date(this.endTime).getTime() - hours * 60 * 60 * 1000).format('yyyy-MM-dd hh:mm:ss')
+      this.refs.tstart_time && this.refs.tstart_time.updateValue(this.startTime)
+      this.refs.tend_time && this.refs.tend_time.updateValue(this.endTime)
+    }
+
+    /*获取默认查询时间*/
+    this.getDefaultTime = (sign) => {
+      let time = null
+      if (sign === 'start') {
+        time = new Date(new Date().getTime() - 1 * 60 * 60 * 1000).format('yyyy-MM-dd hh:mm:ss')
+      } else {
+        time = new Date().format('yyyy-MM-dd hh:mm:ss')
+      }
+      return time
+    }
+
+    //获取下拉列表数据
+    this.getSelectItem = (fieldName) => {
+      return [
+        {label: '一小时', value: 1},
+        {label: '六小时', value: 6},
+        {label: '一天', value: 24}
+      ]
+    }
+
+    //修改日期
+    this.changeDate = (value) => {
+      let selectTags = this.tags['rs-select-field'].refs.time
+      selectTags.value = ''
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.startTime = this.getDefaultTime('start')
+      this.endTime = this.getDefaultTime('end')
+      this.tableName = 'history_search'
+      this.selectData = {
+        field_label: '自定义时间',
+        field_name: 'time',
+        field_value: 1,
+        field_enableNull: true
+      }
+    }
+    
+    this.init(opts)
+  </script>
+</history-search>

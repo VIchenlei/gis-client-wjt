@@ -1,0 +1,72 @@
+<rept-page-content>
+  <div data-is="rs-query-exprs" def={ def } class="rs-query-exprs" ></div>
+  <rept-graph def={ def }></rept-graph>
+  <div data-is={ componentName } reptname={ name } def={ def }></div>
+  <script>
+    import '../sass/rept-page-content.sass'
+    import './rs-query-exprs.html'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import '../../tags/rs-efficiency/tags/rs-efficiency-overview.html'
+    import './rept-table.html'
+    import './rept-graph.html'
+    import './rept-car-whole.html'
+    import './rept-efficiency-manage.html'
+    import './rept-worktime-dept.html'
+    import './person-s-dept.html'
+    import './v-vehicle-day.html'
+    import { specialRept } from '../js/report_defs.js'
+
+
+    /*获取table子组件*/
+    this.getComponentName = () => {
+      let tagName = 'rept-table'
+      if (specialRept.includes(this.name)) {
+        if (this.name === 'person_s_dept_month' || this.name === 'person_s_dept_day') {
+          tagName = 'person-s-dept'
+        } else {
+          tagName = this.name.replace(/_/g, '-')
+        }
+      }
+      return tagName
+    }
+
+    /*界面挂载完成时默认查询数据*/
+    this.on('mount', () => {
+      if (this.def.autoExec) {
+        this.tags['rs-query-exprs'] && this.tags['rs-query-exprs'].doQuery()
+      }
+    })
+
+    this.initTag = (ds) => {
+      this.ds = ds
+      this.update()
+      this.tags[this.componentName] && this.tags[this.componentName].updateDs(ds)
+    }
+
+    /*接受查询回来的信息*/
+    xbus.on('REPT-SHOW-RESULT', (ds) => {
+      let dsName = ds.def.name
+      if (dsName === 'efficiency-detail') dsName = 'rs_efficiency_overview'
+      if (dsName === this.name) {
+        this.initTag(ds)
+      }
+      if (ds.def.rept === this.name) {
+        if (ds.def.rept === 'rept_car_whole') {
+          this.initTag(ds)
+        }
+        this.tags['rept-graph'] && this.tags['rept-graph'].updateDs(ds)
+      }
+      window.xhint.close()
+    })
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.def = opts.def
+      this.name = opts.def.name
+      this.componentName = this.getComponentName()
+    }
+
+    /*执行初始化函数*/
+    this.init(opts)
+  </script>
+</rept-page-content>

@@ -1,0 +1,108 @@
+<page-main class="page-main">
+  <page-header></page-header>
+  <div class="sp-main">
+    <section id="sp_monitor" class="sub-page node-hide"></section>
+    <section id="sp_three" class="sub-page node-hide"></section>
+    <section id="sp_history" class="sub-page node-hide"></section>
+    <section id="sp_rate" class="sub-page node-hide"></section>
+    <section id="sp_report" class="sub-page node-hide"></section>
+    <section id="sp_manage" class="sub-page node-hide"></section>
+    <section id="sp_config" class="sub-page node-hide"></section>
+  </div>
+  <page-foot class="page-foot hide-on-mb"></page-foot>
+  <page-foot-nav class="page-foot-nav hide-on-pc"></page-foot-nav>
+  <script>
+    import '../header/tags/page-header.html'
+    import '../footer/tags/page-foot.html'
+    import '../monitor/tags/sp-monitor.html'
+    import '../history/tags/sp-history.html'
+    import '../report/tags/sp-rate.html'
+    import '../report/tags/sp-report.html'
+    import '../report/sass/report.sass'
+    import '../manage/tags/sp-manage.html'
+    import '../manage/sass/sp-manage.sass'
+    import '../config/tags/sp-config.html'
+    import './sass/page-main.sass'
+    import '../footer/tags/page-foot-nav.html'
+    import '../three/tags/sp-three.html'
+    
+    import { DEFAULT_MAP_ID } from '../js/def/map_def.js'
+
+    let tagMonitor = null
+    let tagHistory = null
+    let tagRate= null
+    let tagReport = null
+    let tagManage = null
+    let tagConfig = null
+    let tagProfile = null
+    let tagThree = null
+
+    let activeSubPageName = null
+
+    xbus.on('TOUCH-NAV', (data) => {
+      this.gotoPage(data.spName, null)
+    })
+
+    xbus.on('REPT-SHOW-RESULT', (ds) => {
+      if (ds.def.name === 'three-credentials') this.ratemsg = ds.rows
+    })
+
+    this.gotoPage = (spName, msg) => {
+      xbus.trigger('HIDE-ALL-POPUP')
+      
+      let rmSpNameArr = ['sp_rate', 'sp_profile']
+      if (!rmSpNameArr.includes(spName) && xdata.transerMenus && xdata.transerMenus.length > 0) {
+        let menus = xdata.transerMenus
+        let result = menus.filter(item => item.pageName === spName)
+        if (result.length < 1) return window.xMessage.open({ type: 'error', message: '当前操作无权限，请联系管理员！'})
+      }
+      switch (spName) {
+        case 'sp_monitor': 
+          if (!tagMonitor) tagMonitor = riot.mount('section#sp_monitor', 'sp-monitor', { papa: this, mapID: DEFAULT_MAP_ID })[0]
+          break
+        case 'sp_three':
+          if (!tagThree) tagThree = riot.mount('section#sp_three', 'sp-three', { papa: this, mapID: DEFAULT_MAP_ID})[0]
+          break
+        case 'sp_history':
+          if (!tagHistory) tagHistory = riot.mount('section#sp_history', 'sp-history')[0]
+          if (msg && msg.id) {
+            tagHistory.update({cardID: msg.id,numberId: msg.numberId,name: msg.name, time: msg.start_time, endTime: msg.end_time})
+          }
+          break
+        case 'sp_rate':
+          if (!tagRate) tagRate = riot.mount('section#sp_rate', 'sp-rate', { papa: this, msg: this.ratemsg})[0]
+          break
+        case 'sp_report':
+          if (!tagReport) tagReport = riot.mount('section#sp_report', 'sp-report')[0]
+          break
+        case 'sp_manage':
+          if (!tagManage) tagManage = riot.mount('section#sp_manage', 'sp-manage', {papa: this})[0]
+          break
+        case 'sp_config':
+          if (!tagConfig) tagConfig = riot.mount('section#sp_config', 'sp-config', {papa: this})[0]
+          break
+        case 'sp_profile':
+          if (!tagProfile) tagProfile = riot.mount('user-profile', {username: xdata.username})[0]
+          break
+      }
+      window.transer.spTransfer(spName)
+      this.tagMainNav && this.tagMainNav.setActiveItemByName(spName)
+      this.tagFootNav && this.tagFootNav.setActiveItemByName(spName)
+    }
+
+    this.on('mount', () => {
+      let menus = xdata.transerMenus
+      let activeSubPageName = menus[0] && menus[0].pageName || 'sp_monitor'
+      this.gotoPage(activeSubPageName)
+      this.tagHeader = this.tags['page-header']
+      this.tagFootNav = this.tags['page-foot-nav']
+      this.tagMainNav = this.tagHeader && this.tagHeader.tags['main-nav']
+      
+    })
+
+    this.init = (opts) => {
+      this.opts = opts
+    }
+    this.init(opts)
+  </script>
+</page-main>

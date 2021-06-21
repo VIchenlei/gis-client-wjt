@@ -1,0 +1,35 @@
+@import ../../style/defs
+side-menu
+    .title
+        @include wh($sidebar-width,0.48rem)
+        @include flex-align-center
+        cursor: pointer
+        color: 	rgba(255,255,255,0.8)
+        font-size: $font-s
+        
+        .icon
+            fill: #353535
+        .sidebar-title-text
+            margin: 0px 5px 0px 22px
+        .sidebar-icon
+            @include wh(0.144rem,0.144rem)
+            fill: #fcfcfc
+    ul
+        @include flex-align-center
+        flex-flow: column nowrap
+        justify-content: flex-start
+        width: $sidebar-width
+        padding-left: 17px
+        color: rgba(255,255,255,0.8)
+        font-size: $font-xs
+        li
+            @include flex-align-center
+            position: relative
+            flex: 0 0 0.48rem
+            padding: 0 10px 0 20px
+            margin: 2px 0
+            flex-flow: row nowrap
+            width: 100%
+            cursor: pointer
+            &:hover, &.active
+                background: #009fff

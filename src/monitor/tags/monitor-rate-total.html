@@ -1,0 +1,67 @@
+<monitor-rate-total>
+  <span class="rate-top-title">全矿三率分析</span>
+  <div class="overview-echarts">
+    <div each={ rateDef, i in rateDefs } class={rateDef.warpName}>
+      <div class={rateDef.className} style="width:100%;height:150px;"></div>
+      <span>{rateDef.title}</span>
+    </div>
+  </div>
+  <script>
+    import echarts from 'echarts'
+    import { gauge } from '../../js/def/graph_def.js'
+
+    this.chartResize = () => {
+      this.chart.resize()
+    }
+
+    this.initCharts = (row, name, title) => {
+      name = `.${name}`
+      let initdom = this.root.querySelector(name)
+      if (!initdom) return
+      echarts.dispose(initdom)
+      this.chart = echarts.init(initdom)
+      let msg = {
+        title: title,
+        data: [{value: row[0] && row[0].worktime ? Number(row[0].worktime.toFixed(2)) : 0, name: ``}],
+        max: name == '.overview-WD' ? 14 : 100
+      }
+      let option = gauge(msg)
+      this.chart.setOption(option)
+      window.addEventListener('resize', this.chartResize)
+    }
+
+    this.initDate = (overviewBD, overviewWD, overviewRD) => {
+      let datasArr = [overviewBD, overviewWD, overviewRD]
+      for (let i = 0; i < datasArr.length; i++){
+        let rateDef = this.rateDefs[i]
+        this.initCharts(datasArr[i], rateDef.className, rateDef.title)
+      }
+    }
+
+    this.init = (opts) => {
+      this.rateDefs = [
+        {
+          warpName: 'overviewBD',
+          className: 'overview-BD',
+          title: '开机率'
+        },
+        {
+          warpName: 'overviewWD',
+          className: 'overview-WD',
+          title: '工时利用率'
+        },
+        {
+          warpName: 'overviewRD',
+          className: 'overview-RD',
+          title: '正规循环率'
+        }
+      ]
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      window.removeEventListener('resize', this.chartResize)
+    })
+  </script>
+</monitor-rate-total>

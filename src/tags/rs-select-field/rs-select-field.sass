@@ -1,0 +1,54 @@
+@import '../../style/defs'
+.rs-select-field
+  @include wh(2rem, 0.7rem)
+  display: inline-block
+  height: 0.7rem
+  font-size: $font-xs
+  position: relative
+  fieldset
+    display: flex
+    @include wh(2rem, 0.48rem)
+    border: 1px solid $color-border
+    border-radius: 5px
+    margin: 2px 0
+    legend
+      height: 0.17rem
+      font-size: $font-xs
+      color: $font-weight-grey
+      line-height: 0.17rem
+      margin-left: 8px
+      white-space: nowrap
+      padding: 0 2px
+      .select-field-tips
+       color: $color-cancel
+    .select-field-text
+      width: 2rem
+      padding: 5px 9px
+      height: 0.3rem
+      @include flex-between-center
+      cursor: pointer
+      input
+        cursor: pointer
+      .select-up-icon, .select-down-icon
+        width: 0
+        height: 0
+        border-right: 5px solid transparent
+        border-left: 5px solid transparent
+      .select-up-icon
+        border-bottom: 7px solid $font-weight-grey
+      .select-down-icon
+        border-top: 7px solid $font-weight-grey
+      input
+        width: 100%
+        border: none
+  .select-line
+    border: 2px solid $color-main
+    .select-field-label
+      color: $color-main
+  .select-red-line
+    border: 2px solid red
+    .select-field-label
+      color: red
+  .info
+    @include absolute-left-bottom(0,0)
+    color: red

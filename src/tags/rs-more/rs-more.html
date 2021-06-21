@@ -1,0 +1,26 @@
+<rs-more class="rs-more" onclick={ handleEvt }>
+  <div class="more">
+    <div class="more-toggle">
+      <span class="double-left hide" ref="double-left"><<</span>
+      <i>{showMore ? '更多' : '收起'}</i>
+      <span class="double-right" ref="double-right">>></span>
+    </div>
+  </div>
+  <script>
+    import './rs-more.sass'
+    this.showMore = true
+
+    this.handleEvt = () => {
+      this.showMore = !this.showMore
+      this.refs['double-left'].classList.toggle('hide')
+      this.refs['double-right'].classList.toggle('hide')
+      typeof this.parent.showDown === 'function' &&  this.parent.showDown(this.showMore)
+    }
+
+    this.init = (opts) => {
+      this.currenTag = opts.currentag
+    }
+    
+    this.init(opts)
+  </script>
+</rs-more>

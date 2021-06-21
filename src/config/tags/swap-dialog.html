@@ -1,0 +1,247 @@
+<swap-dialog>
+  <div class="dlg-bg animated">
+    <div class="dlg-window swap-dialog animated zoomIn">
+      <rs-title title={ opts.message.title }></rs-title>
+      <div class="dlg-body">
+        <div class="alias-left">
+          <fieldset class="text-field {isHideField(row)}" each={row in rows}>
+            <legend>
+              <span class="text-field-label">{getLabel(row)}</span>
+            </legend>
+            <span class="text-field-value">{row.field_value}</span>
+          </fieldset>
+        </div>
+        <div class="alias-tip">替换为</div>
+        <div class="alias-right">
+          <div each={row in rows} class="{isHideField(row)}">
+            <rs-text-field data={row} 
+              ref={row.field_name} 
+              data-name={alias} 
+              data-oldvalue={row.field_value} 
+              if={row.field_type !== 'SELECT'}>
+            </rs-text-field>
+          </div>
+        </div>
+      </div>
+      <div class="dlg-foot" onclick={handleEvt}>
+        <button class="btn-sure" ref="btnSure" data-name="save">{opts.message.cmd !== 'DELETE' ? '保存' : '删除' }</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/swap-dialog.sass'
+    import '../../tags/rs-text-field/rs-text-field.html'
+    import { trim, formatFieldValue, composeUpdateDBReq, metaUpdateRes, messageTip } from '../../js/utils/utils.js'
+    import { isHideField } from '../../manage/js/utils.js'
+
+    this.getLabel = (row) => {
+      return `原${row.field_label}`
+    }
+
+    //隐藏字段
+    this.isHideField = (row) => {
+      return isHideField(opts.message.alias, row)
+    }
+
+    this.handleEvt = (evt) => {
+      let target = evt.target
+      let name = target.getAttribute('data-name')
+      if (name === 'save') this.save()
+      if (name === 'cancel') this.close()
+    }
+
+    this.save = () => {
+      if (opts.message.cmd === 'UPDATE') this.doUpdate()
+    }
+    
+    this.doUpdate = () => {
+      if (!this.testForm()) return
+      let sql = ''
+      for (let i = 0; i < this.rows.length; i++) {
+        if (i >= 2) continue
+        let fieldValue = null
+        const { field_value, field_name, field_type } = this.rows[i]
+        let ele = this.refs[field_name].refs[field_name]
+        let tips = this.refs[field_name] && this.refs[field_name].tips
+        let {value} = ele
+        value = value ? trim(value) : value
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+        } else {
+          fieldValue = value
+        }
+
+        if (xdata.isCheck === 1 && field_name === 'hm_dept_id') continue
+
+        if (tips && fieldValue !== 0 && !fieldValue) {
+          let xmsg = '请把必填字段填写完整！'
+          return messageTip(xmsg)
+        }
+        
+        if (field_value != fieldValue) {
+          fieldValue = formatFieldValue(field_type, fieldValue)
+          if (sql !== '' && sql.substr(-1) !== ',') {
+            sql += ','
+          }
+          sql += `${field_name}=${fieldValue}`
+        }
+      } 
+      if (sql !== '') {
+        let keyValue = this.refs[this.tableKeyName].refs[this.tableKeyName].value
+        keyValue = Number(keyValue)
+        sql = `UPDATE ${this.tableName} set ${sql} where ${this.tableKeyName}=${this.rows[0].field_value}`
+        this.sql = sql
+        this.updateInfo(keyValue)
+      } else {
+        let xmsg = '数据没有修改，请确认后再提交！'
+        return messageTip(xmsg)
+      }
+    }
+
+    //判断有无错误提示，有错误提示，提示保存失败
+    this.testForm = () => {
+      let info = this.root.querySelector('.info')
+      let msg = {
+        type: 'error',
+        message: '保存失败，请核对正确保存！'
+      }
+      if (info)  window.xMessage.open(msg)
+      return info ? false : true
+    }
+
+    //执行对换部门、职务函数
+    this.updateInfo = (keyValue) => {
+      this.newId = keyValue
+      let arr = Array.from(xdata.metaStore.data[this.topicName].values())
+      for (let i = 0; i < arr.length; i++) {
+        if (keyValue === arr[i][this.tableKeyName] && keyValue !== this.rows[0].field_value) {
+          let fields = '', values1 = '', values2 =''
+          let tableName = this.tableName 
+          if (this.topicName === 'dept') {
+            let field = '', value1 = '', value2 = ''
+            fields = `dept_id, {fields} name, abbr, rank`
+            values1 = `'${this.rows[0].field_value}', {values1} '${arr[i].name}', '${arr[i].abbr}', ${arr[i].rank}`
+            values2 = `'${keyValue}', {values2} '${this.rows[2].field_value}', '${this.rows[3].field_value}', ${this.rows[6].field_value}`
+
+            if (xdata.isCheck === 1) {
+              tableName = `${tableName}_ck`
+            } else {
+              field = 'hm_dept_id,'
+              value1 = `${arr[i].hm_dept_id},`
+              value2 = `${this.rows[1].field_value},`
+            }
+            
+            fields = fields.replace('{fields}', field)
+            values1 = values1.replace('{values1}', value1)
+            values2 = values2.replace('{values2}', value2) 
+          } else {
+            fields = 'occupation_id, name, shortname, occupation_level_id, rank'
+            values1 = `'${this.rows[0].field_value}','${arr[i].name}','${arr[i].shortname}','${arr[i].occupation_level_id}',${arr[i].rank}`
+            values2 = `'${keyValue}','${this.rows[1].field_value}','${this.rows[2].field_value}',${this.rows[3].field_value},${this.rows[4].field_value}`
+          }
+          this.insertOldSql =  `REPLACE into ${tableName} (${fields}) VALUES(${values1}), (${values2})`
+          let cb = this.swapInfo
+          this.swapTip(cb)
+          return          
+        }
+      }                 
+      this.getTradeId(this.topicName, this.rows[0].field_value, keyValue)
+    }
+
+    //对换职务、部门id
+    this.swapInfo = () => {
+      let {topicName: name, newId, insertOldSql} = this
+
+      let oldId = this.rows[0].field_value
+      let updateSql = `UPDATE {tableName} s1 JOIN {tableName} s2 on (s1.${name}_id = ${this.newId} AND s2.${name}_id = ${oldId}) OR (s1.${name}_id = ${oldId} AND s2.${name}_id = ${this.newId}) SET s1.${name}_id = s2.${name}_id, s2.${name}_id = s1.${name}_id;`
+
+      const updateStaffSql = updateSql.replace(/{tableName}/g, `dat_staff_extend${xdata.isCheck === 1? '_ck' : ''}`)
+      let modifyObj = {
+        insertSql: insertOldSql,
+        updateStaffSql: updateStaffSql
+      }
+      if (name === 'dept') {
+        const updateVehicleSql = updateSql.replace(/{tableName}/g, 'dat_vehicle_extend')
+        modifyObj.updateVehicleSql = updateVehicleSql
+        name = xdata.isCheck === 1 ? `${name}_ck` : name
+      }
+      this.modifyFn(name, [newId, oldId], modifyObj)
+    }
+
+    //对换提示弹出窗函数
+    this.swapTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      const title = opts.message.title
+      this.activePanel = riot.mount('rs-dialog', {
+        content: `您确认要与此${title}的id对换吗？`,
+        tips: `提示：此${title}id已存在，将对${title}间的id进行对换！`,
+        cb: cb
+      })[0]
+    }
+
+    this.modifyFn = (name, id, sql) => {
+      let topicName = this.topicName === 'dept' && xdata.isCheck === 1 ? `${this.topicName}_ck` : this.topicName
+      let req = composeUpdateDBReq('UPDATE', topicName, id, sql)
+      console.log('req', req)
+      xbus.trigger('META-UPDATE-DB', {
+        req: req
+      })
+    }
+
+    //部门or职务id更改后不对换的情况下人员车辆更改
+    this.getTradeId = (name, oldId, newId) => {
+      let allSql = {}
+      let modifySql = `UPDATE {tableName} SET ${name}_id = ${newId} where ${name}_id=${oldId};`
+      const staffModifySql = modifySql.replace('{tableName}', `dat_staff_extend${xdata.isCheck === 1 ? '_ck' : ''}`)
+      allSql['sql'] = this.sql
+      allSql['staffSql'] = staffModifySql
+      this.modifyFn(`staff_extend${xdata.isCheck === 1 ? '_ck' : ''}`, oldId, allSql)
+
+      if (name === 'dept') {
+        const vehicleModifySql = modifySql.replace('{tableName}', 'dat_vehicle_extend')
+        allSql['vehicleSql'] = vehicleModifySql
+        this.modifyFn(`vehicle_extend`, oldId, allSql)
+      }
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        let name = this.topicName === 'dept' && xdata.isCheck === 1 ? `${this.topicName}_ck` : this.topicName
+        metaUpdateRes(res, name, opts.message.cmd)
+        this.close()
+      })
+    }
+
+    this.on('mount', () => {
+      this.registerGlobalEventHandlers()
+      window.setDialogDraggable(this.root)
+    })
+
+    //关闭对话框
+    this.close = () => {
+      this.unmount(true)
+    }
+
+    this.init = (opts) => {
+      const msg = opts.message
+      this.parenTag = opts.parenTag
+      this.rows = msg.rows
+      this.tableName = msg.table
+      this.topicName = msg.name
+      this.tableKeyName = msg.key
+      this.maxid = msg.maxid
+      console.log('打印msg---', msg)
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.unregisterGlobalEventHandlers()
+    })
+
+    this.unregisterGlobalEventHandlers = () => {
+      xbus.off('META-UPDATE-DB-RES')
+    }
+  </script>
+</swap-dialog>

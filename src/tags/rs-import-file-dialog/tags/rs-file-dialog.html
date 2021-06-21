@@ -1,0 +1,262 @@
+<rs-file-dialog>
+  <div class="dlg-bg animated">
+    <div class="dlg-window file-dialog animated zoomIn">
+      <rs-title title={ title }></rs-title>
+      <div class="dlg-body">
+        <div class="file-box">
+          <rs-choose-file if={!isPreviewFile} filetype={fileType}></rs-choose-file>
+          <div name="preview_box" class="file-dropbox" if={ isPreviewFile }>
+            <img ref="preview_file" src={ resourcePath + '/' + fileName }>
+          </div>
+        </div>
+      </div>
+      <div class="fileinfo" if={ showLocalFileInfo }>
+        <span>{ selectedFile.name }</span>
+        <span>{ selectedFile.size } 字节</span>
+        <span>{ selectedFile.type }</span>
+      </div>
+      <div class="progresspanel" if={ showProgressBar }>
+        <div class="close-progressbar" op-type="close" onclick={ closeProgressbar }>x</div>
+        <div class="progressbox">
+          <div class="progressbar" id="progressBar" ref="progressBar"></div>
+        </div>
+        <div class="message">{ progressMessage }</div>
+      </div>
+      <div class="dlg-foot" onclick={ handleEvt }>
+        <button class="btn-sure" ref="btnImport" data-name="save" if={ isModified }>上传</button>
+        <button class="btn-cancel" ref="btnDelete" data-name="delete" if={ isPreviewFile }>删除</button>
+        <button class="btn-cancel" ref="btnCancel" data-name="cancel">取消</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    import '../sass/rs-file-dialog.sass'
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('FILE-UPLOAD-DONE', (data) => {
+        this.uploadDone(data)
+      })
+
+      xbus.on('FILE-UPLOAD-MORE', (data) => {
+        this.uploadChunk(data)
+      })
+    }
+
+    this.unregisterGlobalEventHandlers = () => {
+      xbus.off('FILE-UPLOAD-DONE')
+      xbus.off('FILE-UPLOAD-MORE')
+    }
+
+    //选择文件上传
+    this.fileChosen = (evt) => {
+      let files = event.target.files || event.dataTransfer.files
+      this.selectedFile = files[0]
+      if (this.selectedFile) {
+        this.preview()
+        this.showLocalFileInfo = true
+        this.isModified = true
+        this.update()
+      }
+    }
+
+    //展示上传的文件
+    this.preview = () => {
+      this.isPreviewFile = true
+      this.update()
+
+      var objectUrl = window.URL.createObjectURL(this.selectedFile)
+      this.refs.preview_file.src = objectUrl
+      this.refs.preview_file.onload = () => {
+        window.URL.revokeObjectURL(objectUrl) // release the ObjectURL
+      }
+    }
+
+    this.handleEvt = (evt) => {
+      let name = evt.target.getAttribute('data-name')
+      if (name === 'save') this.startUpload(evt)
+      if (name === 'delete') this.deleteFile()
+      if (name === 'cancel') this.close()
+    }
+
+    this.uploadDone = (data) => {
+      this.hideProgress()
+      this.hideFileInfo()
+      this.isModified = false
+      let msg = {
+        fieldName: this.fieldName,
+        fileName: data.name,
+        fileMD5: data.md5
+      }
+      xbus.trigger('FILE-MODIFIED', msg)
+      typeof opts.cb === 'function' && opts.cb(data.name, this.selectedFile.name)
+      this.close()
+    }
+
+    this.uploadChunk = (data) => {
+      let selectedFile = this.selectedFile
+      this.updateProgressBar(data['percent'])
+      let nextStart = data['place'] * this.chunkSize // The Next Blocks Starting Position
+      if (!selectedFile) return
+      let nextEnd = nextStart + Math.min(this.chunkSize, (selectedFile.size - nextStart))
+      let chunk = selectedFile.slice(nextStart, nextEnd)
+      if (this.fileLoad) {
+        this.freader.readAsBinaryString(chunk)
+      }
+      this.fileLoad = false
+    }
+
+    /**
+     * 启动上传程序
+     * 注意：
+     * 上传到 server 的文件名应该用：
+     * 1. 跟该条记录关联的；
+     * 2. 唯一的（避免覆盖别人的）；
+     * 3. 不会变更的（避免关联字段修改后对应不上）
+     * 唯一合适的字段是：编号。如果用（姓名+卡号），姓名会修改、卡号也会修改，有可能会冲突。
+     *
+     * @method startUpload
+     *
+     * @return {[type]}    [description]
+     */
+    this.startUpload = (e) => {
+      let selectedFile = this.selectedFile
+      if (selectedFile) {
+        let localFileName = selectedFile.name
+        let fileExtend = localFileName.replace(/.+\./, '')
+        let now = new Date().format('yyyyMMddhhmmss')
+        let remoteFileName = `${this.fileNamePrefix}-${now}.${fileExtend}`
+
+        this.freader = new window.FileReader()
+        this.freader.onload = (evt) => {
+          xsocket.emit('FILE', {
+            cmd: 'upload',
+            data: {
+              op: 'data',
+              name: remoteFileName,
+              data: evt.target.result
+            }
+          })
+        }
+
+        this.showProgress()
+
+        xsocket.emit('FILE', {
+          cmd: 'upload',
+          data: {
+            op: 'start',
+            name: remoteFileName,
+            size: selectedFile.size,
+            type: this.fileType // map, staff, vehicle
+          }
+        })
+      } else {
+        let msg = {
+          fieldName: this.fieldName,
+          fileName: '',
+          fileMD5: ''
+        }
+        xbus.trigger('FILE-MODIFIED', msg)
+        typeof opts.cb === 'function' && opts.cb(this.fieldName)
+        this.close()
+      }
+      e.preventUpdate = true
+    }
+
+    this.showProgress = (msg) => {
+      this.showProgressBar = true
+
+      if (!msg) {
+        msg = '正在上传数据，请稍候...'
+      }
+      this.progressMessage = msg
+      this.update()
+    }
+
+    this.updateProgressBar = (percent) => {
+      if (this.showProgressBar) {
+        this.root.querySelector('#progressBar').style.width = `${percent}%`
+      }
+    }
+
+    this.closeProgressbar = (evt) => {
+      this.showProgressBar = false
+      this.update()
+    }
+
+    this.hideProgress = () => {
+      this.showProgressBar = false
+      this.update()
+    }
+
+    this.hideFileInfo = () => {
+      this.showFileInfo = false
+      this.update()
+    }
+
+    //删除文件
+    this.deleteFile = () => {
+      this.isPreviewFile = false
+      this.isModified = false
+      this.showLocalFileInfo = false
+    }
+
+    /*关闭对话框*/
+    this.close = () => {
+      this.unregisterGlobalEventHandlers()
+      let cl = this.root.classList
+      if (!cl.contains('hide')) {
+        cl.add('hide')
+      }
+    }
+
+    this.setupFileInput = (type) => {
+      let accept = 'image/png, image/jpeg'
+      if (type === 'map') {
+        accept = 'image/svg+xml'
+      } else if (type === 'bin') {
+        accept = '/bin'
+      }
+      this.tags['rs-choose-file'] && (this.tags['rs-choose-file'].refs.chooseFile.accept = accept)
+    }
+
+    this.on('mount', () => {
+      this.fileLoad = true
+      this.registerGlobalEventHandlers()
+      this.setupFileInput(opts.fileType)
+      window.setDialogDraggable(this.root)
+    })
+
+    this.on('unmount', () => {
+      this.unregisterGlobalEventHandlers()
+    })
+
+    xbus.on('FILEDIALOG-DATA-SHOW', () => {
+      this.root.classList.remove('hide')
+    })
+
+    this.init = (opts) => {
+      this.fileType = opts.fileType
+      this.cmd = opts.cmd
+      this.title = this.cmd === 'INSERT' ? '上传文件' : '修改文件'
+      this.fieldName = opts.fieldName
+      this.fileType = opts.fileType // map, vehicle, staff
+      this.data = opts.data
+      this.fileName = opts.fileName
+      this.resourcePath = `/resource/${this.fileType}`
+      this.fileNamePrefix = opts.fileNamePrefix
+      this.isPreviewFile = this.fileName && this.isPreviewFile != null ? this.fileName : false
+      this.isModified = false
+      this.parenTag = opts.parenTag
+
+      this.showProgressBar = false
+      this.progressMessage = ''
+      this.selectedFile = null
+      this.freader = null
+      this.showLocalFileInfo = false
+      this.isModified = false
+      this.chunkSize = 1024 * 1024 // 1 MB
+    }
+
+    this.init(opts)
+  </script>
+</rs-file-dialog>

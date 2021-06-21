@@ -1,0 +1,85 @@
+@import '../../style/defs'
+
+$processbar-height: 0.04rem
+.player-controlbar
+    display: flex
+    align-items: center
+    justify-content: space-between
+    flex: 0 0 0.48rem
+    order: 0
+    flex-flow: row nowrap
+    background: #f5f5f5
+    font-size: 0.08rem
+    position: relative
+    .process-container
+        position: absolute
+        left: 0
+        top: 0
+        flex: auto
+        display: flex
+        width: 100%
+        .whole-process
+            flex: auto
+            height: $processbar-height
+            position: relative
+            cursor: pointer
+            background: #d5d0d0
+            .active-process
+                height: $processbar-height
+                width: 100%
+                background: #09F
+                border-radius: 0.04rem
+                position: absolute
+                .process-indicator
+                    position: absolute
+                    right: 0
+                    top: -0.048rem
+                    @include wh(0.16rem,0.16rem)
+                    background: #fff
+                    border: .048rem solid #09f
+                    border-radius: 50%
+                    cursor: pointer
+    .play-pause
+        display: flex
+        align-items: center
+        justify-content: space-between
+        fill: #000
+        padding-left: 0.08rem
+        .player-button
+            display: flex
+            justify-content: center
+            align-items: center 
+            @include wh(0.256rem,0.256rem)
+            cursor: pointer
+            &:first-child
+                border: 1px solid #666
+                border-radius: 50%
+                &:hover
+                    border: 1px solid #666
+                    .icon
+                        fill: #09F
+            &:last-child
+                transform: scale(.8)
+            .icon
+                fill: #666
+            .time-bar
+                display: flex
+                color: #666
+    .speed-controler
+        display: flex
+        align-items: center
+        justify-content: space-between
+        padding-right: 0.16rem
+        .select-tag
+            display: flex
+            justify-content: center
+            align-items: center 
+            @include wh(0.48rem,0.32rem)
+            border: 1px solid #e3e3e3
+            cursor: pointer
+            &:nth-child(2)
+                @include wh(0.8rem,0.32rem)
+            &.active
+                background: #09F 
+                border: none
+                color: #FFF

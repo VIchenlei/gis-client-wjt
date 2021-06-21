@@ -1,0 +1,288 @@
+<rugular-eff>
+	<div class="efficiency-reason-rugular"></div>
+	<div class="dept-rugular" style="width:100%;height:300px;"></div>
+	<div class="dept-button"><span onclick={ show }></span></div>
+	<span>{complexName}</span>
+  <div class="dept-rugular-factor" style="width:100%;height:350px;"></div>
+	<div class="total-rugular">{totalTime}</div>
+	<div class="carheader-rugular">{carHeader}</div>
+	<div class="carend-rugular">{carEnd}</div>
+    <script>
+			import echarts from 'echarts'
+			import { efficiencyLineDept,efficiencygas } from "../../../js/def/graph_def.js"
+			import { currentMonthdays, selectLegend, echartDate, getPositionData } from "../js/rs_efficiency_defs.js"
+			import '../../../report/tags/rs-efficiency-reason.html'
+			let self = this
+
+			/*初始化正规率图表*/
+			this.initRugularCharts = (rows) => {
+				if (!rows) rows = new Map()
+				const initdom = this.root.querySelector('.dept-rugular')
+				if (!initdom) return
+				echarts.dispose(initdom)
+				const chart = echarts.init(initdom)
+				const data = Array.from(rows.values()).sort(function(a, b){return a[0] - b[0]})
+				const rugularAverage = this.rugularAverageRows && Array.from(this.rugularAverageRows.values()).sort(function(a, b){return a[0] - b[0]})
+				const dataArr = rugularAverage && data.map(item => item[1]).concat(rugularAverage.map(item => item[1]))
+				let max = Math.max.apply(Math, dataArr)
+				let min = Math.min.apply(Math, dataArr)
+				max = max < 100 ? 100 : Math.ceil(max)
+				min = 0
+				const series = []
+				series.push(echartDate(data, 'dept-rugular', '正规循环率'))
+				series.push(echartDate(rugularAverage, 'rugular-average', '平均正规循环率'))
+				const msg = {
+					legend: ['正规循环率', '平均正规循环率'],
+					time :  this.parent.parent.time.split('-')[1],
+					title: '正规循环率',
+					series: series,
+					max : max,
+					min : min
+				}
+				const option = efficiencyLineDept(msg)
+				chart.setOption(option)
+				chart.on('click', function(param) {
+					if (param.seriesId !== 'dept-rugular') return
+					self.parent.time = param.name
+					self.searchDB(param.name)
+				})
+			}
+
+			/*正规率图表上的点击事件，根据所选日期查询开关量数据*/
+			this.searchDB = (time) => {
+				const deptID = this.parent.deptID
+				const y = this.parent.parent.time.split('-')[0]
+				time = `${y}-${time}`
+				this.parent.getSql(deptID, time)
+			}
+
+			this.pushMsg = (rows, name, color, num, bool) => {
+				const msg = {
+					sampling: 'average',
+					name: name,
+					data: rows,
+					type: 'line',
+					yAxisIndex: num,
+					smooth: bool,
+					itemStyle: {
+						normal: {
+							color: color,
+							lineStyle: {
+									color: color,
+							}
+						}
+					}                
+				}
+				return msg
+			}
+
+			this.pushGasdata = (rows, color, id, name) => {
+				if (id === 'open') this.totalTime = (rows.length*1/60>>0) + "小时" + rows.length*1%60 + "分钟"
+				const msg = {
+					name:name,
+					type:'bar',
+					data: rows,
+					barWidth: 1,
+					itemStyle: {
+						normal: {
+							color: color
+						}
+					}
+				}
+				return msg
+			}
+
+			/*设置传感器数据*/
+			this.setGasData = (series, type, legend) => {
+				const gasData = this.parent.gasMsgData.get(type)
+				const keys = gasData && Array.from(gasData.keys())
+				if (type === 8) keys && keys.sort()
+				keys && keys.forEach(key => {
+					let rows = gasData.get(key)
+					rows = Array.from(rows.values())
+					if (type === 1) {
+						let name = xdata.metaStore.data.sensor && xdata.metaStore.data.sensor.get(key)
+						name = name ? `${name.sensor_desc}(ID:${name.data_source})` : '瓦斯浓度'
+						legend.push(name)
+						let color = '#00FFFF'
+						let index = keys.indexOf(key)
+						if(keys.length > 1){
+							if (index === 0) color = '#00ffff'
+							if (index === 1) color = '#c300ff'
+							if (index === 2) color = '#ff9c00'
+						}else{
+							if (index === 0) color = '#c300ff'
+						}
+						series.push(this.pushMsg(rows, name, color, 0, false))
+					} else if (type === 8) {
+						let turnOffID = this.parent.turnOffID
+						let sensor = xdata.metaStore.data.sensor && xdata.metaStore.data.sensor.get(turnOffID)
+						let source = sensor ? sensor.data_source : ''
+						let color = key == 0 ? '#26cc41' : '#ff0000'
+						let seriesID = key == 0 ? 'open' : 'off'
+						let name = ''
+						if (this.vehicleTypeID === 26){
+							name = key == 0 ? `掘进机开(ID:${source})` : `掘进机停(ID:${source})`
+						} else{
+							name = key == 0 ? `采煤机开(ID:${source})` : `采煤机停(ID:${source})`
+						}
+						!legend.includes(name) && legend.push(name)
+						series.push(this.pushGasdata(rows, color, seriesID, name))
+					}
+				})
+			}
+
+			/*初始化工作面纵膈数据*/
+			this.initRugularFactor = (displacement) => { 
+				const rows = this.parent.bootswitch         
+				const initdom = this.root.querySelector('.dept-rugular-factor')
+				if (!initdom) return
+				echarts.dispose(initdom)
+				const chart = echarts.init(initdom)
+        let positionmsg = null		
+				const xdistance = chart.getWidth() - chart.getWidth() * 0.12
+				if (displacement && displacement.length > 0) positionmsg = getPositionData(displacement)
+				const series = []
+				const legend = []
+				this.setGasData(series, 1, legend)
+				const legendType = selectLegend(legend)
+				const posname = this.vehicleTypeID === 26 ? '掘进机位置(m)' : '采煤机位置(m)'
+				positionmsg && series.push(this.pushMsg(positionmsg.positiondata, posname, '#0167ff', 1, true))
+				legend.push(posname)
+				this.setGasData(series, 8, legend)
+				series.push({
+					type: 'line',
+					markLine:{
+						silent: true,
+						lineStyle:{
+							type: 'solid',
+							color: '#ff5454'	
+						},
+						symbolSize: [0, 0],
+					},
+					markArea: {
+						silent: true,
+						itemStyle: {
+							normal: {
+								color: '#d8d8d8',
+								opacity: 1
+							}
+						},
+						data: [[{
+							xAxis: 'min',
+							yAxis: 0
+						}, {
+							xAxis: 'max',
+							yAxis: 0.05
+						}]]
+					}
+				})
+                
+				const msg = {
+					legend: {
+						data: legend,
+						right: '5%',
+						icon: 'circle',
+						selected: legendType
+					},
+					title:'工作面综合数据',
+					time: this.parent.time ? this.parent.time : `${new Date().getMonth() + 1}-${new Date().getDate()}`,
+					series: series,
+					max : positionmsg && positionmsg.max,
+					min : positionmsg && positionmsg.min,
+					xdistance: xdistance,
+					year: this.parent.parent.time
+				}
+				const option = efficiencygas(msg)
+				chart.setOption(option)
+			}
+
+			/*处理排数，机头，机尾等数据*/
+			this.getQuantity = () => {
+				const time = this.parent.time ? new Date(this.parent.time).getDate() : new Date().getDate()
+				const {deptID} = this.parent
+				let rugulars = this.parent.parent.deptMap && this.parent.parent.deptMap.get(deptID).get('rugular')
+				rugulars = rugulars && Array.from(rugulars.values())
+				// const data = rugulars && rugulars.get(time)
+				const data = rugulars && rugulars[0]
+				if (data) {
+					const {vehicleTypeID , workfaceID, sumnum = 0} = data
+					if (vehicleTypeID) this.complexName = vehicleTypeID === 2 ? `排数：${sumnum}` : `刀数：${sumnum}`
+					let face = vehicleTypeID === 2 ? xdata.metaStore.data[`drivingface`] : xdata.metaStore.data['coalface']
+					face = face && Array.from(face.values())
+					face = face && face.filter(item => item.vehicle_id === workfaceID)
+					face = face && face[0]
+					if (vehicleTypeID === 2) {
+						let faceID = face && face[`drivingface_id`]
+						let unit = faceID && xdata.metaStore.data.drivingface && xdata.metaStore.data.drivingface.get(faceID)
+						unit = unit && unit.drifting_footage_unit
+						unit = unit && unit * sumnum
+						if (unit) this.complexName = `${this.complexName}`
+					} else if (vehicleTypeID === 1) {
+						let faceID = face && face['coalface_id']
+						let unit = faceID && xdata.metaStore.data.coalface && xdata.metaStore.data.coalface.get(faceID)
+						let carPositon = unit && unit.head_y_pos
+						let unitTotalLength = unit && unit.totalLength
+						this.totalLength = unitTotalLength * 1.1
+						this.carHeader = carPositon === 1 ? '机头' : '机尾'
+						this.carEnd = carPositon === 1 ?  '机尾' : '机头' 
+					}
+					this.vehicleTypeID = vehicleTypeID
+				}
+			}
+
+			/*处理平均正规循环率数据*/
+			this.splitData = (rows) => {
+				this.rugularAverageRows = new Map()
+				rows.forEach(row => {
+					const time = new Date(row.stime).getDate()
+					this.rugularAverageRows.set(time, [time, row.worktime])
+				})
+				const len = currentMonthdays()
+				for (let i = 1; i <= len; i++) {
+					if (!this.rugularAverageRows.get(i)) this.rugularAverageRows.set(i,[i,0])
+				}
+			}
+
+			/*控制原因输入组件是否mount*/
+			this.show = (evt) => {
+				if (self.Analysis) self.Analysis.unmount(true)
+				self.Analysis = riot.mount('div.efficiency-reason-rugular','rs-efficiency-reason', { message: self.analysisMsg })[0]
+			}
+
+			/*保存原因分析的传过去的回调函数*/
+			this.AnalysisCb = (CreateDateTime, updateArr) => {
+				const sql = `REPLACE into rpt_sanlv_daily_main (CreateDateTime,CreatePersonal,Rpt_Type) VALUES ('${CreateDateTime}','${this.parent.d_name}',2)`
+				const req = {
+					cmd: 'update',
+					data: {
+						op: 'INSERT',
+						name: 'rpt_sanlv_daily_main',
+						sql: sql,
+						updateArr: updateArr,
+						deptArr: [this.parent.workfaceID]
+					}
+				}
+				xbus.trigger('META-UPDATE-DB', {req: req})
+				this.parent.getSql(this.parent.deptID)
+			}
+		
+			/*初始化函数*/
+			this.init = (rugularrows, displacement, rugularAverage, rugularAnalysis) => {
+				this.totalLength = null
+				this.complexName = ''
+				this.totalTime = ''
+				this.carHeader = ''
+				this.carEnd = ''
+				this.analysisMsg = {
+        	Analysis: rugularAnalysis[0] ? rugularAnalysis[0].Analysis : '',
+					cb: this.AnalysisCb
+				}
+				rugularAverage && this.splitData(rugularAverage)
+				this.initRugularCharts(rugularrows)
+				this.getQuantity()
+				this.initRugularFactor(displacement)		
+				this.update()
+			}
+    </script>
+</rugular-eff>

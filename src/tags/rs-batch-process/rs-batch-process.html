@@ -1,0 +1,167 @@
+<rs-batch-process>
+  <span>
+    <span each={ info in infos } class="hint--bottom-left" aria-label={ info.label } name={ info.name } onclick={ batchProce }>
+      <svg class="icon black-icon">
+        <use xlink:href="/icons/icons.svg#{info.icon}"></use>
+      </svg>
+    </span>
+  </span>
+  <script>
+    import '../rs-batch-process/rs-batch-process.sass'
+    import batchProceTable from './batch_def.js'
+    import { getRows, clone, composeUpdateDBReq, metaUpdateRes, messageTip } from '../../js/utils/utils.js'
+    import importDef from './import_def.js'
+    import { askFileDef } from '../../js/def/askfile_query.js'
+    import '../../tags/rs-import-file-dialog/tags/rs-import-file-dialog.html'
+
+    /*根据name判断执行新增导入导出函数*/
+    this.batchProce = (evt) => {
+      let name = evt.currentTarget.getAttribute('name')
+      if (name === 'insert') this.insert(name)
+      if (name === 'import') this.importFile(name)
+      if (name === 'delete') this.delete(name)
+      if (['csv', 'printPDF'].includes(name)) this.askFile(name)
+    }
+
+    this.getAskFileSql = (def) => {
+      let names = def.fields.names
+      let fstring = names.join(',')
+      let keyIndex = def.fields.names[def.keyIndex]
+      let sql = null
+      if (typeof this.parenTag.getSpecialAskFile === 'function') {
+        sql = this.parenTag.getSpecialAskFile(def)
+      } else {
+        sql = `select ${fstring} from ${def.table} order by ${keyIndex};`
+      }
+      return sql
+    }
+
+    /*批量导出函数*/
+    this.askFile = (opName) => {
+      window.xhint.close()
+      window.xhint.showLoading()
+      const name = opts.dataMsg.def.name
+      let def = askFileDef[name] || opts.dataMsg.def
+      if (def.name === 'area') {
+        def = xdata.isCheck === 1 ? askFileDef['area_ischeck'] : askFileDef[def.name]
+      }
+      if (def.name === 'map') {
+        def = xdata.isCheck === 1 ? askFileDef['check_map'] : askFileDef[def.name]
+      }
+      const sqlString = this.getAskFileSql(def)
+      const reptTime = new Date().getTime()
+      const msg = {
+        cmd: 'file',
+        exprList: [],
+        name: name,
+        labels: def.fields.labels,
+        title: def.label,
+        namesInShort: def.fields.names,
+        types: def.fields.types,
+        fileType: opName,
+        reptIndex: reptTime,
+        sql: sqlString,
+        userName: xdata.userName
+      }
+      xbus.trigger('REPT-FETCH-FILE', msg)
+    }
+
+    /*批量导入*/
+    this.importFile = (name) => {
+      let { def, maxid } = opts.dataMsg
+      def = importDef[def.name] ? importDef[def.name] : def
+      let rows = getRows(null, def, maxid)
+      const msg = {
+        cmd: 'IMPORT-DATA',
+        def: def, // field definition
+        maxid: maxid,
+        rows: rows,
+        parenTag: this.parenTag
+      }
+      this.showImportFileDialog(msg)
+    }
+
+    /*打开导入对话框*/
+    this.showImportFileDialog = (msg) => {
+      if (this.importFileDialog) this.importFileDialog.unmount(true)
+      this.importFileDialog = riot.mount('rs-import-file-dialog', msg)[0]
+    }
+
+    /*新增*/
+    this.insert = (name) => {
+      typeof this.parent.insert === 'function' && this.parent.insert()
+    }
+
+    /*删除*/
+    this.delete = (name) => {
+      let selectInputs = this.parent.selectInputs
+      this.deleteArr = Array.from(selectInputs.keys())
+      let selectAll = this.parent.isSelectAll
+      if (this.deleteArr.length <= 0 && !selectAll) return messageTip('没有选中的数据', 'warning')
+      let cb = this.deleteAllMsg
+      this.deleteTip(cb)
+    }
+
+    //批量删除
+    this.deleteAllMsg = () => {
+      this.registerGlobalEventHandlers()
+      const name = opts.dataMsg.def.name
+      const tableKeyName = opts.key
+      const tableName = opts.dataMsg.def.table
+      const deletes = this.deleteArr.join(',')
+      let deleteAllSql = '',
+          condition = ''
+      if (this.parenTag.getDeleteAllSql instanceof Function) {
+        deleteAllSql = this.parenTag.getDeleteAllSql(deletes, tableKeyName, tableName)
+      } else {
+        condition = `${tableKeyName} in (${deletes})`
+        deleteAllSql = `DELETE from ${tableName} where ${condition}`
+      }
+      let req = composeUpdateDBReq('DELETE', name, deletes, deleteAllSql)
+      console.log('req', req)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+      this.parent.resetSelect()
+    }
+
+    //删除提示
+    this.deleteTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认删除所选信息吗？',
+        tips: '提示：数据删除后将无法恢复！',
+        cb: cb
+      })[0]
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', res => {
+        if (res.data.name === 'rt_person_forbid_down_mine') {
+          if (res.data.op !== 'DELETE') return
+          metaUpdateRes(res, 'rt_person_forbid_down_mine', 'DELETE')
+        }
+      })
+    }
+
+    this.getProcess = (process,name) => {
+      let batchProce = clone(process)
+      if (typeof this.parenTag.getProcess === 'function') {
+        return this.parenTag.getProcess(batchProce,name)
+      }
+    }
+
+    this.init = (opts) => {
+      const msg = opts.dataMsg
+      const name = msg.def.name
+      this.rows = msg.rows
+      this.parenTag = msg.parenTag
+      let process = batchProceTable.defaultProce
+      this.infos = this.getProcess(process, name)
+      if (name === 'leader_arrange') {
+        this.startTime = this.parenTag.startTime
+        this.endTime = this.parenTag.endTime
+      }
+    }
+
+    this.init(opts)
+  </script>
+</rs-batch-process>

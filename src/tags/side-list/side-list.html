@@ -1,0 +1,78 @@
+<side-list>
+  <div class="title" onclick={ toggleItems }>
+      <div class="triangle"></div>
+      <div class="iconBG">
+        <svg class="icon sidebar-icon">
+          <use xlink:href="/icons/icons.svg#{ icon }"></use>
+        </svg>
+      </div>
+      <span class="sidebar-title-text">{title}</span>
+    </div>
+  <div if={ showItems } class="content">
+    <article style="width:{data.length}00%;">
+      <div class="grey-scroll" each={ i in data } index={ data.indexOf(i) } maxIndex={ data.length }>
+        <p each={ i } name={name} onclick= { activateItem } if={ isShowItem(name, menuID) }>{ getLabel(name,label) }</p>
+        <span if={ data.length > 1 } class="transfer-bar" onclick={ changeIndex }></span>
+      </div>
+    </article>
+  </div>
+
+  <script>
+    import './side-list.sass'
+    this.title = opts.def.title
+    this.items = opts.def.items
+    this.icon = opts.def.icon
+    const showNumber = 100
+    let arr = [], translateX = 0, target = 'left'
+
+    this.isShowItem = (name, menuID) => {
+      if (name === 'dept' && xdata.isCheck === 1) return false
+      let result = xdata.menus.find(item =>{
+        return item.includes(menuID)
+      })
+      if (xdata.hasMenus && !result) return false
+      return true
+    }
+
+    this.getLabel = (name,label) => {
+      if (name === 'dept_ck' && xdata.isCheck === 1) return '部门管理'
+      return label
+    }
+
+    /*split元素函数*/
+    this.splitEle = () => {
+      for (var i = 0, len = this.items.length; i < len; i += showNumber) {
+        arr.push(this.items.slice(i, i + showNumber))
+        this.data = arr
+      }
+    }
+
+    this.changeIndex = (evt) => {
+      let ele = evt.target.parentElement, currentIndex = Number(ele.getAttribute('index')), maxIndex = Number(ele.getAttribute('maxIndex'))
+      if (currentIndex === 0) {
+        target = 'left'
+      } else if (currentIndex === maxIndex - 1) {
+        target = 'right'
+      }
+    }
+
+    /*点击控制显隐函数*/
+    this.toggleItems = (evt) => {
+      this.showItems = !this.showItems
+    }
+
+    /*点击函数 触发 REPORT-ACTIVE-ITEM*/
+    this.activateItem = (evt) => {
+      let tabName = evt.item.name
+      xbus.trigger('REPORT-ACTIVE-ITEM', tabName)
+    }
+
+    /*初始化函数，执行split元素函数*/
+    this.init = (opts) => {
+      this.showItems = true
+      this.splitEle()
+    }
+    
+    this.init(opts)
+  </script>
+</side-list>

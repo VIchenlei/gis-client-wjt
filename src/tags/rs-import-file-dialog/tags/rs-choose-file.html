@@ -1,0 +1,22 @@
+<rs-choose-file>
+  <input type="file" class="file-input" name="chooseFile" ref="chooseFile" style="display:none">
+  <div>
+    <button class="choose-file" op-name="choose-file" onclick={ chooseFile }>请选择文件</button>
+  </div>
+  <script>
+    import '../sass/rs-choose.file.sass'
+    this.fileType = opts.filetype || null
+
+    this.on('mount', () => {
+      this.refs.chooseFile.addEventListener('change', this.fileChosen)
+    })
+
+    this.chooseFile = (evt) => {
+      this.refs.chooseFile.click()
+    }
+
+    this.fileChosen = (evt) => {
+      this.parent.fileChosen instanceof Function && this.parent.fileChosen(evt)
+    }
+  </script>
+</rs-choose-file>

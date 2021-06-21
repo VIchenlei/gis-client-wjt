@@ -1,0 +1,108 @@
+@import '../../style/defs'
+.group-list-container::-webkit-scrollbar
+  display: none
+.group-list-container
+    flex: auto
+    overflow-y: auto
+    overflow-x: hidden
+    padding: 0.16rem 0
+    color: #fff
+    .group-panel
+        .group-list
+            height: 0.24rem
+            line-height: 0.24rem
+            display: flex
+            justify-content: space-between
+            padding: 0 0.16rem
+            span:nth-child(1)
+                white-space: nowrap
+                flex: 0 0 1.35rem
+                text-align: start
+            span:nth-child(2)
+                flex: 0 0 auto
+            span:nth-child(3)
+                text-align: end
+                flex: 0 0 0.64rem
+        .group-list-title
+            height: 0.384rem
+            line-height: 0.384rem
+            cursor: auto
+            color: #999
+        .group-list-item
+            height: 0.352rem
+            line-height: 0.352rem
+            cursor: pointer
+            border-bottom: 1px solid #0082d9
+            &.active
+                background: #0099ff
+    .detail-panel
+        .detail-list
+            margin: 0 3px
+            padding: 5px
+            font-size: 0.08rem
+            span
+                text-align: center
+                text-overflow: ellipsis
+            span:nth-child(1)
+                flex: 0 0 0.56rem
+            .vehicle-topic
+                flex: 0 0 0.64rem
+            .vehicle-topic-speed
+                flex: 0 0 0.48rem
+                text-align: end
+            span:nth-child(4)
+                flex: 0 0 0.64rem
+            .staff-topic-date
+                flex: 0 0 0.96rem
+            .staff-topic-null
+                flex: 0
+        .detail-list-title
+            display: flex
+            font-weight: bold
+            background: rgba(0, 14, 35, 0.5)
+            color: #efefef
+            span:nth-child(2)
+                flex: 0 0 0.64rem
+            span:nth-child(3)
+                flex: 0 0 0.64rem
+
+        .detail-list-item
+            cursor: pointer
+            border-bottom: 1px solid #f5f5f5
+            color: #efefef
+            img
+                width: 15px
+                height: 15px
+            p:nth-child(1)
+                display: flex
+                span:nth-child(4)
+                    flex: 0 0 0.56rem
+            p:nth-child(2)
+                color: #666
+                text-align: right
+    .content-coal-cutting
+        height: 0.32rem
+        line-height: 0.32rem
+        display: flex
+        justify-content: space-around
+        padding: 0 0.16rem
+        span:nth-child(1)
+            flex: 0 0 1.12rem
+        span:nth-child(2)
+            flex: 0 0 0.8rem
+        .icon
+            fill: #999
+            &:hover,&.active
+                fill: #09F
+    .callingList
+        display: flex
+        justify-content: space-around
+        span:nth-child(1)
+            flex: 0 0 0.32rem
+        span:nth-child(2),span:nth-child(3)
+            flex: 0 0 0.48rem
+        span:nth-child(4)
+            flex: 0 0 0.32rem
+            cursor: pointer
+            &:hover
+                color: #09F

@@ -1,0 +1,58 @@
+@import '../style/defs'
+
+.page-login
+  @include wh(100%, 100%)
+  @include flex-column
+  font-size: $font-m
+  color: $font-white
+  background: url("/img/bj@2x.jpg") no-repeat scroll 50% 50% / cover border-box
+  position: absolute
+.login-head
+  flex: 0 0 1rem
+  img
+    @include wh(2.3rem, auto)
+.login-body
+  flex: auto
+  @include flex-column-center-center
+  .slogan-panel
+    height: 1.5rem
+  .slogan
+    font-size: $font-xxl
+    margin-bottom: .3rem
+  .minor-slogan
+    font-size: $font-xl
+    text-align: center
+    color: $font-ccc
+  .login-form
+    @include flex-column-center-center
+    background: rgba(0, 0, 0, .4)
+    padding: .5rem .6rem
+    position: relative
+    .error-message
+      @include absolute-left-top(auto, .1rem)
+      font-size: $font-xs
+      color: $font-red
+      @include wh(2.5rem, .25rem)
+      @include line-center(.25rem)
+      background: $color-tip-bg
+      border: 1px solid $color-tip-border
+      border-radius: 20px
+      text-align: center
+    .rs-text label
+      color: rgb(232, 240, 254)
+    .rs-text input
+      padding-left: .1rem
+.login-foot
+  flex: 0 0 .5rem
+  @include flex-center-center
+  img
+    @include wh(.8rem, auto)
+
+@media screen and (max-width: 769px)
+  .page-login
+    background: $color-login-bg
+    background-image: linear-gradient(15deg, #009fff, #05b720, #0586f5, #063394)
+    .slogan
+      font-size: $font-xl
+    .minor-slogan
+      font-size: $font-m

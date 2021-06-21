@@ -1,0 +1,236 @@
+<staff-curve>
+	<div class="dlg-bg animated">
+		<div class="dlg-window staff-curve animated zoomIn">
+			<rs-title title="人员当天历史数据"></rs-title>
+			<div class="dlg-body">
+				<div class="curve-title">
+					<div class="selectchoose">
+						<select name="title" id="chartsortable" onchange={changeChoose}>
+							<option value="charts" >历史曲线</option>
+							<option value="table">时刻数据</option>
+						</select>
+					</div>
+					<span class="date">
+						<rs-date ref="tstart_time" text="开始时间" enableNull='false' value={ getday() } isShowSecond='true'></rs-date>
+  					<rs-date ref="tend_time" text="结束时间" enableNull='false' value={ getday() } isShowSecond='true'></rs-date>
+						<button onclick={changeDate}>查询</button>
+					</span>
+				</div>
+				<div class="charts-title">
+					<span each={inputDef in inputDefs} data-type={inputDef.dataType} onclick={changeCharts}>
+						<input type="radio" name="number" id={inputDef.dataType} checked={inputDef.checked}>
+						<label for={inputDef.dataType}>{inputDef.text}</label>
+					</span>
+					<div data-is="rs-rept-print" printdefs={ reptPrint } cb={ askFile } class="rs-rept-print"></div>
+				</div>
+				<div class="staff-curve-cont grey-scroll"></div>
+			</div>
+		</div>
+	</div>
+	<script>
+		import '../../tags/rs-title/tags/rs-title.html'
+		import '../../tags/rs-date/tags/rs-date.html'
+		import './staff-charts.html'
+		import './staff-table.html'
+		import '../../tags/rs-rept-print/rs-rept-print.html'
+		import '../sass/staff-curve.sass'
+		
+		this.getday = () => { 
+			return new Date().format('yyyy-MM-dd')
+		}
+
+		this.tipBox = (tipMsg) => {
+			let dlg_tips = tipMsg === 'thirtyDays' ? '开始时间与结束时间不能大于30天' : '开始时间不能大于结束时间'
+			window.xMessage.open({
+				type: 'error',
+				message: dlg_tips
+			})
+		}		
+
+		this.getTime = (time) => {
+			return {
+				start_time: `${time} 00:00:00`,
+				end_time: `${new Date(time).format('yyyy-MM')}-${new Date(time).getDate() + 1} 00:00:00`
+			}
+		}
+
+		this.changeChoose = (evt) => {
+			let target = evt.currentTarget
+			let chooseOption = target.options[target.selectedIndex]
+			let value = chooseOption.getAttribute('value')
+			this.value = chooseOption.getAttribute('value')
+			if (this.choose !== value) {
+				this.choose = value
+				this.initcont(`staff-${value}`)
+			}
+		}
+		
+		this.changeDate = (evt) => { 
+			let inputstart = this.refs.tstart_time && this.refs.tstart_time.refs.tstart_time
+			let inputend = this.refs.tend_time && this.refs.tend_time.refs.tend_time
+			let timestart= inputstart && inputstart.value
+			let timeend = inputend && inputend.value
+			timestart = this.getTime(timestart)
+			timeend = this.getTime(timeend)
+			let startday = new Date((timestart['start_time']).replace(/\-/g, "/"))
+			let endday = new Date((timeend['end_time']).replace(/\-/g, "/"))
+			this.days = Math.floor((endday-startday)/(24*3600*1000))
+			if( this.days > 30 || this.days < 1){
+				this.days > 30 ? this.tipBox('thirtyDays') : this.tipBox('greaterThan')
+				return
+			} 
+			this.value == 'charts' ? this.getSql(timestart['start_time'], timeend['end_time']) : this.getSql(timeend['start_time'], timeend['end_time'])
+		}
+
+		this.initcont = (tag) => { 
+			let self = this
+			if (this.contPage) this.contPage.unmount(true)
+			tag = tag ? tag : 'staff-charts'
+			this.contPage = riot.mount('div.staff-curve-cont', tag, {parentag: self})[0]
+		}
+
+		this.on('mount', () => {
+			this.choose = 'charts'
+			this.type = 'max'
+			window.xhint.show()
+			this.changeDate()
+			this.initcont()
+			window.setDialogDraggable(this.root)
+		})
+
+		this.getSql = (start_time, end_time) => { 
+			let sql = `select * from his_staff_number where record_time >= '${start_time}' and record_time <= '${end_time}' group by record_time order by record_time asc;`
+			this.name = 'chartsday'
+			this.querySql(sql, this.name)
+			window.xhint.showLoading()
+		}
+
+		this.querySql = (sql) => { 
+			let message = {
+				cmd: 'query',
+				data: {
+					name: this.name,
+					sql: sql
+				}
+			}
+			xbus.trigger('REPT-FETCH-DATA', {
+				req: message,
+				def: {
+					name: this.name
+				}
+			})
+    }
+
+		this.concatdata = (rows) => { 		
+			this.staffdata = {
+				recordtime: [],
+				max: [],
+				min: [],
+				ave: [],
+				hourDate: new Map()
+			}
+			rows.forEach(item => {
+				let timeText = this.days > 1 ? 'yyyy-MM-dd hh:mm' : 'hh:mm'
+				let time = new Date(item['record_time']).format(timeText)
+				let hour = new Date(item['record_time']).format('hh')
+				let minute = new Date(item['record_time']).format('mm')
+				if (minute % 2 !== 0) {
+					let timestamp = new Date(item['record_time']).getTime() + 60 * 1000
+					minute = new Date(timestamp).format('mm')
+				}
+				this.staffdata.recordtime.push(time)
+				let numText = xdata.isCheck !== 0 ? '' : '_real'
+				this.staffdata.max.push(item['max_num' + numText])
+				this.staffdata.min.push(item['min_num' + numText])
+				this.staffdata.ave.push(item['ave_num' + numText])
+				
+				if (!this.staffdata.hourDate.get(hour)) {
+					this.staffdata.hourDate.set(hour, {max: [],	min: [], ave: []})
+				}
+
+				['max', 'min', 'ave'].forEach(it => {
+					this.staffdata.hourDate.get(hour)[it].push({
+						[minute]: item[it + '_num']
+					})
+				})
+			})
+			this.contPage.initData(this.staffdata)
+		}
+
+		xbus.on('REPT-SHOW-RESULT', (ds) => { 
+			if (ds.def.name === this.name) {
+				ds.rows ? this.concatdata(ds.rows) : ''
+				window.xhint.close()
+			}
+		})
+
+		this.changeCharts = (evt) => {
+			let target = evt.currentTarget
+			let type = target.getAttribute('data-type')
+			this.type = type
+			this.contPage.changeCharts(type)
+		}
+
+		this.askFile = (evt) => {
+			let h = document.querySelector('.page-head')
+			h && h.classList.add('hide')
+			let f = document.querySelector('.page-foot')
+			f && f.classList.add('hide')
+			let c = document.querySelector('.page-container')
+			c && c.classList.add('hide')
+			let dh = this.root.querySelector('.dlg-head ')
+			dh && dh.classList.add('hide')
+			let ct = this.root.querySelector('.curve-title')
+			ct && ct.classList.add('hide')
+			let t = this.root.querySelector('.charts-title')
+			t && t.classList.add('hide')
+			let sc = this.root.querySelector('.staff-curve')
+			let scc = this.root.querySelector('.staff-curve-cont')
+			if (this.choose === 'table'){
+				sc.classList.add('staff-curve-print')
+				scc.classList.add('staff-curve-cont-print')
+			}
+			window.print()
+
+			h && h.classList.remove('hide')
+			f && f.classList.remove('hide')
+			c && c.classList.remove('hide')
+			dh && dh.classList.remove('hide')
+			ct && ct.classList.remove('hide')
+			t && t.classList.remove('hide')
+
+			if (this.choose === 'table'){
+				sc.classList.remove('staff-curve-print')
+				scc.classList.remove('staff-curve-cont-print')
+			}
+		}
+		
+		this.close = () => {
+			this.unmount(true)
+		}
+
+		this.init = (opts) => {
+			this.value = 'charts'
+			this.reptPrint = [{label: "打印",name: "printPDF",icon: "icon-printer"}]
+			this.inputDefs = [
+				{
+					dataType: 'max',
+					text: '最大值',
+					checked: true
+				},
+				{
+					dataType: 'min',
+					text: '最小值',
+					checked: false
+				},
+				{
+					dataType: 'ave',
+					text: '平均值',
+					checked: false
+				}
+			]
+		}
+
+		this.init(opts)
+	</script>
+</staff-curve>

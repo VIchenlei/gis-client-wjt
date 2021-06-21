@@ -1,0 +1,20 @@
+@import '../../style/defs'
+.config
+  width: 100%
+  position: relative
+  overflow-y: auto
+  overflow-x: hidden
+  .homepage
+    width: 100%
+  .back-homepage
+    @include wh(.48rem, .24rem)
+    @include flex-center-center
+    @include absolute-left-top(.1rem, .1rem, $zIndex: 999)
+    border-radius: 3px
+    background: linear-gradient(#def, #09f)
+  .system-report
+    width: 100%
+    margin-top: .4rem
+    padding: .1rem
+    legend
+      font-size: $font-s

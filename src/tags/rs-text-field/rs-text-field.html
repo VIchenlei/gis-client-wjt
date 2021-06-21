@@ -1,0 +1,219 @@
+<rs-text-field class="rs-text-field">
+  <fieldset class="text-field">
+    <legend>
+      <span class="text-field-label">{ text }</span>
+      <span class="text-field-tips">{ tips }</span>
+      <img if={ isShowJumpIcon() } src="/img/jump.png" onclick={ jumpMap }>
+    </legend>
+    <input class="text-field-input" 
+      ref={fieldName} 
+      idname={fieldName} 
+      data-type={fieldValue} 
+      value={ value } 
+      onblur={ inputBlur } 
+      onfocus={ inputFocus } 
+      onkeyup={ doSearch } 
+      disabled={opts.disabled}>
+  </fieldset>
+  <span class={info ? 'info' : ''}>{ info }</span>
+  <div if={isShowResult} class="popup-list">
+    <rs-select if={ hasresult } message={message} issearch={isSearch} key={desc}></rs-select>
+    <span if={ !hasresult } class="tips"> 无符合条件的{ text } </span>
+  </div>
+  <script>
+    import '../rs-select/rs-select.html'
+    import '../rs-text-field/rs-text-field.sass'
+    import { trim, clone, addBusinesslogic, getSerachData } from '../../js/utils/utils.js'
+    import Fuse from 'fuse.js'
+    this.info = ''
+    this.tips = ''
+    let self = this
+    let chooseField = null
+    let className = null
+    let classErrorName = null
+
+    // 跳转实时界面
+    this.jumpMap = () => {
+      const { field_value } = this.parent.rows[0]
+      const eventName = opts.dataName === 'dat_goaf' ? 'MAP-GOAFEDIT' : 'MAP-AREAEDIT'
+      xbus.trigger('DIALOG-SHOW', {isShow: false})
+      xbus.trigger(eventName, {id: field_value})
+    }
+
+    // 跳转图标显示、隐藏
+    this.isShowJumpIcon = () => {
+      if (this.fieldName === 'path' && this.parent.cmd === 'UPDATE' && this.parent.opts.message.fromPage === 'monitor') return true
+      return false
+    }
+
+    this.on('mount', () => {
+      chooseField = this.root.querySelector('.text-field') && this.root.querySelector('.text-field').classList
+      className = 'select-line'
+      classErrorName = 'select-red-line'
+    })
+
+    this.inputFocus = (e) => {
+      chooseField.add(className)
+      chooseField.remove(classErrorName)
+    }
+
+    this.inputBlur = (evt) => {
+      chooseField.remove(className)
+      this.matchField(evt)
+      typeof this.parent.leaveInput === 'function' && (this.info = this.parent.leaveInput(evt, this.info))
+    }
+
+    this.getInputType = () => {
+      let ret = 'text'
+      return ret
+    }
+
+    //检验输入框
+    this.matchField = (evt) => {
+      let value = this.refs[this.fieldName].value
+      if(value) value = trim(value)
+      let regEn = /[`~!@$%^&*()_+<>?:"{}\/'[\]]/im, regCn = /[·！￥（——）：；“”‘|《。》？【】[\]]/im
+      if (!value) {
+        switch (this.type) {
+          case 'text':
+              this.info = this.tips ? '输入不能为空或包含特殊字符' : ''
+              break
+          default:
+              this.info = '无效值'
+              break
+        }
+      } else {
+        this.info = ''
+        if (this.type === 'text') {
+          regEn.test(value) ? chooseField.add(classErrorName) : chooseField.remove(classErrorName)
+          this.info = regEn.test(value) ? '输入不能包含特殊字符' : ''
+        }
+      }
+      this.info = addBusinesslogic(value, self, evt)  //业务逻辑判断
+      this.info ? chooseField.add(classErrorName) : chooseField.remove(classErrorName)
+      this.update()
+    }
+
+    //是否检索
+    this.isSearch = (fieldName) => {
+      if (typeof this.parenTag.isSearch === 'function') {
+        return this.parenTag.isSearch(opts.dataName, fieldName)
+      } else {
+        if (fieldName.includes('staff')) return true
+        if (opts.dataName !== 'dat_reader' && fieldName.includes('reader')) return true
+      }
+    }
+
+    //执行选择结果
+    this.chooseItem = (result) => {
+      this.isShowResult = false
+      let index = Array.from(result)[0][1].value
+      index = Number(index)
+      let results = this.backResult
+      let row = results.slice(index,index+1)[0]
+      this.refs[this.fieldName].value = this.desc ? row[this.desc] : row.name
+      this.checkCb && typeof this.checkCb === 'function' && this.checkCb(row, this.fieldName)
+      this.fieldValue = /_id$/.test(this.fieldName) ? row[this.fieldName] : row[`${this.fieldName}_id`]
+      if (this.fieldName.includes('staff')) this.fieldValue = row[`staff_id`]
+      if (this.fieldName.includes('vehicle')) this.fieldValue = row[`vehicle_id`]
+      if (this.fieldName.includes('reader')) this.fieldValue = row[`reader_id`]
+      this.update()
+    } 
+
+    /*处理模糊查询的结果*/
+    this.getMatchs = (s, cardDatas) => {
+      let matchs = null
+      let num = s.substr(0, 3)
+      if (num === '0' || num === '00') num = '001'
+      if (s.length <= 10) {
+        switch (num) {
+          case '001':
+          case '002':
+          case '004':
+          case '005':
+            matchs = cardDatas.filter(item => item.card_id && item.card_id.toString().substr(0, 3) === num).slice(0, 20)
+            break
+          default:
+            matchs = cardDatas.filter(item => item.ident.toString().includes(s)).slice(0, 20)
+            break
+        }
+      } else {
+        matchs = cardDatas.filter(item => item.card_id === s)
+      }
+      return matchs
+    }
+
+    this.doSearch = (evt) => {
+      let s = evt.target.value
+      if (this.isSearch) {
+        let matchs = null
+        if (this.fieldName.indexOf('card') !== -1) {
+          matchs = this.getMatchs(s, this.rows)
+        } else {
+          matchs = this.fuse.search(s)
+        }
+        this.backResult = clone(matchs)
+        let dittoname = clone(matchs)
+        if (this.fieldName.indexOf('staff') !== -1) {
+          dittoname.forEach(e => {
+            e.name = `${e.staff_id}-${e.name}-${xdata.metaStore.getNameByID('dept_id', e.dept_id)}`
+          })    
+        } 
+        this.results = dittoname  
+        this.message = {
+          rows: this.results,
+          cb: this.chooseItem
+        }
+        this.hasresult = matchs.length > 0 ? true :false
+        this.isShowResult = true
+        if (s === '') {
+          this.checkCb && typeof this.checkCb === 'function' && this.checkCb()
+          this.isShowResult = false
+          this.fieldValue = ''
+        } else if (this.fieldName === 'hw_version') {
+          this.checkCb && typeof this.checkCb === 'function' && this.checkCb(null, this.fieldName, s)
+          this.isShowResult = false
+          this.fieldValue = ''
+        } else {
+          this.tags['rs-select'] && this.tags['rs-select'].updateData(this.message)
+        }
+      }
+    }
+
+    this.init = (opts) => {
+      let msg = opts.data
+      this.parenTag = this.parent.parenTag
+      this.text = msg.field_label
+      this.fieldName = msg.field_name
+      this.fieldType = msg.field_type
+      this.checkCb = msg.cb
+      this.fuzzy_datas = msg.fuzzy_datas
+      this.enableNull = msg.field_enableNull
+      this.tips = !this.enableNull ? '*' : ''
+      this.type = this.getInputType()
+      this.fieldValue = msg.field_value
+      this.value = opts.dataOldvalue
+      this.isSearch = this.isSearch(this.fieldName)
+      this.isShowResult = false
+      this.desc = null
+      if (this.isSearch) {
+        let datas = getSerachData(this.fieldName, this.fuzzy_datas, self)
+        this.keys = datas.keys
+        this.rows = datas.rows
+        this.desc = datas.desc
+      }
+      let fuse_opts = {
+        threshold: 0,
+        minMatchCharLength: 1,
+        location: 0,
+        tokenize: true,
+        matchAllTokens: true,
+        keys: this.keys
+      }
+      this.rows = this.rows || []
+      this.fuse = new Fuse(this.rows, fuse_opts)
+    }
+
+    this.init(opts)
+  </script>
+</rs-text-field>

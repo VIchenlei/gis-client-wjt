@@ -1,0 +1,138 @@
+@import '../../style/defs.sass'
+
+.history-query
+	@include wh(100%,100%)
+	position: absolute
+	z-index: 10
+	padding: 5% 20% 2% 20%
+	background: #fff
+	display: flex
+	flex-direction: column
+	.his-nav
+		@include align-center-middle
+		flex: 0.31
+		img
+			height: 1.66rem
+			width: 2.26rem
+		h4
+			font-size: 0.42rem
+	.history-content
+		.search-content
+			@include align-center-middle
+			flex: 0.1
+			position: relative
+			.identify-staff
+				height: 0.5rem
+				line-height: 0.5rem
+				text-align: center
+				color: #333
+			ul
+				flex: 1
+				position: relative
+				left: 0.16rem
+			.search-change
+				display: flex
+				justify-content: center
+				flex: 0 1 2rem
+				border: 1px solid #cccccc
+				border-right: none
+				justify-content: space-evenly
+				span
+					color: #B3B3B3
+					height: 0.41rem
+					line-height: 0.41rem
+					font-size: 20px
+				.icon
+					@include wh(0.3rem, 0.48rem)
+					fill: #b6b6b6
+					&:nth-child(1)
+							transform: rotate(90deg)
+					&.active
+							fill: #0099ff
+			.identify-staff
+				border: 1px solid #cccccc
+				border-right: none
+				border-left: none
+				z-index: 1
+				flex: auto
+				.rs-fuzzy-search
+					overflow: unset
+					margin: 0
+					box-shadow: none
+					border: none
+					border-radius: 0
+					background: none
+					width: 3rem
+					input
+						border-bottom: 0
+					.popup-list
+						width: 3rem
+						height: 3rem
+						overflow-y: auto
+						.tips
+							font-size: 0.12rem
+							background: none
+							display: flex
+							justify-content: center
+							align-items: center
+							flex: auto
+							color: #222
+							height: 42px
+			.search-img
+        flex: 0 1 0.8rem
+        background: #0099ff
+        cursor: pointer
+        height: 0.5rem
+        @include flex-center-center
+        img
+          height: 0.15rem
+          width: 0.15rem
+		.checkout-work
+			display: flex
+			justify-content: flex-start
+			align-items: flex-end
+			font-size: $font-s
+			margin-top: 30px
+			input
+				width: 0.15rem
+				height: 0.17rem
+			label
+				font-weight: 800
+				margin-left: 3px
+		.search-more-result
+			@include flex-align-center
+			flex-direction: column
+			flex: auto
+			border: 0.5px solid #B3B3B3
+			margin-top: 10px
+@media screen and (max-width: $width-medium)
+  .history-query
+    padding: 5% 10% 2% 10%
+    .his-nav
+      img
+        @include wh(1.5rem, 1rem)
+      h4
+        font-size: 0.16rem
+    .history-content .search-content .identify-staff .rs-fuzzy-search
+      width: 2rem
+      .popup-list
+        width: 2rem
+        li
+          padding-left: 0
+          width: 1.5rem
+    .checkout-work
+      margin-top: 10px
+    .search-more-result
+      .history-search
+        flex-wrap: wrap
+      .rs-date
+        height: 0.5rem
+        width: auto
+        .calendar
+          top: 0
+          left: -0.7rem
+    .history-track-list
+      max-height: 2rem
+      .track-result-panel .track-list-panel .track-tag p
+        flex-wrap: wrap
+    

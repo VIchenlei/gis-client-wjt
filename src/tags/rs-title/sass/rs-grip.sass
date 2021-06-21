@@ -1,0 +1,9 @@
+@import '../../../style/defs'
+.grip-horizontal
+  @include flex-middle-between
+  @include wh(.05rem,.16rem)
+  flex-flow: column nowrap
+  margin: 0 .05rem 0 .02rem
+  span
+    @include wh(6px,1px)
+    background: $color-ccc

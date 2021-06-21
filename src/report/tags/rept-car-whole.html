@@ -1,0 +1,399 @@
+
+<rept-car-whole>
+  <div if={ hasData } >
+    <div class="whole-stat">
+      <div class="whole-title-box" each={title in titles}>
+        <span class="whole-title">{title.title}</span>
+        <span class="whole-detail" each={field in fields}>
+          <span if={field.name!=='v_sum_nums'}>{field.label}:</span>
+          <span ref={ title.name + '_' + field.name } id={field.name}></span>
+          <span if={field.name==='v_sum_nums'}>{field.label}</span>
+        </span>
+      </div>
+    </div>
+    <div>
+      <span onclick={ printarea } class="print-button">
+        <svg class="icon black-icon"><use xlink:href="/icons/icons.svg#icon-printer"></use></svg>
+      </span>
+      <div ref={field.name} each={field in fields} style="display: flex;margin-left: 0.24rem;margin-right:0.24rem;margin-bottom: 0.32rem;background: rgba(245, 245, 245, 0.65)">
+        <div id="pieChart"></div>
+        <div id="barChart"></div>
+      </div>
+    </div>
+  </div>
+  <div if={ !hasData } data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message"></div>
+  <script>
+    import '../sass/rept-car-whole.sass'
+    import echarts from 'echarts'
+    import { pieOption, stackBarOption } from '../../js/def/graph_def.js'
+    import { computeDays } from '../../js/utils/utils.js'
+
+    /*接收查询的数据*/
+    this.updateDs = (ds) => {
+      this.data = ds.rows
+      this.hasData = (ds.rows && ds.rows.length > 0) || false
+      if (!this.data || this.data.length < 1) return
+      this.update()
+      this.showStatData()
+      this.showPieGraph()
+      this.showBarGraph()
+    }
+    
+    /*展示的title数组*/
+    this.titles = [
+      {
+        title: '车辆概况',
+        name: 'total'
+      },
+      {
+        title: '零点班概况',
+        name: 'zero'
+      },
+      {
+        title: '八点班概况',
+        name: 'eight'
+      },
+      {
+        title: '四点班概况',
+        name: 'fore'
+      },
+      {
+        title: '人车概况',
+        name: 'person'
+      },
+      {
+        title: '料车概况',
+        name: 'skip'
+      },
+      {
+        title: '特种车概况',
+        name: 'special'
+      }
+    ]
+    
+    /*每个title下面的子标题*/
+    this.fields = [
+      {
+        label: '出车车数',
+        name: 'v_sum_nums',
+        unit: '车数'
+      }, {
+        label: '出车次数',
+        name: 'v_out_nums',
+        unit: '次数'
+      }, {
+        label: '出车时长',
+        name: 'v_out_time',
+        unit: '时长(h)'
+      },  
+      {
+        label: '车辆超速',
+        name: 'v_over_speed',
+        unit: '次数'
+      }
+    ]
+
+    /*显示数据*/
+    this.showStatData = () => {
+        const data = this.data
+        const stat = []
+        const param = [
+        ['general', null],
+        ['shift_id', 1],
+        ['shift_id', 2],
+        ['shift_id', 3],
+        ['vehicle_category_id', 1],
+        ['vehicle_category_id', 2],
+        ['vehicle_category_id', 3]
+      ]
+      for (let item of param) {
+        stat.push(this.formatStatData(data, item[0], item[1]))
+      }
+      let nodes = this.root.querySelectorAll('.whole-title-box')
+      for (let i = 0; i < nodes.length; i++) {
+        const outTime = Number(stat[i].v_out_time)
+        nodes[i].querySelector('#v_sum_nums').innerText = stat[i].v_sum_nums
+        nodes[i].querySelector('#v_out_nums').innerText = stat[i].v_out_nums
+        nodes[i].querySelector('#v_out_time').innerText = outTime.toFixed(0)
+        nodes[i].querySelector('#v_over_speed').innerText = stat[i].v_over_speed
+      }
+    }
+
+    /*格式化数据*/
+    this.formatStatData = (data, category, value) => {
+      let vehicles = []
+      let sumNums = 0
+      let sumFreq = 0
+      let sumTime = 0
+      let sumOils = 0
+      let overSpeeds = 0
+
+      let lastShif = data[0] && data[0].shift_id
+      let lastVehi = data[0] && data[0].vehicle_id
+      let lastDate = data[0] && data[0].att_date
+      data.forEach((item, i) => {
+        let curShif = item.shift_id
+        let curVehi = item.vehicle_id
+        let curDate = item.att_date
+        if (item[category] === value && item.vehicle_category_id || category === 'general' && item.vehicle_category_id) {
+          sumFreq += 1
+          sumTime += item.time_diff / 60
+          if (!vehicles.includes(item.vehicle_id)) {
+            vehicles.push(item.vehicle_id)
+          }
+          if (lastShif !== curShif || lastVehi !== curVehi || lastDate !== curDate || i === 0) {
+            sumOils += item.oil_wear
+            overSpeeds += item.over_counts
+          }
+        }
+        lastShif = curShif
+        lastVehi = curVehi
+        lastDate = curDate
+      })
+      sumNums = vehicles.length
+      return {
+        v_sum_nums: sumNums,
+        v_out_nums: sumFreq,
+        v_out_time: sumTime,
+        v_over_speed: overSpeeds
+      }
+    }
+
+    /*展示饼状图*/
+    this.showPieGraph = () => {
+      this.fields.forEach((item) => {
+        let param = item.name
+        let piedatas = this.formatPieDate(param)
+        let canva = this.refs[param].querySelector('#pieChart')
+        canva.style.width =  window.innerWidth / 4+'px'
+        canva.style.height = window.innerHeight / 3+'px'
+        let pieChart = echarts.init(canva)
+        let option = {
+          text: item.label,
+          name: item.label,
+          data: piedatas
+        }
+        let config = pieOption(option)
+        pieChart.setOption(config)
+        this.charts.push(pieChart)
+      })
+    }
+    
+    /*展示柱状图*/
+    this.showBarGraph = () => {
+      this.fields.forEach((item) => {
+        let param = item.name
+        let legend = ['零点班', '八点班', '四点班']
+        let month = this.data[0] ? new Date(this.data[0].att_date).getMonth() + 1 : new Date().getMonth() + 1
+        let year = new Date().getFullYear()
+        let computeResult = computeDays(year, month)
+        const {days, daysArr} = computeResult
+        let {month_start} = computeResult
+        let bardatas = this.formatBarGraphData(this.data, param, daysArr, month_start)
+        let canva = this.refs[param].querySelector('#barChart')
+        canva.style.width =  window.innerWidth / 2 + 'px'
+        canva.style.height = window.innerHeight / 3 + 'px'
+        let barChart = echarts.init(canva)
+        let option = {
+          legend: legend,
+          data: daysArr,
+          series: bardatas,
+          unit: item.unit
+        }
+        let config = stackBarOption(option)
+        barChart.setOption(config)
+        this.charts.push(barChart)
+      })
+    }
+
+    this.chartResize = () => {
+      for (let index in this.charts) {
+        this.charts[index] && this.charts[index].resize()
+      }
+    }
+
+    /*窗口大小发生变化，图表大小跟着自适应大小*/
+    window.addEventListener('resize', this.chartResize)
+
+    /*格式化工具函数*/
+    this.itemFormats = {
+      v_sum_nums: (function () {
+        var vehicles = []
+        return function (item) {
+          if (!vehicles.includes(item.vehicle_id)) {
+            vehicles.push(item.vehicle_id)
+            return 1
+          } else {
+            return 0
+          }
+        }
+      })(),
+      v_out_nums: function (item) {
+        return 1
+      },
+      v_out_time: function (item) {
+        return item.time_diff / 60
+      },
+      v_over_speed: function (item) {
+        return item.over_counts
+      }
+    }
+
+    /*格式化柱状图数据函数*/
+    this.formatBarGraphData = (data, statCategory, xcoord, month_start) => {
+      let names = ['零点班', '八点班', '四点班']
+      let bardatas = names.map((field) => {
+        return { name: field, type: 'bar', stack: '班次', data: new Array(31).fill(0) }
+      })
+      let sumNums = []
+      for (let i = 0; i < 3; i++) {
+        sumNums.push([])
+        for (let j = 0; j < 31; j++) {
+          sumNums[i].push([])
+        }
+      }
+      let lastDate = data[0] && data[0].att_date
+      let lastShift = data[0] && data[0].shift_id
+      let lastVehicle = data[0] && data[0].vehicle_id
+      for (let i = 0, len = data.length; i < len; i++) {
+        if (data[i].shift_id > 0 && data[i].shift_id <= 3) {
+          let day = parseInt(new Date(data[i].att_date).format('dd'))
+          let index = data[i].shift_id - 1
+          let subDay = day - month_start
+          let tdIndex = xcoord.indexOf(Math.abs(day))
+          if (statCategory === 'v_out_nums' || statCategory === 'v_out_time') {
+            let num = this.itemFormats[statCategory].call(this, data[i])
+            if (!(subDay < 0 && tdIndex <= 0)) {
+              bardatas[index].data[subDay] += Number(num.toFixed(1))
+              bardatas[index].data[subDay] = Number(bardatas[index].data[subDay].toFixed(1))
+            }
+          } else {
+            let curDate = data[i].att_date
+            let curShift = data[i].shift_id
+            let curVehicle = data[i].vehicle_id
+            if (lastShift !== curShift || lastVehicle !== curVehicle || lastDate !== curDate || i === 0) {
+              if (statCategory === 'v_sum_nums') { 
+                if (!(subDay < 0 && tdIndex <= 0) && (!sumNums[index][subDay].includes(curVehicle))) sumNums[index][subDay].push(curVehicle)
+              } else {
+                if (!(subDay < 0 && tdIndex <= 0)) bardatas[index].data[subDay] += this.itemFormats[statCategory].call(this, data[i])
+              }
+            }
+            lastShift = curShift
+            lastVehicle = curVehicle
+            lastDate = curDate
+          }
+        }
+      }
+      if (statCategory === 'v_sum_nums') {
+        for (let i = 0, len = sumNums.length; i < len; i++) {
+          for (let j = 0; j < sumNums[i].length; j++) {
+            bardatas[i].data[j] = sumNums[i][j].length
+          }
+        }
+      }
+      return bardatas
+    }
+
+    /*格式化饼状图日期*/
+    this.formatPieDate = (param) => {
+      return [
+        {
+          name: '人车',
+          value: Number(this.refs['person_' + param].innerText)
+        },
+        {
+          name: '料车',
+          value: Number(this.refs['skip_' + param].innerText)
+        },
+        {
+          name: '特种车',
+          value: Number(this.refs['special_' + param].innerText)
+        }
+      ]
+    }
+
+    /*格式化饼状图数据*/
+    this.formatPieGraphData = (data, statCategory) => {
+      let names = ['人车', '料车', '特种车']
+      let piedatas = names.map((field) => {
+        return { name: field, value: 0 }
+      })
+      let lastShif = data[0] && data[0].shift_id3
+      let lastVehi = data[0] && data[0].vehicle_id
+      let lastDate = data[0] && data[0].att_date
+      data.forEach((item) => {
+        if (statCategory === 'v_out_nums') {
+          if (item.vehicle_category_id) {
+            let index = item.vehicle_category_id - 1
+            piedatas[index].value += this.itemFormats[statCategory].call(this, item)
+          }
+        } else {
+          let curShif = item.shift_id
+          let curVehi = item.vehicle_id
+          let curDate = item.att_date
+          if (lastShif !== curShif || lastVehi !== curVehi || lastDate !== curDate) {
+            if (item.vehicle_category_id) {
+              let index = item.vehicle_category_id - 1
+              piedatas[index].value += this.itemFormats[statCategory].call(this, item)
+            }
+          }
+          lastShif = curShif
+          lastVehi = curVehi
+          lastDate = curDate
+        }
+      })
+      return piedatas
+    }
+
+    /*打印函数*/
+    this.printarea = () => {
+      // let menu = document.querySelector('#rept-menu')
+      // let pageHead = document.querySelector('.page-header')
+      // let tabBar = document.querySelector('.tab-bar')
+      // let builder = document.querySelector('#QBuilder_rept_car_whole')
+      // let wholestat = this.root.querySelector('.whole-stat')
+      // let printButton = this.root.querySelector('.print-button')
+      // let foot = document.querySelector('footer')
+      // let footNav = document.querySelector('.foot-nav')
+      // menu.classList.add('hide')
+      // pageHead.classList.add('hide')
+      // tabBar.classList.add('hide')
+      // builder && builder.classList.add('hide')
+      // wholestat.classList.add('hide')
+      // foot.classList.add('hide')
+      // footNav.classList.add('hide')
+      // printButton.classList.add('hide')
+      // window.print()
+      // menu.classList.remove('hide')
+      // pageHead.classList.remove('hide')
+      // tabBar.classList.remove('hide')
+      // builder && builder.classList.remove('hide')
+      // wholestat.classList.remove('hide')
+      // foot.classList.remove('hide')
+      // footNav.classList.remove('hide')
+      // printButton.classList.remove('hide')
+    }
+    
+    this.on('mount', () => {
+      if (!this.data) return
+      this.showStatData()
+      this.showPieGraph()
+      this.showBarGraph()
+    })
+
+    
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.data = null
+      this.hasData = false
+      this.charts = []
+    }
+
+    /*执行初始化函数*/
+    this.init(opts)
+
+    this.on('unmount', () => {
+      window.removeEventListener('resize', this.chartResize)
+    })
+  </script>
+</rept-car-whole>

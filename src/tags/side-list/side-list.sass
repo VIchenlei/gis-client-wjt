@@ -1,0 +1,111 @@
+@import ../../style/defs   
+side-list
+    @include wh(30%,50%)
+    display: flex
+    margin: 0 0.32rem .144rem 0
+    background: $color-white
+    &:hover
+        animation: scale 0.5s forwards
+        box-shadow: 0 2px 4px rgba(0,0,0,.3)
+    .title
+        @include flex-center-center
+        flex-direction: column
+        background: none
+        color: $disabled-bgcolor
+        height: auto
+        padding: 0.08rem
+        position: relative
+        .triangle
+            @include wh(0,0)
+            @include absolute-left-top(-0.496rem,-0.48rem)
+            border-top: 0.48rem solid #69b2ad
+            border-right: 0.48rem solid transparent
+            border-bottom: 0.48rem solid transparent
+            border-left: 0.48rem solid transparent
+            transform: rotate(135deg)
+        .iconBG
+            padding: 0.16rem 0.192rem
+            border-radius: 100%
+            .sidebar-icon
+                fill: $color-white
+        .sidebar-title-text
+            font-size: $font-s
+            font-weight: bold
+            margin: 20px 0 15px 0
+            color: $color-black
+        .sidebar-icon
+            @include wh(0.144rem,0.144rem)
+            fill: #fcfcfc
+side-list
+    @include wh(3.36rem,2.4rem)
+    background: #f6f6f6
+    &:nth-child(1),&:nth-child(7),&:nth-child(13)
+        .iconBG
+            background: #69b2ad
+    &:nth-child(2),&:nth-child(8)
+        .triangle
+            border-top: 0.48rem solid #c4cc51
+        .iconBG
+            background: #c4cc51
+    &:nth-child(3),&:nth-child(9)
+        .triangle
+            border-top: 0.48rem solid #5f95b2
+        .iconBG
+            background: #5f95b2
+    &:nth-child(4),&:nth-child(10)
+        .triangle
+            border-top: 0.48rem solid #7cc54a
+        .iconBG
+            background: #7cc54a
+    &:nth-child(5),&:nth-child(11)
+        .triangle
+            border-top: 0.48rem solid #7ab7ed
+        .iconBG
+            background: #7ab7ed
+    &:nth-child(6),&:nth-child(12)
+        .triangle
+            border-top: 0.48rem solid #55b276
+        .iconBG
+            background: #55b276
+    .title
+        flex: 1.2
+    .content
+        position: relative
+        overflow: hidden
+        flex: 2
+        margin: 0.192rem 0rem
+        height: 1.856rem
+        background: $color-white
+        border-radius: 5px
+        article
+            @include wh(303%,100%)
+            display: flex
+            color: $disabled-color
+            div
+                @include wh(103%,100%)
+                position: relative
+                overflow-y: scroll
+                overflow-x: hidden
+                flex-direction: column
+                justify-content: flex-start
+                padding: 0.008rem
+                p
+                    height: 0.304rem
+                    padding-left: 12%
+                    cursor: pointer
+                    color: #666666
+                    font-size: $font-s
+                    text-shadow: 5px 5px 5px rgba(255,255,255,0.6)
+                    white-space: nowrap
+                    &:hover
+                        color: #0099FF
+            .transfer-bar
+                @include absolute-left-top(85%,43%)
+                @include wh(0.16rem,0.16rem)
+                cursor: pointer
+                line-height: 0.16rem
+                text-align: center
+                background: #f6f6f6
+                box-shadow: 0 2px 4px rgba(0,0,0,.3)
+                font-size: 0.13
+                border-radius: 50%

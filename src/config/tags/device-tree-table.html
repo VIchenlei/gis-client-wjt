@@ -1,0 +1,153 @@
+<device-tree-table class="device-tree-table grey-scroll">
+  <table>
+    <thead>
+      <tr onclick={sortRows}>
+        <th if={isShowSerialnumber}>序号</th>
+        <th if={ selectall }>选择</th>
+        <th each={label in labels}>
+          <span>{label}</span>
+          <img class="img-sort hide" src="/img/{isAscending ? 'angle-up.png' : 'angle-down.png'}">
+        </th>
+        <th if={operate}>操作</th>
+      </tr>
+    </thead>
+    <tbody class="grey-scroll">
+      <tr each={data, index in lists}>
+        <td if={isShowSerialnumber}>
+          <span class="select-icon {isShowSelectIcon(data)}" onclick={switchIcon}></span>
+          <span>{data['serialNumber']}</span>
+        </td>
+        <td class="check" if={ selectall }>
+          <input type="checkbox" onchange={handleSelect}>
+        </td>
+        <td
+          each={name in names} 
+          title={getInnerText(name, data)}
+          onclick={ showBatCurve }>
+          <span class="text" 
+            data-index={index}>
+              {getInnerText(name, data)}
+          </span>
+        </td>
+        <td if={operate}>
+          <span onclick={ edit } ref="edit" aria-label="编辑">
+            <img src="/img/edit.png" alt="">
+          </span>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <script>
+    import '../sass/device-tree-table.sass'
+    import {changeToTextByType, checkClick, getSortType, compare, clone} from '../../js/utils/utils.js'
+
+    this.switchIcon = (evt) => {
+      let target = evt.target
+      let data = evt.item.data
+      let deviceData = clone(data)
+      let childDevices = deviceData.childDevices
+      if (childDevices.length > 0) {
+        const index = this.lists.findIndex(item => item.deviceType === 1 && item.deviceAddress === deviceData.deviceAddress)
+        const isExpanded = target.classList.contains('expanded')
+        if (!isExpanded) {
+          childDevices.unshift(index + 1, 0)
+          Array.prototype.splice.apply(this.lists, childDevices)
+          target.classList.add('expanded')
+        } else {
+          this.lists.splice(index + 1, childDevices.length)
+          target.classList.remove('expanded')
+        }
+        this.update()
+      }
+    }
+
+    // 判断是否显示展开ICON，大分站下关联设备不显示ICON
+    this.isShowSelectIcon = (data) => {
+      if (data.deviceType !== 1 || data.childDevices.length === 0) return 'hide'
+      return ''
+    }
+
+    // 改变箭头的方向、显隐 
+    this.controlDisplay = (target, nodename) => {
+      let imgs = this.root.querySelectorAll('.img-sort')
+      imgs && imgs.forEach(img => img.classList.add('hide'))
+      if (!target) return
+      target = nodename === 'th' ? target : target.parentElement
+      target.querySelector('.img-sort') && target.querySelector('.img-sort').classList.remove('hide')
+    }
+
+    // 排序
+    this.sortRows = evt => {
+      const expandeds = this.root.querySelectorAll('.expanded')
+      const isExpanded = expandeds.length > 0 ? true : false
+      if (isExpanded) return // 大分站展开树状结构时 不能点击
+      const target = evt && evt.target
+      const nodename = target.nodeName.toLowerCase()      
+      const label = checkClick(target, nodename)
+      this.isAscending = label === this.sortBasic ? !this.isAscending : true
+      this.sortBasic = label   
+      if(!label) return //为‘操作’时label无值，不能点击
+      const labelIndex = this.labels.indexOf(label)
+      const name = this.names[labelIndex]
+      const type = this.types[labelIndex]
+      const sortType = getSortType(type, name)
+      this.lists = this.lists.sort(compare(name, sortType , this.isAscending ? null : 'reverse'))
+      this.update()
+      this.controlDisplay(target, nodename)
+    }
+
+    this.getInnerText = (name, row) => {
+      let index = this.names.indexOf(name)
+      let type = this.types[index]
+      let data = row[name]
+      return changeToTextByType(type, data, name, this.parent.name, row)
+    }
+
+    this.handleSelectAll = evt => {
+      let target = evt.target
+      let checked = target.checked
+      let handleID = target.id
+      if (!handleID) return
+      typeof this.parent.handleSelectAll === 'function' && this.parent.handleSelectAll(handleID, checked)
+    }
+
+    this.handleSelect = evt => {
+      let target = evt.target
+      let checked = target.checked
+      let data = evt.item.data
+      if (!data) return
+      typeof this.parent.handleSelect === 'function' && this.parent.handleSelect(data, checked)
+    }
+  
+    this.isChecked = (data, row) => {
+      return typeof this.parent.isChecked === 'function' && this.parent.isChecked(data, row)
+    }
+
+    this.edit = evt => {
+      typeof this.parent.edit === 'function' && this.parent.edit(evt.item.data)
+    }
+
+    this.updateRows = (rows) => {
+      this.datas = rows
+      this.lists = clone(this.datas)
+      this.update()
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.selectall = opts.selectall || false // 是否显示全选
+      this.selectallname = opts.selectallname
+      this.key = opts.key // 全选的主键
+      let fields = opts.fields
+      this.labels = fields.labels
+      this.names = fields.names
+      this.types = fields.types
+      this.operate = opts.operate || false // 是否显示编辑删除图标
+      this.isShowSerialnumber = opts.serialnumber || false // 是否显示序号
+      this.datas = opts.rows
+      this.lists = clone(this.datas)
+    }
+    
+    this.init(opts)
+  </script>
+</device-tree-table>

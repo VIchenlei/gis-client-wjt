@@ -1,0 +1,171 @@
+@import defs
+
+* 
+  margin: 0
+  padding: 0
+  box-sizing: border-box
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "WenQuanYi Micro Hei", "Hiragino Sans GB", "Helvetica Neue", Arial, "lucida grande", "lucida sans unicode", lucida, helvetica, sans-serif
+
+html, body
+  font-size: 100px
+  @include wh(100%, 100%)
+  overflow: hidden
+
+.page-container
+  @include wh(100%, 100%)
+  position: relative
+  display: flex
+  perspective: 2000px
+  transform-style: preserve-3d
+  
+.node-hide
+  visibility: hidden
+
+.node-show
+    visibility: visible
+
+.hide
+  display: none !important
+
+@media screen and (min-width: 769px) 
+  .hide-on-pc
+    display: none !important
+
+img
+  @include wh(auto,.14rem)
+
+ul
+  list-style: none
+
+input
+  border: 0
+  border-bottom: 1px solid $color-ccc
+  background: none
+  @include wh(2rem, .35rem)
+  outline: none
+.hide
+  display: none !important
+.disabled
+  cursor: not-allowed !important
+
+.dlg-bg
+  position: absolute
+  z-index: 999
+  @include wh(100%, 100%)
+  @include flex-column-center-center
+  background: rgba(0, 0, 0, .7)
+.dlg-window
+  background: $color-light-grey
+  @include flex-column-center-center
+
+button
+  @include wh(.8rem, .3rem)
+  border: none
+  color: $font-white
+  background: $color-main
+  cursor: pointer
+.btn-sure:hover
+  background: $color-sure
+.btn-cancel:hover
+  background: $color-cancel
+.btn-alarm
+  background: rgba(255,204,49,0.10)
+  color: $alarm-color 
+
+table
+  @include wh(100%, 100%)
+  text-align: center
+  border-collapse: collapse
+  thead
+    background: $color-grey-xs
+  tbody
+    overflow-y: auto
+    max-height: 3rem
+  tr
+    table-layout: fixed
+  td, th
+    max-width: 1.6rem
+    overflow: hidden
+    text-overflow: ellipsis
+    white-space: nowrap
+    padding: .05rem 0
+
+  
+/*------- scroll style ---------*/
+.grey-scroll::-webkit-scrollbar
+  width: 8px
+  height: 8px
+  background-color: #f5f5f5
+.grey-scroll::-webkit-scrollbar-thumb
+  // border-radius: 10px
+  background-color: #555
+.grey-scroll::-webkit-scrollbar-track
+  // border-radius: 10px
+  background-color: #f5f5f5
+
+/*------- report scroll style ---------*/
+.report-scroll::-webkit-scrollbar
+  height: 5px
+  background-color: #B3B3B3
+.report-scroll::-webkit-scrollbar-thumb
+  border-radius: 10px
+  width: 2px
+  background-color: #555
+.report-scroll::-webkit-scrollbar-track
+  border-radius: 10px
+  background-color: #B3B3B3
+  
+.icon
+  @include wh(0.16rem,0.16rem)
+  display: inline-block
+  fill: #fff
+  cursor: pointer
+
+.black-icon
+  	fill: #3f3f3f
+    opacity: 0.8
+  	&:hover
+  		  fill: #0099ff
+.error-message
+    color: #F00
+    display: flex
+    justify-content: center
+    align-items: center 
+    height: 0.32rem
+
+/*------- background change ---------*/
+#black 
+  .page-header,.panel-switcher,.map-side-bar .map-side-nav, .topic-main .topic-title,.page-footer,.sidebar,.over-view-title
+      background: $disabled-color
+  .map-side-bar .map-side-nav span .icon
+      fill: $color-white 
+  .map-side-bar .topic-main .topic-title
+      background: #4A4E53
+      color: #fff
+  .map-side-bar .topic-main #topic_panel
+      background: #50565D
+  #topic_panel .group-list
+      border-bottom: 1px solid #50565D
+  #topic_panel .group-list, #topic_panel .hm-item p:nth-child(1)
+      color: #A3A6A8
+  .group-list-container .detail-panel .detail-list-title
+      background: #74797D
+      color: #fff
+  .group-list-container .detail-panel .detail-list-item
+      background: #129FFF
+  .ol-viewport
+      background: #5D6267
+  .map-sidebar .map-side-bar span .icon.active
+      fill: $btn-bg
+  .page-foot,.sidebar
+      color: $color-white
+
+// hide on mobile
+.hide-on-mb
+  @media screen and (max-width: $width-medium)
+    display: none !important
+
+// hide on pc
+.hide-on-pc
+  @media screen and (min-width: $width-medium)
+    display: none !important

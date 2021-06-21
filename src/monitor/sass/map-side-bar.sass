@@ -1,0 +1,158 @@
+@import '../../style/defs'
+
+.map-side-bar
+    overflow: hidden
+    display: flex
+    border: 1px solid #0099ff
+    box-shadow: 0 1px 6px 1px #009FFF
+    width: 3.7rem
+    flex-flow: row nowrap
+    flex: auto
+    font-size: 0.08rem
+    color: #fff
+    text-align: center
+    padding: 0.16rem 0.16rem 0.16rem 0
+    background-color: #003366
+    .topic-main
+        flex: auto
+        display: flex
+        flex-flow: column
+        overflow: hidden
+        .call p
+            display: flex
+            justify-content: space-between
+        .topic-title
+            @include align-center-middle
+            flex: 0 0 0.24rem
+            color: #fff
+            background: url(http://localhost:8090/img/tixing.png) no-repeat
+            background-size: 3.2rem 0.48rem
+            letter-spacing: 5px
+            font-size: $font-m
+        #topic_panel
+            overflow-y: auto
+            overflow-x: hidden
+            .detail-panel
+                .detail-list
+                    margin: 0
+                    padding: 5px
+                    font-size: $font-xs
+                    span
+                        text-align: center
+                        text-overflow: ellipsis
+                    span:nth-child(1)
+                        flex: 0 0 0.56rem
+                    .vehicle-topic
+                        flex: 0 0 0.64rem
+                    .vehicle-topic-speed
+                        flex: 0 0 0.48rem
+                        text-align: end
+                    span:last-child
+                        flex: auto
+                    .staff-topic-date
+                        flex: 0 0 0.96rem
+                    .staff-topic-null
+                        flex: 0
+                .detail-list-title
+                    display: flex
+                    font-weight: bold
+                    background: #0082d9
+                    color: #efefef
+                    span:nth-child(2)
+                        flex: 0 0 0.5rem
+                    span:nth-child(3)
+                        flex: 0 0 0.5rem
+
+                .detail-list-item
+                    cursor: pointer
+                    border-bottom: 1px solid #f5f5f5
+                    background: #ffffff
+                    color: #000000
+                    img
+                        width: 15px
+                        height: 15px
+                    p:nth-child(1)
+                        display: flex
+                        span:nth-child(5)
+                            flex: 0 0 1rem
+                            display: flex
+                            justify-content: center
+                    p:nth-child(2)
+                        text-align: right
+            .content-coal-cutting
+                height: 0.32rem
+                line-height: 0.32rem
+                display: flex
+                justify-content: space-around
+                padding: 0 0.16rem
+                span:nth-child(1)
+                    flex: 0 0 1.12rem
+                span:nth-child(2)
+                    flex: 0 0 0.8rem
+                .icon
+                    fill: #999
+                    &:hover,&.active
+                        fill: #09F
+            .callingList
+                display: flex
+                justify-content: space-around
+                span:nth-child(1)
+                    flex: 0 0 0.32rem
+                span:nth-child(2),span:nth-child(3)
+                    flex: 0 0 0.48rem
+                span:nth-child(4)
+                    flex: 0 0 0.32rem
+                    cursor: pointer
+                    &:hover
+                        color: #09F
+            .call
+                padding: 0.16rem 0
+                .nav-title
+                    justify-content: space-around
+                    color: #999
+                    span
+                        white-space: nowrap
+        .callingList
+            display: flex
+            height: 0.32rem
+            padding: 0.08rem 0
+            color: #efefef
+            span
+                flex: 1
+                text-align: center
+            span:nth-child(4)
+                cursor: pointer
+                &:hover
+                    color: #09F
+        thead
+            color: #efefef
+        tbody
+            background: none
+            color: #efefef
+        
+    .nav-bar
+        flex: 0 0 0.48rem
+        display: flex
+        flex-flow: column
+        .panel-switcher
+            flex: 0 0 0.384rem
+            display: flex
+            justify-content: center
+            align-items: center 
+            .icon-caret-left
+                background-image: url('/img/icon.png')
+                background-size: 1.77rem 2.44rem
+                background-position: -0.04rem -1.7rem
+                cursor: pointer
+            .icon-caret-right
+                background-image: url('/img/icon.png')
+                background-size: 1.77rem 2.44rem
+                background-position: -0.04rem -1.98rem
+                cursor: pointer
+.map-side-bar-narrow
+    flex: 0 0 0.65rem
+    width: 0.5rem
+
+.map-side-bar-full
+    flex: auto
+    width: 3.9rem

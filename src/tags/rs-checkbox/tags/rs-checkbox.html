@@ -1,0 +1,187 @@
+<rs-checkbox class="rs-checkbox hide">
+  <div if={tableName !== 'dat_role'}>
+    <span class="text-field-label">{text}</span>
+    <rs-checkbox-list data-list={lists} data-checked={checkedMenus} data-key={dataKey} data-all={dataAll}></rs-checkbox-list>
+  </div>
+  <div if={tableName === 'dat_role'} each={item in roleList}>
+    <span class="text-field-label">{item.title}</span>
+    <rs-checkbox-list data-list={item.list} data-checked={checkedMenus} data-key={dataKey} data-all={dataAll}></rs-checkbox-list>
+  </div>
+  <script>
+    import '../sass/rs-checkbox.sass'
+    import '../tags/rs-checkbox-list.html'
+    import { checkPerson } from '../../../js/utils/utils.js'
+    import  { AREABUSINESS } from '../../../config/js/area_business.js'
+
+    let self = this
+
+    const LISTTITLE = {
+      'depts': 'dept',
+      'business_type': 'area_business',
+      'access_id': 'dept'
+    }
+
+    const LISTINDEX = {
+      'menus': 3,
+      'depts': 2,
+      'business_type': 3,
+      'access_id': 5
+    }
+
+    this.updateSelect = (selectIndex) => {
+      let selectbusiness = AREABUSINESS[selectIndex]
+      this.tags['rs-checkbox-list'].updateSelect(selectbusiness)
+    }
+
+    this.getPersonArea = () => {
+      let areaID = this.parent.getKeyValue instanceof Function && this.parent.getKeyValue()
+      areaID = Number(areaID)
+      return checkPerson(areaID)
+    }
+
+    this.getBusiness = () => {
+      let value = []
+      let isPersonBusiness = false
+      let isPersonArea = false // 是否是人员考勤区域
+      if (this.parent && this.parent.tableName === 'dat_area') {
+        isPersonArea = this.getPersonArea()
+      }
+      for (let i = 0; i < this.lists.length; i++) {
+        let list = this.lists[i]
+        let key = list.area_business_id
+        let input  = this.root.querySelector(`.list${key}`)
+        let label = input.nextElementSibling
+        let checked = label.getAttribute('class') === 'selected' ? 1 : 0
+        // if (key === 0) checked = 0
+        if (i === 4 && checked === 1) {
+          isPersonBusiness = checkPerson()
+          // if (isPersonBusiness && !isPersonArea) continue
+        }
+        value.push(checked)
+      }
+      if (isPersonBusiness && !isPersonArea) {
+        let msg = {
+          type: 'warning',
+          message: '不允许多个区域绑定人员考勤业务！'
+        }
+        return window.xMessage.open(msg)
+      }
+      value = value.reverse().join('')
+      value = parseInt(value, 2)
+      return value
+    }
+
+    this.storeMenu = (evt) => {
+      let target = evt.target
+      let nodeName = target.nodeName
+      let input = null
+      let labelTag = null
+      if (nodeName === 'LABEL') {
+        if (target.classList.contains('checkbox-text')) {
+          input = target.previousElementSibling.firstElementChild
+          labelTag = target.previousElementSibling.lastElementChild
+        } else {
+          input = target.previousElementSibling
+          labelTag = target
+        }
+        
+      } else if (nodeName === 'INPUT') {
+        input = target
+      }
+      if (!input) return
+      if (input.disabled) return
+      let isChecked = input.checked
+      let checkID = input.id
+      let isShow = isChecked
+      if (parseInt(checkID, 10) === 5) xbus.trigger('RULE-CHANGE', {isShow})
+      isChecked ? this.menus.set(checkID, true) : this.menus.delete(checkID)
+      if (!labelTag) return
+      if (!isChecked) {
+        labelTag.classList.remove('unselected')
+        labelTag.classList.add('selected')
+      } else {
+        labelTag.classList.remove('selected')
+        labelTag.classList.add('unselected')
+      }
+    }
+
+    this.checkMenus = () => {
+      let parent = this.parent
+      let index = LISTINDEX[this.ref]
+      let menus = parent.rows[index].field_value
+      if (this.ref === 'menus') {
+        let value = parent.rows[2].field_value
+        if (value !== 2) return
+      }
+      if (this.ref === 'menus' || this.ref === 'depts' || this.ref === 'access_id') {
+        menus = menus && menus.toString().split(';')
+        menus && menus.forEach(menu => {
+          self.menus.set(menu, true)
+        })
+      } else if (this.ref === 'business_type') {
+        menus = menus && menus.toString(2).padStart(12, 0).split('').reverse()
+        let selectIndex = parent.selectedIndex
+        this.selectbusiness = AREABUSINESS[selectIndex]
+      }
+      this.checkedMenus = menus
+    }
+
+    //获取复选框数据
+    this.getLists = () => {
+      if (LISTTITLE.hasOwnProperty(this.ref)) {
+        this.root.classList.remove('hide')
+        let listname = LISTTITLE[this.ref]
+        let lists = xdata.metaStore.data[listname]
+        lists = lists && Array.from(lists.values())
+        if (!lists) return
+        this.lists = lists
+      } else if (this.ref === 'menus') {
+        let menuList = new Map(), fastList = new Map()
+        let menus = xdata.metaStore.data.menu
+        menus = menus && Array.from(menus.values())
+        if (!menus) return
+        menus.forEach(menu => {
+          let menuID = menu.menu_id
+          if (/^KJ/.test(menuID)) {
+            fastList.set(menuID, menu)
+          } else {
+            menuList.set(menuID, menu)
+          }
+        })
+        this.menuList = Array.from(menuList.values())
+        this.fastList = Array.from(fastList.values())
+        this.roleList = [{
+          title: '可用菜单',
+          list:this.menuList
+        },{
+          title: '可用快捷按钮',
+          list:this.fastList
+        }]
+      }
+    }
+
+    this.init = (opts) => {
+      let msg = opts.data
+      this.parenTag = this.parent.parenTag
+      this.tableName = opts.dataName
+      this.text = msg.field_label
+      this.fileName = msg.field_name
+      this.fieldType = msg.field_type
+      this.ref = opts.ref
+      this.disabled = opts.disabled
+      this.dataKey = this.tableName === 'dat_area' ? 'area_business_id' : 'dept_id'
+      this.dataAll = this.tableName === 'dat_user' && '全矿所有'
+      if (this.tableName === 'dat_role') this.dataKey = 'menu_id'
+      this.menus = new Map()
+      this.getLists()
+      this.checkMenus()
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.menus = null
+      this.checkedMenus = null
+    })
+  </script>
+</rs-checkbox>

@@ -1,0 +1,15 @@
+@import '../../style/defs'
+.rs-color
+  font-size: $font-xs
+  .rs-color-warp
+    @include wh(2.1rem, .48rem)
+    @include flex-between-center
+    border: 1px solid $color-border
+    border-radius: 4px
+    padding: 0 .1rem
+    background: $color-grey-xs
+    cursor: pointer
+    input
+      @include wh(.36rem, .2rem)
+      border-bottom: none
+      cursor: pointer

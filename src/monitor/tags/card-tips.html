@@ -1,0 +1,240 @@
+<card-tips class="card-tips">
+  <div class="card-tips-container">
+    <rs-title title={ title }></rs-title>
+    <div class="card-tips-body">
+      <div class="card-tips-title">
+        <span>基本信息</span>
+      </div>
+      <div class="card-tips-content">
+        <div class="content-block">
+          <div>
+            <p each={ name, i in names } class="content-block-label">
+              <span class="lable">{ labels[i] }：</span>
+              <span class="value">{ info[name] }</span>
+            </p>
+          </div>
+          <div>
+            <img src={ info.pic }>
+          </div>
+        </div>
+      </div>
+      <div class="card-tips-title">
+        <span>当前状态</span>
+      </div>
+      <div class="card-tips-content status">
+        <p each={ name, i in statusNames } class="content-block-label" if={ isShow(name) }>
+          <span class="lable">{ statusLabels[i] }：</span>
+          <span class="value">
+            <img if={ name==='map_pos' } class="location" src="/img/location.png">
+            <span title={ state[cardState[name]] }>{ state[cardState[name]] } { name === 'speed' ? sunit : '' }</span>
+            <span if={ name==='driver' } title={ state[19] }>({ state[19] })</span>
+          </span>
+        </p>
+      </div>
+
+      <div class="card-tips-title" if={ personOnCar }>
+        <span>车上人员</span>
+      </div>
+      <div class="person-oncar grey-scroll" if={ personOnCar }>
+        <rs-table-icon-btn 
+          fields={personOnCarDef} 
+          rows={personList} 
+          key="staff_id">
+        </rs-table-icon-btn>
+      </div>
+      
+    </div>
+    <div class="card-tips-foot">
+      <card-opbar if={ info } cardid={id} cardtypeid={cardTypeID} needhide="1"></card-opbar>
+    </div>
+  </div>
+  <script>
+    import '../sass/card-tips.sass'
+    import { getShowPoint } from '../../js/map/OlMapUtils.js'
+    import { cardsDef, currentStatusDef, cardState, personOnCarDef } from '../js/card_tips_def.js'
+    import { CARD } from '../../js/def/state.js'
+    import { AREA_DEEP } from '../../js/def/area_deep_def.js'
+
+    this.isCMJ = false
+    const CMJTYPE = 25
+    const JJJTYPE = 26
+
+    this.position = (msg) => {
+      let point = getShowPoint(msg.event, this.root)
+      this.root.style.left = `${point.x}px`
+      this.root.style.top = `${point.y}px`
+    }
+
+    /*是否显示*/
+    this.isShow = (name) => {
+      if (name === 'down_time' && this.cardtype === 'vehicle' && this.isCMJ) return false
+      return true
+    }
+
+    xbus.on('HIDE-ALL-POPUP', () => {
+      this.close()
+    })
+
+    this.getPersonOnCar = () => {
+      let list = this.info && xdata.PersonOnCarStore.personOnCarDetail.get(this.info.card_id)
+      let personList = []
+      if (list) {
+        for (let i = 0; i < list.length; i++) {
+          personList.push({
+            staff_id: list[i][0],
+            name: list[i][1],
+            card_id: list[i][2],
+            dept_id: list[i][3],
+          })
+        }
+      }
+      this.personList = personList
+      this.personOnCar = this.personList && this.personList.length > 0 && true
+    }
+
+    this.updatePersonOnCarList = () => {
+      this.getPersonOnCar()
+      const rsTableTag = this.tags['rs-table-icon-btn']
+      rsTableTag && rsTableTag.updateRows(this.personList)
+    }
+
+    xbus.on('PERSON-ONCAR-UPDARE', () => {
+      this.updatePersonOnCarList()
+    })
+
+    xbus.on('HIS-POSITION-DATA', (msg) => { // 监听历史数据变化
+      this.hisPosData = msg.data
+      let stateData = this.hisPosData
+      this.state = xdata.metaStore.formatStateArray(this.stateDef, stateData, null)
+      this.update()
+    })
+
+    //隐藏对话框
+    this.close = () => {
+      this.unmount(true)
+    }
+
+    this.hide = this.close
+
+    this.on('mount', () => {
+      let msg = {
+        target: this.root,
+        handle: this.root.querySelector('.rs-title')
+      }
+      window.setDraggable(msg)
+    })
+
+    this.horizontalToGeographic = (x, y) => {
+      let xcoord = (36.15072107 + 1.93 * Math.pow(10, -8) * (-x - 4677)).toFixed(8)
+      let ycoord = (112.99159417 - 1.97 * Math.pow(10, -8) * (y + 194)).toFixed(8)
+      return [xcoord, ycoord]
+    }
+
+    this.getTel = (driver) => {
+      let driverID = driver.staff_id
+      let staff = xdata.metaStore.data.staff && xdata.metaStore.data.staff.get(driverID)
+      let tel = staff && staff.telephone
+      return tel
+    }
+
+    // 按区域获取对象海拔
+    this.getCardDeep = (areaID, cardID, speed) => {
+      if (speed === 0) { // 静止不动
+        return this.cardDeep.get(cardID)
+      }
+      let areaDeepObj = AREA_DEEP[areaID]
+      let deep = ''
+      if (areaDeepObj) {
+        let m = areaDeepObj['max_deep']
+        let n = areaDeepObj['min_deep']
+        deep = Math.random() * (m - n) + n
+      }
+      deep = deep ? deep.toFixed(3) : deep
+      this.cardDeep.set(cardID, deep)
+      return deep
+    }
+
+    /*push数据，司机、电话、经纬度、海拔*/
+    this.dealStates = (stateData) => {
+      if (this.state[3] && this.state[4]) {
+        let geoCoordinate = this.horizontalToGeographic(this.state[3], this.state[4])
+        this.state[3] = geoCoordinate[0]
+        this.state[4] = geoCoordinate[1]
+      }
+      let vehicleNumber = stateData[CARD.object_id]
+      let driver = xdata.metaStore.getVehicleDriver(vehicleNumber)
+      let driverName = driver ? driver.name : ''
+      let tel = driver ? this.getTel(driver) : ''
+      this.state.push(driverName)
+      this.state.push(tel)
+      let cardDeep = this.getCardDeep(stateData[CARD.area_id], stateData[CARD.card_id])
+      this.state.push(`${cardDeep}米`)
+    }
+
+    xbus.on('CARD-UPDATE-MONITOR', (msg) => {
+      if (this.state && msg.card[CARD.card_id] === this.id) {
+        let stateData = msg.card
+        this.state = xdata.metaStore.formatStateArray(this.stateDef, stateData, null)
+        this.dealStates(stateData)
+        this.update()
+      }
+    })
+
+    this.init = (opts) => {
+      this.personOnCar = false
+      this.personOnCarDef = personOnCarDef.fields
+
+      this.cardDeep = new Map()
+      let msg = opts.message
+      this.id = msg.id
+      this.cardtype = msg.cardtype
+      this.title = this.cardtype === 'vehicle' ? '车辆信息' : '人员信息'
+
+      // CMJ
+      let vehicle = this.cardtype === 'vehicle' ? xdata.metaStore.getCardBindObjectInfo(this.id) : ''
+      let vehicleType = vehicle ? vehicle.vehicle_type_id : ''
+      this.isCMJ = (vehicleType === CMJTYPE || vehicleType === JJJTYPE) ? true : false
+      this.sunit = this.isCMJ ? 'm/min' : 'Km/h'
+
+      let infoDef = msg.info.def
+      let infoData = msg.info.rec
+      this.info = xdata.metaStore.formatRecord(infoDef, infoData, null)
+      // 设置照片路径
+      if (this.info) {
+        let pic = this.info.pic
+        this.info.pic = pic ? '/resource/' + this.cardtype + '/' + pic : '/img/pic' + this.cardtype + '.png'
+        // this.info.pic = '/img/pic' + this.cardtype + '.png'
+      }
+      let fields = cardsDef[msg.cardtype].fields
+      this.names = fields.names
+      this.labels = fields.labels
+
+      let stateData = msg.state.rec
+
+      // 卡类型 ID
+      this.cardTypeID = stateData && stateData[1]
+      this.stateDef = msg.state.def
+      this.state = xdata.metaStore.formatStateArray(this.stateDef, stateData, null)
+      this.dealStates(stateData)
+
+      this.statusNames = currentStatusDef[this.cardtype].fields.names
+      this.statusLabels = currentStatusDef[this.cardtype].fields.labels
+
+      this.cardState = cardState
+      this.position(msg)
+      if (!window.isPC) {
+        this.root.style.top = '50%'
+        this.root.style.marginTop = `-${this.root.offsetHeight/2}px`
+      } 
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      xbus.off('CARD-UPDATE-MONITOR')
+      xbus.off('HIDE-ALL-POPUP')
+      xbus.off('PERSON-ONCAR-UPDARE')
+      xbus.off('HIS-POSITION-DATA')
+    })
+  </script>
+</card-tips>

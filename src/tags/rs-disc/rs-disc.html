@@ -1,0 +1,180 @@
+<!--
+  /**
+  *coords: 天线1、天线2坐标集合,不传天线坐标为默认值
+  *colors:[] 配置天线颜色
+  */
+-->
+<rs-disc class="rs-disc">
+  <div class="disc-wrap">
+    <canvas class="canvas" width="120" height="120"></canvas>
+    <div class="circle">
+      <img src="/img/reader.png" alt="">
+    </div>
+  </div>
+  <script>
+    import './rs-disc.sass'
+    import { Circle, getAantennaAngle, getOffsetLeft, getOffsetTop, check, spotchange, getmoveto, respotchange, getCanvasList } from './rs-disc.js'
+
+    const colors = ['#FFAA03', '#0AB300'] // 配置天线
+    this.width = 120
+    this.height = 120
+    let circles = [] // 储存canvas 清除之前的信息 便于重新绘制
+    let canvas = null
+    let context = null
+    let isDragging = false //控制能拖动圆球
+    let previousSelectedCircle
+    let index = null // 选中圆球索引 
+
+    this.on('mount', () => {
+      let rsDisc = this.root.querySelector('.disc-wrap') && this.root.querySelector('.disc-wrap').parentNode
+      rsDisc.style.width = `${this.width}px`
+      rsDisc.style.height = `${this.width}px`
+      this.pathRadius = 50 //滑动路径半径
+      canvas = this.root.querySelector('.canvas') //获取canvas对象
+      this.context = canvas.getContext('2d')
+
+      canvas.addEventListener('mousedown', this.canvasClick.bind(this), false)
+      canvas.addEventListener('mousemove', this.dragCircle.bind(this), false)
+      canvas.addEventListener('mouseup', this.stopDragging.bind(this), false)
+
+      colors.forEach((color, i) => {
+        this.coords[i] && this.addRandomCircle(this.coords[i].x, this.coords[i].y, color)
+      })
+
+      for (var i = 0; i < circles.length; i++) {
+        let circle = circles[i]
+        if (circle.color === colors[i]) index = i
+      }
+    })
+
+    //初始化圆盘
+    this.addRandomCircle = (x, y, color) => {
+      // 为圆圈计算一个随机大小和位置
+      const radius = 6
+
+      // 创建一个新圆圈
+      const circle = new Circle(x, y, radius, color)
+      // 把它保存在数组中
+      circles.push(circle)
+      // 重新绘制画布
+      this.drawCircles()
+    }
+
+    //绘制圆盘
+    this.drawCircles = (x, y) => {
+      // 清除画布，准备绘制
+      this.context.clearRect(0, 0, canvas.width, canvas.height)
+      this.context.beginPath()
+      this.context.lineWidth = 1
+      this.context.arc(60, 60, 50, Math.PI * 0, Math.PI * 2, false) // 绘制内层圆弧
+      this.context.strokeStyle = '#0078b4'
+      this.context.stroke()
+
+      this.context.beginPath()
+      this.context.arc(60, 60, 50, Math.PI * 0, Math.PI * 2, false) // 绘制外侧圆弧
+      this.context.strokeStyle = '#0099FF '
+      this.context.lineCap = "round"
+      this.context.lineWidth = 4
+      this.context.stroke()
+
+      // 遍历所有圆圈
+      for (let i = 0; i < circles.length; i++) {
+        const circle = circles[i]
+        if (circle.isSelected && x && y) {
+          if (circle.color === colors[i]) index = i
+          circle.x = x
+          circle.y = y
+        }
+        //绘制圆点与中心连接线段
+        this.context.beginPath()
+        this.context.moveTo(60, 60)
+        this.context.lineTo(circle.x, circle.y)
+        this.context.lineWidth = 2
+        this.context.strokeStyle = circle.color
+        this.context.stroke()
+        // 绘制圆圈
+        this.context.globalAlpha = 0.85
+        this.context.beginPath()
+        this.context.arc(circle.x, circle.y, circle.radius, 0, Math.PI * 2)
+        this.context.fillStyle = '#fff'
+        this.context.strokeStyle = circle.color
+
+        this.context.lineWidth = circle.isSelected ? 2 : 1
+        this.context.fill()
+        this.context.stroke()
+      }
+    }
+
+    // 点击圆盘选中圆球
+    this.canvasClick = (e) => {
+      // 取得画布上被单击的点
+      const clickX = e.pageX - getOffsetLeft(canvas)
+      const clickY = e.pageY - getOffsetTop(canvas)
+      // 查找被单击的圆圈
+      for (let i = circles.length - 1; i >= 0; i--) {
+        const circle = circles[i]
+        //使用勾股定理计算这个点与圆心之间的距离
+        const distanceFromCenter = Math.sqrt(Math.pow(circle.x - clickX, 2) + Math.pow(circle.y - clickY, 2))
+        // 判断这个点是否在圆圈中
+        if (distanceFromCenter <= circle.radius) {
+          // 清除之前选择的圆圈
+          if (previousSelectedCircle != null) previousSelectedCircle.isSelected = false
+          previousSelectedCircle = circle
+
+          //选择新圆圈
+          circle.isSelected = true
+
+          // 使圆圈允许拖拽
+          isDragging = true
+
+          //更新显示
+          this.drawCircles()
+
+          //停止搜索
+          return
+        }
+      }
+    }
+
+    // 选取天线圆盘中的圆点执行拖动圆点绕圆运动的函数 
+    this.dragCircle = (e) => {
+      // 判断圆圈是否开始拖拽
+      const a = {}
+      if (isDragging == true) {
+        a.x = e.clientX - getOffsetLeft(canvas)
+        a.y = e.clientY - getOffsetTop(canvas)
+        const b = spotchange(a)
+        // 判断拖拽对象是否存在
+        if (previousSelectedCircle != null) {
+          // 取得鼠标位置
+          const x = e.pageX - getOffsetLeft(canvas)
+          const y = e.pageY - getOffsetTop(canvas)
+          if (check(b.x, b.y)) {
+            // 将圆圈移动到鼠标位置
+            previousSelectedCircle.x = x
+            previousSelectedCircle.y = y
+            const co = getmoveto(b.x, b.y, isDragging, this.pathRadius)
+            const tar = respotchange(co)
+            const o = co.z
+            // 更新画布
+            this.drawCircles(tar.x, tar.y)
+          }
+        }
+      }
+    }
+
+    //停止拖动圆球坐标换算为天线坐标
+    this.stopDragging = () => {
+      isDragging = false
+      const b = circles[index]
+      const angle = getAantennaAngle(60, 60, b.x, b.y) //60 60为圆盘中心坐标，根据canvas宽高而定
+      typeof this.parent.stopDragging === 'function' && this.parent.stopDragging(angle, index)
+    }
+
+    this.init = (opts) => {
+      this.coords = getCanvasList(opts.coords, opts.message, opts.cmd)
+    }
+
+    this.init(opts)
+  </script>
+</rs-disc>

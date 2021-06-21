@@ -1,0 +1,33 @@
+<tool-tips-checkbox>
+  <div class="tips-checkbox">
+    <span class="label">{ label }：</span>
+    <span class="value">
+      <input name={ name } type="checkbox" onchange={ change } checked={ isCheck() }> 
+    </span>
+  </div>
+  <script>
+    import '../sass/tool-tips-checkbox.sass'
+    import { checkboxDef } from '../js/tips_checkbox_def.js'
+ 
+    /*获取选中状态*/
+    this.isCheck = () => {
+      return typeof this.parent.isCheck === 'function' && this.parent.isCheck(this.name)
+    }
+
+    /*修改选中状态*/
+    this.change = (evt) => {
+      let checked = evt.target.checked
+      let inputTaget = evt.target
+      inputTaget.checked = !checked
+      typeof this.parent.change === 'function' && this.parent.change(this.name, checked) 
+    }
+
+    this.init = (opts) => {
+      let name = opts.name
+      this.name = checkboxDef[name].name
+      this.label = checkboxDef[name].label
+    }
+
+    this.init(opts)
+  </script>
+</tool-tips-checkbox>

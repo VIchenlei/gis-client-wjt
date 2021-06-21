@@ -1,0 +1,407 @@
+<rs-table-icon-btn>
+  <div class="rs-table-icon-btn {classname} grey-scroll">
+    <table>
+      <thead>
+        <tr onclick={sortRows}>
+          <th if={ selectall } class="check">
+            <input if={isCheckbox} type="checkbox" name="selectall" ref={selectallname} id={selectallname} onchange={handleSelectAll}>
+            <label for={selectallname}>{labelname}</label>
+          </th>
+          <th each={label in labels} if={dealHideTds(label)}>
+            <span>{label}</span>
+            <img class="img-sort hide" src="/img/{isAscending ? 'angle-up.png' : 'angle-down.png'}">
+          </th>
+          <th class="locate" if={locate}>定位</th>
+          <th class="operate" if={btn}>操作</th>
+          <th if={operate}>操作</th>
+          <th if={showoperate}>轨迹跳转</th>
+        </tr>
+      </thead>
+      <tbody class="grey-scroll">
+        <tr each={data, index in datasList} onclick={switchData} class={getClassName(data)}>
+          <td class="check" if={ selectall }>
+            <input type="checkbox" checked={isChecked(data[key], data)} onchange={handleSelect}>
+          </td>
+          <td class={getClass(name, data)} 
+            each={name in names} 
+            if={dealHideTds(name)} 
+            title={showtitle ? getInnerText(name, data) : ''}
+            onclick={ showBatCurve }>
+            <span class="text" 
+              style="{isFillColor(name, data)}" 
+              data-index={index} 
+              onclick={handleOperate}>
+                {getInnerText(name, data)}
+            </span>
+          </td>
+          <td class="locate" if={locate} onclick={ toggleLocate } ><img class="icon { data.isLocating ? 'activated' : ''}" src="../img/{ data.isLocating ? 'locating.png' : 'location.png'}"></td>
+          <td  class="operate" if={btn}>
+            <button onclick={handleBtn}>{btn}</button>
+          </td>
+          <td if={operate}>
+            <span onclick={ edit } ref="edit" name={data[key]} aria-label="编辑">
+              <!-- <svg class="icon black-icon">
+                <use xlink:href="/icons/icons.svg#icon-edit"></use>
+              </svg> -->
+              <img src="/img/edit.png" alt="">
+            </span>
+            <span if={!isdeleteicon} onclick={ delete } ref="delete" name={data[key]} aria-label="删除">
+              <!-- <svg class="icon black-icon">
+                <use xlink:href="/icons/icons.svg#icon-delete-1"></use>
+              </svg> -->
+              <img src="/img/delete.png" alt="">
+            </span>
+          </td>
+          <td if={showoperate}>
+            <img id={data.card_id} numberId={ data.staff_id ? data.staff_id : data.vehicle_id } class="icon"
+              src="../img/track.png" data-start={data.start_time} data-end={data.end_time} title="播放轨迹" onclick={playtrack}>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
+
+  <script>
+    import '../sass/rs-table-icon-btn.sass'
+    import {changeToTextByType, checkClick, getSortType, compare} from '../../../js/utils/utils.js'
+
+    // 改变箭头的方向、显隐 
+    this.controlDisplay = (target, nodename) => {
+      let imgs = this.root.querySelectorAll('.img-sort')
+      imgs && imgs.forEach(img => img.classList.add('hide'))
+      if (!target) return
+      target = nodename === 'th' ? target : target.parentElement
+      target.querySelector('.img-sort') && target.querySelector('.img-sort').classList.remove('hide')
+    } 
+
+    // 排序
+    this.sortRows = evt => {
+      const target = evt && evt.target
+      const nodename = target.nodeName.toLowerCase()      
+      const label = checkClick(target, nodename)
+      this.isAscending = label === this.sortBasic ? !this.isAscending : true
+      this.sortBasic = label   
+      if(!label) return //为‘操作’时label无值，不能点击
+      const labelIndex = this.labels.indexOf(label)
+      const name = this.names[labelIndex]
+      const type = this.types[labelIndex]
+      const sortType = getSortType(type, name)
+      this.datasList = this.getDataList()
+      // this.parent.sortAllRows(name, sortType , this.isAscending ? null : 'reverse')
+      if (this.parent.sortAllRows instanceof Function) {
+        this.datasList = this.parent.sortAllRows(name, sortType , this.isAscending ? null : 'reverse')
+      } else {
+        this.datasList = this.datasList.sort(compare(name, sortType , this.isAscending ? null : 'reverse'))
+      }
+      this.update()
+      this.initSetOperate()
+      this.controlDisplay(target, nodename)
+    }
+
+    this.getClassName = (row) => {
+      if (row.classstate) return row.classstate
+      if (typeof this.parent.getClassName === 'function') return this.parent.getClassName(row)
+      return ''
+    }
+    
+    this.isFillColor = (name, row) => {
+      if (name === 'color') return `background: ${row[name]};`
+      return ''
+    }
+
+    this.edit = evt => {
+      typeof this.parent.edit === 'function' && this.parent.edit(evt.item.data)
+    }
+
+    this.showBatCurve = evt => {
+      typeof this.parent.handleOperate === 'function' && this.parent.handleOperate(evt)
+    }
+
+    this.delete = evt => {
+      evt.stopPropagation()
+      let target = evt.currentTarget
+      typeof this.parent.delete === 'function' && this.parent.delete(target, evt.item.data)
+    }
+
+    this.switchData = evt => {
+      let target = evt.currentTarget
+      typeof this.parent.switchData === 'function' && this.parent.switchData(target)
+    }
+
+    this.getScrollList = () => {
+      let from = this.from || 0
+      let to = this.to || (this.datas.length > 40 ? 40 : this.datas.length)
+      return this.resetList(from, to)
+    }
+
+    this.resetList = (from, to) => {
+      let datasList = []
+      for (; from < to; from ++) {
+        datasList.push(this.datas[from])
+      }
+      return datasList
+    }
+
+    this.handleScroll = (evt) => {
+      if (this.datas.length <= 0 || !opts.isscroll) return
+      const tbody = this.root.querySelector('tbody')
+      const tr = tbody.querySelector('tr')
+      const trHeight = tr ? tr.offsetHeight : 30
+      let scrollTop = evt.target.scrollTop,
+          tbodyHeight = tbody.offsetHeight,
+          contentHeight = trHeight * this.datas.length,
+          rowsInWindow = Math.ceil(tbodyHeight / trHeight),
+          above = rowsInWindow * 2,
+          below = rowsInWindow,
+          max = rowsInWindow * trHeight
+      let from = parseInt(scrollTop / trHeight) - above
+      if (from < 0) {
+        from = 0
+      }
+      let to = from + above + below + rowsInWindow
+      if (to > this.datas.length) {
+        to = this.datas.length
+      }
+      // this.lineHeightTop = from * trHeight
+      // this.lineHeightBottom = (this.datas.length - to) * trHeight
+      // this.paddingStyle = `padding-top: ${this.lineHeightTop}px; padding-bottom: ${this.lineHeightBottom}px;`
+      this.datasList = this.resetList(from, to)
+      this.from = from
+      this.to = to
+    }
+
+    this.handleSelectAll = evt => {
+      let target = evt.target
+      let checked = target.checked
+      let handleID = target.id
+      if (!handleID) return
+      typeof this.parent.handleSelectAll === 'function' && this.parent.handleSelectAll(handleID, checked)
+    }
+
+    this.handleSelect = evt => {
+      let target = evt.target
+      let checked = target.checked
+      let data = evt.item.data
+      if (!data) return
+      typeof this.parent.handleSelect === 'function' && this.parent.handleSelect(data, checked)
+    }
+  
+    this.isChecked = (data, row) => {
+      return typeof this.parent.isChecked === 'function' && this.parent.isChecked(data, row)
+    }
+
+    this.handleBtn = (evt) => {
+      let data = evt.item.data
+      typeof this.parent.handleBtn === 'function' && this.parent.handleBtn(data)
+    }
+
+    this.getInnerText = (name, row) => {
+      let index = this.names.indexOf(name)
+      let type = this.types[index]
+      let data = row[name]
+      if (['vehicle_type', 'area'].includes(this.parent.name) && name === 'att_rule_id') {
+        let ruleObj = xdata.metaStore.data.att_rule_vehicle_type && xdata.metaStore.data.att_rule_vehicle_type.get(row.vehicle_type_id)
+        data = ruleObj && ruleObj.att_rule_id
+      }
+      return changeToTextByType(type, data, name, this.parent.name, row)
+    }
+
+    this.updateRows = (rows) => {
+      this.datas = rows
+      this.datasList = this.getDataList()
+      this.update()
+      this.initSetOperate()
+    }
+
+    this.updateRowsFields = (msg) => {
+      this.datas = msg.data
+      this.datasList = this.getDataList()
+      let fields = msg.fields
+      this.labels = fields.labels ? fields.labels : this.labels
+      this.names = fields.names ? fields.names : this.names
+      this.types = fields.types ? fields.types : this.types
+      this.locate = msg.locate ? msg.locate : this.locate
+      this.selectallname = msg.selectallname ? msg.selectallname : this.selectallname
+      this.update()
+      this.initSetOperate()
+    }
+
+    /*获取td的class*/
+    this.getClass = (name, row) => {
+      let className = ''
+      if (this.showbat && name === 'card_id') className = 'islink'
+      if (name === 'color') className = 'color-label'
+      if (name === 'name' && row.hasOwnProperty('type_id') && row.type_id === 7) className = 'islink'
+      if (name === 'name' && row.hasOwnProperty('type_id') && [1,2].includes(row.obj_type_id)) className = 'redText'
+      return className
+    }
+
+    this.handleOperate = (evt) => {
+      typeof this.parent.handleOperate === 'function' && this.parent.handleOperate(evt, this.datas,this.selectallname)
+    }
+
+    /*处理是否隐藏某个td/th*/
+    this.dealHideTds = (name) => {
+      let isshow = true
+      if (this.hidetds ) {
+        let labels = this.hidetds.labels
+        let names = this.hidetds.names
+        isshow = (labels.includes(name)||names.includes(name)) ? false : true
+      }
+      return isshow
+    }
+
+    this.initSetOperate = () => {
+      if (this.operate && typeof this.parent.setOperate === 'function') {
+        let editTag = this.refs['edit']
+        let deleteTag = this.refs['delete']
+        if (editTag && deleteTag) this.parent.setOperate({editTag, deleteTag})
+      }
+    }
+
+    this.toggleLocate = (evt) => {
+      let id = evt.item.data.obj_id || evt.item.data[this.key]
+      let eventID = evt.item.data.event_id
+      let areaID = evt.item.data.area_id
+      if (this.selectallname.includes('light')) {
+        const readerID = evt.item.data.reader_id
+        areaID =  xdata.metaStore.data.reader && xdata.metaStore.data.reader.get(readerID).area_id
+      }
+      let areaObj = xdata.metaStore.data.area && xdata.metaStore.data.area.get(parseInt(areaID))
+      let mapID = areaObj && areaObj.map_id
+      if (mapID !== xdata.metaStore.defaultMapID) {
+        xbus.trigger('RESET-MAP', (mapID))
+      }
+      xbus.trigger('TOUCH-NAV', {
+        spName: 'sp_monitor',
+        msg: null
+      })
+      if (this.selectallname.includes('reader')) {
+        let message = {
+          id: [id],
+          type: 'ALARM',
+          mapType: 'MONITOR',
+          isVisible: true,
+          mapID: 5,
+        }
+        xbus.trigger('MAP-SHOW-READER', message)
+      } else if (this.selectallname === 'card') {
+        let card = xdata.cardStore.getLastState(id)
+        if (!card) {
+          let msg = {
+            type: 'error',
+            message: '当前井下没有此卡'
+          }
+          window.xMessage.open(msg)
+          return
+        }
+        let msg = {
+          cards: [id],
+          type: 'ALARM'
+        }
+        window.triggerLocating(msg)
+      } else if (this.selectallname === 'area') {
+        let areaID = evt.item.data.area_id
+        let message = {
+          type: 'ALARM',
+          mapType: 'MONITOR',
+          isVisible: true,
+          mapID: 5,
+          areas: [areaID]
+        }
+        xdata.locateStore.locates.set(id, true)
+        xdata.locateStore.locateAreas.set(areaID, 'alarm')
+        xbus.trigger('MAP-SHOW-AREA', message)
+      } else if (this.selectallname === 'traffic') {
+        let message = {
+          id: [id],
+          type: 'ALARM',
+          mapType: 'MONITOR',
+          isVisible: true,
+          mapID: 5,
+        }
+        xbus.trigger('MAP-SHOW-LIGHT', message)
+      } else if (this.selectallname.includes('light')) {
+        let message = {
+          id: [id],
+          type: 'ALARM',
+          mapType: 'MONITOR',
+          isVisible: true,
+          mapID: 5,
+        }
+        xbus.trigger('MAP-SHOW-LIGHT', message)
+      } else if (this.selectallname.includes('landmark')) {
+        let message = {
+          id: [id],
+          type: 'ALARM',
+          mapType: 'MONITOR',
+          isVisible: true,
+          mapID: 5,
+        }
+        xbus.trigger('MAP-SHOW-LANDMARK', message)
+      }
+      this.datas.forEach((item) =>{if(item.obj_id === id){item.isLocating = !item.isLocating}})
+      this.update()
+    }
+
+    this.playtrack = (evt) => {
+      let target = evt.currentTarget
+      let id = evt.target.getAttribute('id')
+      let numberId = evt.target.getAttribute('numberId')
+      let start_time = new Date(target.getAttribute('data-start')).getTime()
+      let end_time = target.getAttribute('data-end') ? new Date(target.getAttribute('data-end')) : new Date().getTime()
+      let obj = xdata.metaStore.data.vehicle.get(Number(numberId)) || xdata.metaStore.data.staff.get(Number(numberId))
+      let name = obj && obj.name
+      xbus.trigger('TRACK-FAST-OPERATE', {
+        id: id,
+        numberId: numberId,
+        name: name,
+        start_time: start_time,
+        end_time: end_time
+      })
+    }
+
+    this.getDataList = () => {
+      return this.datas
+      // return opts.isscroll ? this.getScrollList() : this.datas
+    }
+
+    this.on('mount', () => {
+      this.datas = opts.rows
+      // this.datasList = this.getDataList()
+      this.initSetOperate()
+    })
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.selectall = opts.selectall || false // 是否显示全选
+      this.selectallname = opts.selectallname
+      this.key = opts.key // 全选的主键
+      let fields = opts.fields
+      this.labels = fields.labels
+      this.names = fields.names
+      this.types = fields.types
+      this.locate = opts.locate || false // 是否需要定位图标
+      this.btn = opts.btname || false // 是否需要操作
+      this.operate = opts.operate || false //是否显示编辑删除图标
+      this.showbat = opts.showbat || false //是否显示电量曲线图
+      this.showtitle = opts.showtitle || false // 是否显示鼠标滑过title
+      this.hidetds = opts.hidetds || null // 隐藏的td名数组
+      this.isdeleteicon = opts.isdeleteicon || false // 是否显示删除图标
+      this.showoperate = opts.showoperate || false // 显示快速跳转历史轨迹
+      this.datas = opts.rows
+      this.isCheckbox = opts.ischeckbox || false // 是否显示全选框
+      this.labelname = opts.labelname || '全选'
+      this.classname = opts.class || ''
+      this.datasList = this.getDataList()
+    }
+    
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+      xbus.off('META-UPDATE-DB-RES')
+    })
+  </script>
+</rs-table-icon-btn>

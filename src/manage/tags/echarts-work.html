@@ -1,0 +1,159 @@
+<echarts-work>
+  <span class="insert" if={opts.name !== 'sanlv_schedule'}>
+    <svg class="icon insert-icon" aria-label='新增' onclick={ insert }>
+      <use xlink:href="/icons/icons.svg#icon-add"></use>
+    </svg>
+  </span>
+  <manage-search name={ opts.name }></manage-search>
+  <div class="echarts_work"></div>
+  <script>
+    import '../sass/echarts-work.sass'
+    import './manage-search.html'
+    import echarts from 'echarts'
+    import { calendar } from '../../js/def/graph_def.js'
+    import { manages } from '../../js/def/manage_def.js'
+    import { getRows, getMessage, messageTip } from '../../js/utils/utils.js'
+
+    let self = this
+
+    this.on('mount', () => {
+      this.root.classList.remove('hide')
+    })
+
+    /*查询数据返回结果*/
+    xbus.on('REPT-SHOW-RESULT', (ds) => {
+      if (ds.def.name) window.xhint.close()
+      if (ds.def.name === 'workface_scheduling_echarts') {
+        this.tags['manage-search'] && this.tags['manage-search'].splitData(ds.rows)
+      }
+    })
+
+    this.initEcharts = (data, monthValue, faceID, vehicleID) => {
+      const initdom = this.root.querySelector('.echarts_work')
+      if (!initdom) return
+      echarts.dispose(initdom)
+      const chart = echarts.init(initdom)
+      const time = monthValue
+      const msg = {
+        time: time,
+        data: data,
+        name: opts.name,
+        title: this.faceTypeID === 1 ? '计划刀数' : '计划排数',
+        type: this.faceTypeID
+      }
+      const option = calendar(msg)
+      chart.setOption(option)
+      chart.off('click')
+      chart.on('click', function (params) {
+        self.doChange(params, faceID, vehicleID)
+      })
+    }
+
+    this.doChange = (params, faceID, vehicleID) => {
+      let msg = null
+      const type = 'warning'
+      const schedule_date = params.data[0]
+      if (opts.name === 'sanlv_schedule') {
+        const hasData = params.data[2]       // 有无实际数据
+        const sanlvRealData = params.data[3] // 三率实际数值
+        const selectDate = params.data[0]          // 计划日期
+        const isOld = self.checkDay(selectDate, 'old') // 校验日期是否大于今天
+        if (hasData || isOld || !sanlvRealData) {
+          let tip = '当天有实际数据，不允许修改'
+          if (isOld) tip = '不能修改晚于今天的数据'
+          if (!sanlvRealData) tip = '当天没有计划值，请先进行排班'
+          const type = 'warning'
+          messageTip(tip, type)
+          return
+        }
+        msg = this.concatData(params, vehicleID)
+        self.faceTypeID === 1 ? msg['coalface_id'] = faceID : msg['drivingface_id'] = faceID
+      } else {
+        const selectDate = params.data[0]  // 计划日期
+        const isEarly = self.checkDay(selectDate, 'early') // 校验日期是否小于今天
+        if (isEarly) {
+          const tip = '不能操作今天之前的数据'
+          const type = 'warning'
+          messageTip(tip, type)
+          return
+        }
+        const startupTime = params.data[2] // 计划开机时长
+        const scheduleNum = params.data[3] // 计划排数、刀数
+        msg = {
+          schedule_startup_time: startupTime,
+          schedule_date: selectDate  // 计划日期
+        }
+        self.faceTypeID === 1 ? msg['schedule_mine_times'] = scheduleNum : msg['schedule_tunnelling_times'] = scheduleNum
+        self.faceTypeID === 1 ? msg['coalface_id'] = faceID : msg['drivingface_id'] = faceID
+      }
+      self.edit(msg)
+    }
+
+    this.checkDay = (day, type) => {
+      let isEarly = false
+      let today = `${new Date(new Date().getTime()).format('yyyy-MM-dd')} 00:00:00`
+      today = new Date(today).getTime()
+      day = new Date(day).getTime()
+      if (type === 'early') {
+        isEarly = day <= today ? true : false
+      } else {
+        isEarly = day > today ? true : false
+      }
+      return isEarly
+    }
+
+    this.concatData = (params, vehicleID) => {
+      const vehicle = xdata.metaStore.data.vehicle_extend && xdata.metaStore.data.vehicle_extend.get(this.vehicleID)
+      const deptID = vehicle && vehicle.dept_id
+      const startupDetail = {
+        vehicle_id: vehicleID,
+        start_up_time: params.data[0],
+        shut_down_time: params.data[0],
+        real_startup_time: '',
+        schedule_work_time: params.data[3],
+        dept_id: deptID
+      }
+      const regularDetail = {
+        vehicle_id: vehicleID,
+        detail_type: this.faceTypeID,
+        start_time: params.data[0],
+        end_time: params.data[0],
+        detail_value: '',
+        schedule_value: params.data[3],
+        dept_id: deptID
+      }
+      return this.name === 'his_startup_detail' ? startupDetail : regularDetail
+    }
+
+    this.edit = (data) => {
+      let def = opts.name === 'sanlv_schedule' ? manages[this.name] : manages[`${this.name}Update`]
+      let rows = getRows({ row: data }, def, this.maxid)
+      let msg = getMessage('UPDATE', rows, def, this.maxid)
+      if (opts.name === 'sanlv_schedule') msg.name = opts.name  
+      msg.currentTag = this.tags['manage-search']
+      this.parenTag.trigger('META-UPDATE-ROW', msg)
+    }
+
+    this.insert = () => {
+      let def = manages[this.name]
+      let rows = getRows(null, def, this.maxid)
+      let msg = getMessage('INSERT', rows, def, this.maxid)
+      if (opts.name === 'sanlv_schedule') msg.name = opts.name
+      msg.currentTag = this.tags['manage-search']
+      this.parenTag.trigger('META-INSERT-ROW', msg)
+    }
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+    })
+
+    this.init = (opts) => {
+      this.parenTag = opts.parenTag
+      this.faceTypeID = opts.name.includes('coalface') ? 1 : 2
+      this.name = this.faceTypeID === 1 ? 'coalfaceWork' : 'drivingfaceWork'
+    }
+
+    this.init(opts)
+
+  </script>
+</echarts-work>

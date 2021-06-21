@@ -1,0 +1,70 @@
+<!--
+  /**
+    * content: 主要内容
+    * tips: 提示内容
+    * cb: 点击确认回调函数
+    * dialogInput: 显示输入框的dialog
+    * defaultValue: 输入框默认值
+    * icon: 图标
+  */
+-->
+<rs-dialog class="rs-dialog">
+    <div class="dlg-bg animated">
+      <div class="dlg-window xhint-dialog animated zoomIn">
+  
+        <div class="dlg-body align-center" if={!dialogInput}>
+          <i></i>
+          <div class="xhint-tips">{ content }</div>
+          <p class="xhint-hint">{ tips }</p>
+        </div>
+
+        <div class="dlg-body align-center" if={dialogInput}>
+          <p class="xhint-tips">{ content }</p>
+          <p class="xhint-input">
+            <rs-text data-value={defaultValue} data-type="text" data-icon={icon}></rs-text>
+            <span>{ tips }</span>
+          </p>
+        </div>
+  
+        <div class="dlg-foot" onclick={handleEvt}>
+          <button if={isShow} each={btn in btns} data-name={btn.name}>{btn.label}</button>
+          <button if={!isShow} class="btn-sure" data-name="sure">确认</button>
+          <button class="btn-cancel" data-name="cancel">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      import './rs-dialog.sass'
+      import '../rs-btn/rs-btn.html'
+      import '../rs-text/rs-text.html'
+
+      this.close = () => {
+        this.unmount(true)
+      }
+
+      this.handleEvt = (evt) => {
+        const {target} = evt
+        const name = target.getAttribute('data-name')
+        let value = this.dialogInput && this.root.querySelector('input').value
+        value = opts.value || value
+        if (this.isShow) value = name
+        if (['sure', 'insert', 'update'].includes(name)) {
+          typeof this.cb === 'function' && this.cb(value)
+        } 
+        name && this.close()
+      }
+
+      this.init = (opts) => {
+        this.content = opts.content
+        this.tips = opts.tips,
+        this.cb = opts.cb
+        this.dialogInput = opts.dialogInput || false
+        this.defaultValue = opts.defaultValue
+        this.icon = opts.icon
+        this.isShow = opts.isShow || false
+        this.btns = opts.btns || null
+      }
+      this.init(opts)
+    </script>
+</rs-dialog>

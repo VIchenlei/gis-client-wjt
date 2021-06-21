@@ -1,0 +1,34 @@
+@import '../../style/defs'
+.power-levels
+  font-size: $font-xs
+  color: #333
+  .levels-title, .power-levels-header
+    @include flex-between-center
+    background: #fff
+    padding: .1rem
+    font-size: $font-m
+    margin-top: .03rem
+    .add_icon, .save
+      cursor: pointer
+  .power-levels-header
+    .levels-icon
+      @include flex-align-center
+      .icon
+        margin-left: .1rem
+      .icon-down
+        @include wh(.16rem, .08rem)
+        background-image: url('/img/icon.png')
+        background-size: 1.8rem 1.95rem
+        @include bp-hover(.02rem, -1.805rem, .02rem, -1.87rem)
+  .power-levels-content
+    background: #fff
+    .rs-text-field, .rs-select-field, .rs-date, .rs-color
+      margin-left: .2rem
+      vertical-align: bottom
+      .rs-select
+        position: absolute
+        width: 100%
+        box-shadow: 4px 4px 4px $color-grey-line
+  .real-header
+    font-size: $font-m
+    padding: .1rem

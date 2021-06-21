@@ -1,0 +1,265 @@
+<basic-battery-msg class="basic-battery-msg">
+  <div data-is="basic-head" data-title="设备电源"></div>
+  <div ref="content">
+    <span each={row in rows}>
+      <rs-text-field 
+        data={row} 
+        ref={row.field_name} 
+        data-name={tableName} 
+        data-oldvalue= {dealValue(row)} 
+        if={isShow(row)}>
+      </rs-text-field>
+      <rs-select-field 
+        data={row} 
+        ref={row.field_name} 
+        data-name={tableName} 
+        if={row.field_type === 'SELECT'}>
+      </rs-select-field>
+      <rs-date 
+        if={row.field_type === 'DATE'} 
+        ref={row.field_name} 
+        text={row.field_label} 
+        value={row.field_value}
+        data-oldvalue= {row.field_value} 
+        modifycb={changeDate}>
+      </rs-date>
+    </span>
+  </div>
+  <script>
+    import '../sass/basic-battery-msg.sass'
+    import  { getRows, trim, formatFieldValue, editDetail, composeUpdateDBReq, messageTip } from '../../js/utils/utils.js'
+    import { getTextValue } from '../../manage/js/utils.js'
+
+    this.handleDB = () => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认是否要更改信息？',
+        tips: '',
+        cb: this.save
+      })[0]
+    }
+    //选择下拉结果展示保存、按钮
+    this.chooseItem = (fieldName, index, target) => {
+      const value = target.getAttribute('name')
+      const oldValue = target.getAttribute('oldvalue')
+      const isSame = oldValue === value
+      if (typeof this.parent.hideFill === 'function') {
+        !isSame && this.parent.hideFill()
+      }
+    }
+
+    this.changeDate = (value, target) => {
+      let name = target.getAttribute('idname')
+      if (typeof this.parent.hideFill === 'function') {
+        !this.checkOldValue(name, value) && this.parent.hideFill()
+      }
+    }
+
+    this.checkOldValue = (name, value) => {
+      let oldValue = this.refs[name] && this.refs[name].root.getAttribute('data-oldvalue')
+      if (oldValue === null) oldValue = ''
+      return oldValue === value
+    }
+
+    this.leaveInput = (evt, tips) => {
+      let reg = null
+      let target = evt.currentTarget
+      let inputname = target.getAttribute('idname')
+      let type = target.getAttribute('data-type')
+      let value = target.value
+      value = trim(value)
+      const checkInput = {
+        device_power_id: (function (value) {
+          const data = xdata.metaStore.data.device_power.get(Number(value))
+          return data ? '该编号已存在' : ''
+        })(value)
+      }
+
+      if (checkInput[inputname]) tips = checkInput[inputname]
+      
+      if (typeof this.parent.hideFill === 'function') {
+        !this.checkOldValue(inputname, value) && this.parent.hideFill()
+      }
+
+      this.tips = tips
+      return tips
+    }
+
+    this.isShow = (row) => {
+      if (row.field_type === 'SELECT' || row.field_type === 'DATE') return false
+      return true
+    }
+
+    // 输入框值展示特殊处理
+    this.dealValue = (row) => {
+      const msg = {
+        row: row,
+        tableName: this.tableName,
+        cmd: this.cmd
+      }
+      let fieldValue = getTextValue(msg)
+      return fieldValue
+    }
+
+    this.save = () => {
+      let type = this.refs['content'].getAttribute('data-type')
+      type ? this.doUpdate() : this.doInsert()
+      this.parent.registerGlobalEventHandlers()
+    }
+
+    this.doInsert = () => {
+      const type = 'warning'
+      const xmsg = '输入的内容存在非法值，请检查输入项！'
+      if (this.tips) return messageTip(xmsg, type)
+      let fields = '', values = '', detail = '', sql = null, keyValue = null, limit = {}
+      for (let i = 0; i < this.rows.length; i++) {
+        let row = this.rows[i]
+        let { field_name, field_type, field_enableNull } = row
+        let fieldValue = null, textValue
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('oldvalue')
+          let value = this.refs[field_name].refs[field_name].getAttribute('name')
+          textValue = this.refs[field_name].refs[field_name].innerText
+
+          if (value && fieldValue !== value) fieldValue = value
+
+          if (!fieldValue || !(/\d/ig).test(fieldValue)) fieldValue = 0
+
+          if (!field_enableNull && fieldValue !== 0 && !fieldValue) return messageTip(xmsg, type)
+        } else {
+          fieldValue = this.refs[field_name].refs[field_name].value
+          if (!field_enableNull && !fieldValue) return messageTip(xmsg, type)
+          fieldValue = fieldValue === null ? fieldValue : formatFieldValue(field_type, fieldValue)
+          textValue = fieldValue
+        }
+        if (field_name === 'power_limit' || field_name === 'temperature_limit') {
+          limit[field_name] = fieldValue
+        }
+        if (i === 0) {
+          keyValue = fieldValue
+        } else {
+          fields += ','
+          values += ','
+        }
+        detail = editDetail(field_name, textValue, detail, this.name)
+        fields += field_name
+        values += fieldValue
+      }
+      let IP = this.refs['ip'].refs['ip'].value
+      let deviceType = this.refs['device_type_id'].refs['device_type_id'].getAttribute('name')
+      deviceType = Number(deviceType)
+      sql = `REPLACE into ${this.tableName} (${fields}) VALUES(${values})`
+      let req = composeUpdateDBReq('INSERT', this.name, keyValue, sql)
+      req.data['detail'] = detail
+      req.data['user_id'] = xdata.userName
+      req.data['limit_nets'] = {
+        nets: [IP],
+        limit,
+        deviceType,
+        deviceAddress: keyValue
+      }
+      req.username = xdata.userName
+      // console.log('req', req)
+      xbus.trigger('META-UPDATE-DB', {req: req})
+    }
+
+    this.doUpdate = () => {
+      const type = 'warning'
+      const xmsg = '输入的内容存在非法值，请检查输入项！'
+      if (this.tips) return messageTip(xmsg, type)
+      let fields = '', values = '', detail = '', preDetail = '', sql = '', keyValue = null, limit = {}
+      for (let i = 0; i < this.rows.length; i++) {
+        let row = this.rows[i]
+        let { field_name, field_type, field_enableNull } = row
+        let fieldValue = null, textValue
+        if (field_type === 'SELECT') {
+          fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+          textValue = this.refs[field_name].refs[field_name].innerText
+          if (!fieldValue || !fieldValue.match(/\d/ig)) fieldValue = 0
+        } else {
+          fieldValue = this.refs[field_name].refs[field_name].value
+          textValue = fieldValue
+        }
+        
+        if (this.rows[i].field_value != fieldValue) {
+          fieldValue = formatFieldValue(field_type, fieldValue)
+          if (field_name === 'power_limit' || field_name === 'temperature_limit') {
+            limit[field_name] = fieldValue
+          }
+          textValue = fieldValue
+          if (sql != '') {
+            sql += ','
+          }
+          sql += `${field_name}=${fieldValue}`
+          detail = editDetail(field_name, textValue, detail, this.name)
+          preDetail = editDetail(field_name, this.rows[i].field_value, preDetail, this.name)
+        }
+      }
+      if (sql != '') {
+        keyValue = this.refs['device_power_id'].refs['device_power_id'].value
+        keyValue = Number(keyValue)
+        let IP = this.refs['ip'].refs['ip'].value
+        let deviceType = this.refs['device_type_id'].refs['device_type_id'].getAttribute('name')
+        deviceType = Number(deviceType)
+        sql = `UPDATE ${this.tableName} set ${sql} where device_power_id=${keyValue}`
+        let req = composeUpdateDBReq('UPDATE', this.name, keyValue, sql)
+        req.data['detail'] = preDetail + '->' + detail
+        req.data['user_id'] = xdata.userName
+        req.data['limit_nets'] = {
+          nets: [IP],
+          limit,
+          deviceType,
+          deviceAddress: keyValue
+        }
+        req.username = xdata.userName
+        // console.log('req', req)
+        xbus.trigger('META-UPDATE-DB', {req: req})
+      } else {
+        messageTip('数据没有修改，请确认后再提交！')
+      }
+      
+    }
+
+    this.change = (evt) => {
+      let target = evt.currentTarget
+      let name = target.getAttribute('name')
+      let select = target.childNodes[0].querySelector('.query-select')
+      target.setAttribute('value', select[select.selectedIndex].value)
+    }
+
+    /*必填项是否录入*/
+    this.isComplete = () => {
+      if (this.tips) {
+        const type = 'warning'
+        const xmsg = '输入的内容存在非法值，请检查输入项！'
+        messageTip(xmsg, type)
+        return false
+      }
+      return true
+    }
+
+    this.editDefault = (evt) => {
+      this.parent.editDefault(evt)
+    }
+    
+    this.updateList = (datas) => {
+      this.tags['basic-head'] && this.tags['basic-head'].refs['buttons'].classList.add('hide')
+      this.refs['content'].setAttribute('data-type', 'update')
+      let rows = getRows({row: datas}, this.def)
+      this.rows = rows
+      this.update()
+    }
+    
+    this.init = (opts) => {
+      this.name = opts.name
+      this.def = xdata.metaStore.defs[this.name]
+      let rows = getRows(null, this.def)
+      this.rows = rows
+      this.title = this.def.label
+      this.tableName = this.def.table
+      this.parenTag = this.parent.parenTag
+    }
+
+    this.init(opts)
+  </script>
+</basic-battery-msg>

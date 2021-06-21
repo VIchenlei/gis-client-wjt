@@ -1,0 +1,47 @@
+@import '../../style/defs'
+
+.reader-list
+    flex: auto
+    overflow-y: auto
+    overflow-x: hidden
+    padding: 0.16rem 0
+    color: #fff
+    .group-list
+        display: flex
+        flex-direction: row
+        text-align: center
+        color: #fff
+        height: 0.384rem
+        line-height: 0.384rem
+    .hm-item
+        display: flex
+        justify-content: center
+        flex-direction: column
+        height: 0.48rem
+        border-bottom: 1px solid #0082d9
+        .hm-pos
+            text-align: right
+            padding: 0.08rem 0.16rem
+            cursor: pointer
+    .group-list,.hm-item p:nth-child(1)
+        display: flex
+        flex-direction: row
+        text-align: center
+        color: #fff
+        span
+            &:nth-child(1)
+                flex: 0 0 0.8rem
+            &:nth-child(2)
+                flex: 0 0 0.96rem
+            &:nth-child(3)
+                flex: 0 0 0.8rem
+        .btn
+            cursor: pointer
+            &:hover
+                color: #09F
+        .chooseInput
+            width: 0.16rem
+            height: 0.17rem
+            cursor: pointer
+    .group-list-title
+        color: #999

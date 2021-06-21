@@ -1,0 +1,574 @@
+<rs-merge-dialog-table>
+  <span if={isShowColor} class="path-color" style="background: {pathColor()}"></span>
+  <span each={row in rows} class="merge-box {isHideField(row)}">
+    <rs-text-field data={row} ref={row.field_name} data-name={tableName} data-oldvalue= {dealValue(row)} if={isShow(row)} disabled={isDisabled(row)}></rs-text-field>
+    <rs-select-field data={row} ref={row.field_name} data-name={tableName} if={row.field_type === 'SELECT'} disabled={isDisabled(row)} isshowdefault='true'></rs-select-field>
+    <div data-is="rs-date" type={row.field_type} ref={row.field_name} text={row.field_label} value={row.field_value} if={isShowDate(row)} enablenull={row.field_enableNull} isshowsecond={isShowSecond} disabled={isDisabled(row)}></div>
+    <div if={['readers', 'drivers'].includes(row.field_name)} data-def={exprFields[row.field_name]} ref={row.field_name} ident={exprFields[row.field_name].name} data-value={getExprFieldsValue(row)} desc={exprFields[row.field_name].name} data-is="rs-condition-filter" class="bind-filter" store={getStore(row)} name={exprFields[row.field_name].tableName} index={opts.index}></div>
+  </span>
+  <span class="operat" if={isShowAddIcon} onclick={addPath}>
+    <img src="/img/addpath.png" alt="">
+  </span>
+  <span class="operat" if={isShowDelIcon} onclick={deleteData}>
+    <img src="/img/mergeDelete.png" alt="">
+  </span>
+  <script>
+    import '../sass/rs-merge-dialog-table.sass'
+    import '../../rs-text-field/rs-text-field.html'
+    import '../../rs-select-field/rs-select-field.html'
+    import '../../rs-date/tags/rs-date.html'
+    import { trim, composeUpdateDBReq, messageTip } from '../../../js/utils/utils.js'
+    import { specialTreat, isHideField, getItem, getTextValue, dealNegateValue, isDisabled } from '../../../manage/js/utils.js'
+    let self = this
+    const dateTypes = ['DATETIME', 'DATE', 'MONTH', 'TIME']
+    const colors = ['#FFAA03', '#0AB300', '#0000CD', '#7CFC00']
+    this.bindSensorSql = {}
+
+    //绑定多个分站、司机字符串修改集合
+    this.getExprFieldsValue = (row) => {
+      let values = null
+      let results = []
+      let fieldValue = row.field_value
+      let fieldName = row.field_name
+      if (fieldValue !== '') {
+        values = fieldValue.includes(';') ? fieldValue.split(';') : fieldValue.split(' ')
+      }
+      if (values && values.length > 0) {
+        values.forEach(value => {
+          let result = fieldName === 'readers' ? xdata.metaStore.data.reader.get(Number(value)) : xdata.metaStore.staffs.get(Number(value))
+          result && results.push(result)
+        })
+      }
+      return results
+    }
+
+    //分站路径设置颜色标识
+    this.pathColor = () => {
+      return colors[opts.index]
+    }
+
+    //开关传感器只能存才一个
+    this.chooseItem = (name, index) => {
+      index = Number(index)
+      const typeId = 8 //开关传感器id
+      if (name === 'sensor_type_id' && index === typeId) {
+        const sensors = this.parent.thirdMsg
+        const row = sensors.filter(item => item.rows[1].field_value === index)
+        if (row && row.length > 0) {
+          let xmsg = '开关量传感器只能存在一个'
+          messageTip(xmsg)
+          let ele = this.refs['sensor_type_id']
+          let field_value = Number(ele.refs["sensor_type_id"].getAttribute('oldValue'))
+          let ds = Array.from(xdata.metaStore.data.sensor_type.values()).filter(item => item[name] === field_value)[0]
+          ele.index = ds[name]
+          ele.refs['sensor_type_id'].value = ds.name
+          ele.update()
+        }
+      } else if (name === 'device_type_id') {
+        this.refs["vehicle_id"].disabled = index !== 10 ? true : false
+      }
+    }
+
+    //获取绑定分站、司机新增、删除集合
+    this.getInsertOrDelArray = (field_value, fieldValue) => {
+      let deleteArray = [], insertArray = [], oldArray = null, newArray = null
+      if (field_value !== '') oldArray = field_value.includes(';') ? field_value.split(';') : field_value.split(' ')
+      if (fieldValue !== '') newArray = fieldValue.includes(';') ? fieldValue.split(';') : fieldValue.split(' ')
+      if (field_value === '' && fieldValue !== '' ) {
+        //新增
+        insertArray = newArray
+      } else if (field_value !== '' && fieldValue === '') {
+        //删除
+        deleteArray = oldArray
+      } else if (field_value !== '' && fieldValue !== '') {
+        let allArr = []
+        for (let i = 0; i < newArray.length; i++) {
+          for (let j = 0; j < oldArray.length; j++) {
+            if(oldArray[j] === newArray[i]) allArr.push(oldArray[j])
+          }
+        }
+        if (allArr.length ===  0) {
+          deleteArray = oldArray
+          insertArray = newArray
+        } else {
+          for (let j = 0; j < oldArray.length; j++) {
+            if (allArr.indexOf(oldArray[j]) === -1) deleteArray.push(oldArray[j])
+          }
+          for (let j = 0; j < newArray.length; j++) {
+            if (allArr.indexOf(newArray[j]) === -1) insertArray.push(newArray[j])
+          }
+        }
+      }
+      return {deleteArray, insertArray}
+    }
+
+    //获取绑定分站、司机sql对象
+    this.doBindSql = (field_value, fieldName, fieldValue) => {
+      let deleteArray = null, insertArray = null, deleteSql = null, insertSql= null, sql = {}
+      let typeName = fieldName === 'readers' ? 'reader_id' : 'staff_id' 
+      let obj = this.getInsertOrDelArray(field_value, fieldValue)
+      let keyValue = this.rows[0].field_value
+      deleteArray = obj.deleteArray
+      insertArray = obj.insertArray
+      if (deleteArray.length > 0) {
+        let deleteMsg = ''
+        for (let i = 0; i < deleteArray.length; i++) {
+          deleteMsg += `or (sensor_id = ${keyValue} and ${typeName} = ${Number(deleteArray[i])})`
+        }
+        deleteMsg = deleteMsg.replace('or', '')
+        deleteSql = fieldName === 'readers' ? `DELETE FROM dat_sensor_reader_map where ${deleteMsg}` : `DELETE FROM dat_sensor_driver_map WHERE ${deleteMsg}`
+      }
+      if (insertArray.length > 0) {
+        let insertMsg = ''
+        for (let i = 0; i < insertArray.length; i++) {
+          insertMsg += `,(${keyValue}, ${Number(insertArray[i])})`
+        }
+        insertMsg = insertMsg.replace(',', '')
+        insertSql = fieldName === 'readers' ? `REPLACE INTO dat_sensor_reader_map (sensor_id, reader_id) VALUES ${insertMsg}` : `REPLACE INTO dat_sensor_driver_map (sensor_id, staff_id) VALUES ${insertMsg}`
+      }
+      if (deleteSql) sql[`${fieldName}delete`] = deleteSql
+      if (insertSql) sql[`${fieldName}Insert`] = insertSql
+      return sql
+    }
+
+    // 已绑定绑定分站、司机数据处理用于编辑状态下显示
+    this.getStore = (row) => {
+      if (!['readers', 'drivers'].includes(row.field_name) || this.cmd === 'INSERT') return null
+      let bindStore = new Map()
+      let name = row.field_name === 'readers' ? 'readersStore' : 'driversStore'
+      let store = this.parenTag[name] && Array.from(this.parenTag[name].get(this.rows[0].field_value))
+      if (store.length) {
+        for (let i = 0; i < store.length; i++) {
+          let key =  `${store[i][0]}`
+          bindStore.set(key, store[i][1].row)
+        }
+      }
+      return bindStore
+    }
+
+    // 获取绑定分站、司机数据用于编辑状态下判断是否修改
+    this.getBindStore = (fieldName, ele) => {
+      let values = ''
+      let store = ele.store
+      let typeName = fieldName === 'readers' ? 'reader_id' : 'staff_id'
+      if (store && store.length > 0) {
+        store.forEach((e,i) => {
+          let id = e[typeName]
+          values += i < store.length -1 ? `${id};` : `${id}`
+        })
+      }
+      return values
+    }
+
+    //输入框值展示特殊处理
+    this.dealValue = (row) => {
+      const msg = {
+        row: row,
+        tableName: this.tableName,
+        cmd: this.cmd
+      }
+      let fieldValue = getTextValue(msg)
+      return fieldValue
+    }
+
+    this.isDisabled = (row) => {
+      let self = this
+      if (this.cmd === 'INSERT') return ''
+      if (this.cmd === 'DELETE') return 'disabled'
+      return isDisabled(this.topicName, row, this.tableKeyName, self)
+    }
+
+    this.isShow = (row) => {
+      if (['readers', 'drivers'].includes(row.field_name)) return false
+      if (row.field_type === 'SELECT') return false
+      if (dateTypes.includes(row.field_type)) return false
+      return true
+    }
+
+    this.isShowDate = (row) => {
+      if (dateTypes.includes(row.field_type)) return true
+      return false
+    }
+
+    //隐藏字段
+    this.isHideField = (row) => {
+      return isHideField(this.tableName, row, this.hideField)
+    }
+
+    //是否需要展示秒
+    this.isShowSecond = (type) => {
+      return this.parenTag.showSecondNames(this.topicName) ? true : false
+    }
+
+    this.isBindVehicle = (fieldValue) => {
+      let vehicles = Array.from(xdata.metaStore.data[this.topicName].values()).filter(item => item.vehicle_id === Number(fieldValue))
+      if (vehicles.length > 0) {
+        this.parent.isDoRun = false
+        let xmsg = '该车辆已被绑定，请选择其他车辆！'
+        messageTip(xmsg)
+        return true
+      } else {
+        this.parent.isDoRun = true
+      }
+    }
+
+    this.getOpType = (fieldName, fieldValue, opType) => {
+      if (this.tableName === 'dat_reader' && ['state', 'need_power_alarm'].includes(fieldName)) {
+        if (fieldName === 'state') {
+          if (Number(fieldValue) === 1) {
+            this.parent.state = 1
+            opType = 'DELETE'
+          }
+          if (Number(fieldValue) === 0) opType = 'INSERT'
+        }
+        if (fieldName === 'need_power_alarm') {
+          if (Number(fieldValue) === 0) {
+            this.parent.state = 1
+            opType = 'DELETE'
+          }
+          if (Number(fieldValue) === 1) opType = 'INSERT'
+        }
+        this.parent.opType = opType
+      }
+      return opType
+    }
+
+    this.isBindDatasource = (fieldValue) => {
+      fieldValue = parseInt(fieldValue, 10)
+      const sensors = xdata.metaStore.data.sensor && Array.from(xdata.metaStore.data.sensor.values())
+      const sensor = sensors && sensors.find(item => item.data_source === fieldValue)
+      if (sensor) {
+        this.parent.isDoRun = false
+        let xmsg = `数据源${fieldValue}已绑定传感器，请填写其他数据源！`
+        messageTip(xmsg)
+        return true
+      } else {
+        this.parent.isDoRun = true
+      }
+    }
+
+    // 执行新增
+    this.doInsert = () => {
+      let fields = '', values = '', keyValue = null
+      let opType = this.cmd
+      let isStopRun = false
+      let deviceTypeID = null
+      if (!this.testForm()) {
+        this.parent.isDoRun = false
+        return
+      }
+      for (let i = 0; i < this.rows.length; i++) {
+        let fieldValue = null, ele = null, tips = null, value = ''
+        const { field_name, field_type } = this.rows[i]
+        if (this.hideField.includes(field_name)) {
+          if (['work_face_id', 'coalface_id', 'drivingface_id'].includes(field_name)) {
+            let key = this.parent.tableKeyName
+            let firsTag = this.parent.tags['rs-merge-dialog-table'][0]
+            let element = firsTag && firsTag.refs[key].refs[key]
+            let type = firsTag && firsTag.rows[0].field_type
+            value = type !== 'SELECT' ? element.value : element.getAttribute('name')
+          } else if (field_name === 'limit_speed') {
+            value = 5
+          } else if (field_name === 'enable_simulate_card') {
+            value = 0
+          } else if (field_name === 'reader_id') {
+            let firsTag = this.parent.tags['rs-merge-dialog-table'][0]
+            value = firsTag && firsTag.refs[field_name].refs[field_name].value
+          } else {
+            value = this.rows[i].field_value
+          }
+          fieldValue = value
+        } else if (['readers', 'drivers'].includes(field_name)) {
+          ele= this.refs[field_name]
+          fieldValue = this.getBindStore(field_name, ele)
+        } else {
+          ele = this.refs[field_name].refs[field_name]
+          tips = this.refs[field_name] && this.refs[field_name].tips
+          value = ele && ele.value
+          value = value ? trim(value) : value
+          if (field_type === 'SELECT') {
+            fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+          } else {
+            fieldValue = value
+          }
+        }
+        if (this.tableName === 'dat_reader') {
+          if (field_name === 'device_type_id') deviceTypeID = Number(fieldValue)
+          if (field_name === 'vehicle_id' && deviceTypeID !== 10) fieldValue = null
+        }
+        if (field_name === 'vehicle_id') {
+          if (this.tableName === 'dat_reader' && deviceTypeID === 10) isStopRun = this.isBindVehicle(fieldValue)
+          if (['dat_coalface_vehicle', 'dat_drivingface_vehicle'].includes(this.tableName)) isStopRun = this.isBindVehicle(fieldValue)
+        }
+        if (field_name === 'data_source') isStopRun = this.isBindDatasource(fieldValue)
+        if (isStopRun) return
+
+        fieldValue = specialTreat(field_type, field_name, fieldValue, self)
+        if (['drp_id', 'id'].includes(field_name)) continue
+        if (!this.hideField.includes(field_name)) {
+          if (tips && fieldValue !== 0 && (!fieldValue || fieldValue === '""')) {
+            this.parent.isDoRun = false
+            let xmsg = '请把必填字段填写完整！'
+            return messageTip(xmsg)
+          } else {
+            this.parent.isDoRun = true
+          }
+        }
+        if (['readers', 'drivers'].includes(field_name)) {
+          let reg = new RegExp('"',"g")
+          fieldValue = fieldValue.replace(reg, "") 
+          let sensorSql = this.doBindSql('',field_name,fieldValue)
+          let sensorArray = Object.keys(sensorSql)
+          sensorArray.forEach(e => {
+            this.bindSensorSql[e] = sensorSql[e]
+          })
+        } else {
+          if (i !== 0) {
+            fields += ','
+            values += ','
+          }
+          fields += field_name
+          values += fieldValue
+        }
+      }
+      if (this.tableName === 'dat_drivingface_ref_point') {
+        fields = fields.replace(',','')
+        values = values.replace(',','')
+      }
+      if (['dat_coalface', 'dat_drivingface'].includes(this.tableName)) {
+        let row = this.rows.filter(item => item.field_name === this.tableKeyName)[0]
+        let type = row.field_type
+        let element = this.refs[this.tableKeyName].refs[this.tableKeyName]
+        keyValue = type !== 'SELECT' ? element.value : element.getAttribute('name')
+        keyValue = Number(keyValue)
+        let table = this.tableName.slice(4)
+        let rows = xdata.metaStore.data[table]
+        if (rows && rows.get(keyValue)) {
+          this.parent.isDoRun = false
+          let xmsg = '该信息已被注册！'
+          let type = 'warning'
+          return messageTip(xmsg, type)
+        } else {
+          this.parent.isDoRun = true
+        }
+      }
+      let sql = `INSERT into ${this.tableName} (${fields}) VALUES(${values})`
+      return sql
+    }  
+
+    // 执行更新
+    this.doUpdate = () => {
+      let fields = '', values = '', keyValue = null, sql = ''
+      let opType = this.cmd
+      let state = 0
+      let isStopRun = false
+      let deviceTypeID = null
+      if (!this.testForm()) {
+        this.parent.isDoRun = false
+        return
+      }
+      for (let i = 0; i < this.rows.length; i++) {
+        let fieldValue = null, ele = null, tips = null, value = null
+        let field_value = this.rows[i].field_value
+        const { field_name, field_type } = this.rows[i]
+        if (this.hideField.includes(field_name)) continue
+        if (['readers', 'drivers'].includes(field_name)) {
+          ele= this.refs[field_name]
+          fieldValue = this.getBindStore(field_name, ele)
+        } else {
+          ele= this.refs[field_name].refs[field_name]
+          tips = this.refs[field_name] && this.refs[field_name].tips
+          value = ele && ele.value
+          value = value ? trim(value) : value
+          if (field_type === 'SELECT') {
+            fieldValue = this.refs[field_name].refs[field_name].getAttribute('name')
+          } else {
+            fieldValue = value
+          }
+        }
+
+        if (tips && fieldValue !==0 && !fieldValue) {
+          this.parent.isDoRun = false
+          let xmsg = '请把必填字段填写完整！'
+          return messageTip(xmsg)
+        } else {
+          this.parent.isDoRun = true
+        }
+        if (this.tableName === 'dat_reader') {
+          if (field_name === 'device_type_id') deviceTypeID = Number(fieldValue)
+          if (field_name === 'vehicle_id' && deviceTypeID !== 10) fieldValue = null
+        }
+        field_value = dealNegateValue(field_value, field_name)  
+        if (field_value != fieldValue) {
+          opType = this.getOpType(field_name, fieldValue, opType)
+          if (field_name === 'vehicle_id') {
+            if (this.tableName === 'dat_reader' && deviceTypeID === 10) isStopRun = this.isBindVehicle(fieldValue)
+            if (['dat_coalface_vehicle', 'dat_drivingface_vehicle'].includes(this.tableName)) isStopRun = this.isBindVehicle(fieldValue)
+          }
+          if (field_name === 'data_source') isStopRun = this.isBindDatasource(fieldValue)
+          if (isStopRun) return
+          if (['readers', 'drivers'].includes(field_name)) {
+            let sensorSql = this.doBindSql(field_value, field_name, fieldValue)
+            let sensorArray = Object.keys(sensorSql)
+            sensorArray.forEach(e => {
+              this.bindSensorSql[e] = sensorSql[e]
+            })
+          } else {
+            fieldValue = specialTreat(field_type, field_name, fieldValue, self)
+            if (sql !== '' && sql.substr(-1) !== ',') {
+              sql += ','
+            }
+            sql += `${field_name}=${fieldValue}`
+          }
+        }
+      } 
+      if (sql !== '') {
+        keyValue = this.keyValue
+        sql = `UPDATE ${this.tableName} set ${sql} where ${this.tableKeyName}=${keyValue}`
+        if (this.topicName === 'reader_path_tof_n') this.parent.isEnterManually = true
+      } else {
+        sql = null
+      }
+      // console.log(sql)
+      return sql
+    }
+
+    //判断有无错误提示，有错误提示，提示保存失败
+    this.testForm = () => {
+      let info = this.root.querySelector('.info')
+      let msg = {
+        type: 'error',
+        message: '保存失败，请核对正确保存！'
+      }
+      if (info)  window.xMessage.open(msg)
+      return info ? false : true
+    }
+
+    //添加分站路径
+    this.addPath = () => {
+      typeof this.parent.addPath === 'function' && this.parent.addPath()
+    }
+
+    //传感器、基准点、告警点删除数据
+    this.deleteData = () => {
+      if (this.parent.cmd === 'DELETE') return
+      let keyValue = this.keyValue
+      let index = opts.index
+      if (['sensor', 'drivingface_warning_point',].includes(this.topicName)) {
+        let keys = Array.from(xdata.metaStore.data[this.topicName].keys())
+        if (keys.indexOf(keyValue) === -1) {
+          this.topicName === 'sensor' ? this.parent.thirdMsg.splice(index,1) : this.parent.warnMsg.splice(index,1)
+          this.parent.update()
+        } else {
+          let cb = this.deleteMsg
+          this.deleteTip(cb)
+        }
+      } else if (this.topicName === 'drivingface_ref_point') {
+        // 判断数据库中是否存在  不存在直接删除 存在使用sql删除数据
+        let rows = Array.from(xdata.metaStore.data.drivingface_ref_point.values()).filter(item => item.drp_id === keyValue)
+        if(rows.length > 0){
+          let cb = this.deleteMsg
+          this.deleteTip(cb)
+        }else{
+          this.parent.pointMsg.splice(index,1)
+          this.parent.update()
+        }
+      } else if (this.topicName === 'reader_path_tof_n') {
+        this.parent.thirdMsg.splice(index,1)
+        this.parent.isEnterManually = true
+        this.parent.update()
+      }
+    }
+
+    //删除提示
+    this.deleteTip = (cb) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      this.activePanel = riot.mount('rs-dialog', {
+        content: '您确认删除所选信息吗？',
+        tips: '提示：数据删除后将无法恢复！',
+        cb: cb
+      })[0]
+    }
+
+    //执行删除传感器、基准点、告警点等
+    this.deleteMsg = () => {
+      let keyValue = this.keyValue
+      let sql = null, state = 0
+      sql = `DELETE from ${this.tableName} where ${this.tableKeyName}=${keyValue}`
+      let req = composeUpdateDBReq('DELETE', this.topicName, keyValue, sql)
+      if (this.topicName === 'sensor') {
+        const names = ['readers', 'drivers']
+        for (let i = 0; i < names.length; i++) {
+          let field_value = this.rows.filter(item => item.field_name === names[i])[0].field_value
+          let sensorSql = this.doBindSql(field_value, names[i], "")
+          let sensorArray = Object.keys(sensorSql)
+          sensorArray.forEach(e => {
+            this.bindSensorSql[e] = sensorSql[e]
+          })
+        }
+        if (this.cmd !== 'DELETE') {
+          this.bindSensorSql[this.topicName] = sql
+          req = composeUpdateDBReq('DELETE', this.topicName, keyValue, this.bindSensorSql)
+        }
+      }
+      if (this.cmd === 'DELETE') {
+        return sql
+      } else {
+        // console.log(req)
+        xbus.trigger('META-UPDATE-DB', {req: req})
+      }
+    }
+
+    //根据cmd类型判断执行新增、更新
+    this.doRun = () => {
+      if(this.cmd === 'UPDATE') return this.doUpdate()
+      if(this.cmd === 'INSERT') return this.doInsert()
+      if(this.cmd === 'DELETE') return this.deleteMsg()
+    }
+
+    this.initExprFields = () => {
+      this.exprFields = {
+        readers: {
+          name: 'reader_id',
+          label: '绑定分站',
+          type: 'SELECT',
+          tableName:'readers'
+        },
+        drivers: {
+          name: 'staff_id',
+          label: '绑定司机',
+          type: 'SELECT',
+          tableName: 'drivers'
+        }
+      }
+    }
+
+    this.showColor = () => {
+      let colorNames = this.parent.colorNames
+      if (colorNames.includes(this.topicName)) return true
+      return false
+    }
+
+    this.init = (opts) => {
+      let msg = opts.message
+      this.rows = msg.rows
+      this.parenTag = this.parent.parenTag
+      this.cmd = msg.cmd
+      this.tableName = msg.table
+      this.topicName = msg.name
+      this.tableKeyName = msg.key
+      this.maxid = msg.maxid
+      this.hideField = opts.hidefield
+      this.isShowDelIcon = opts.isshowdelicon
+      this.isShowAddIcon = opts.isshowaddicon || false
+      this.isShowColor = this.showColor()
+      this.checkboxes = msg.checkboxes || []
+      if (this.topicName === 'sensor') this.initExprFields()
+      this.rows.forEach(e => {
+        if (e.field_name === this.tableKeyName) this.keyValue = e.field_value
+      })
+    }
+
+    this.init(opts)
+  </script>
+</rs-merge-dialog-table>

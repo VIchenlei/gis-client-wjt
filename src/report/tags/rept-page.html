@@ -1,0 +1,130 @@
+<rept-page>
+  <div class="tab-bar">
+    <ul class="tab-container grey-scroll">
+      <li each={tab in tabDefs} class="tab" id="REPT_TITLE_{ tab.name }" onclick={ switchTab }>
+        <span class="label-span">{ tab.label }</span>
+        <span class="pic-span"  data-name={ tab.name } onclick={ close }></span>
+      </li>
+    </ul>
+  </div>
+  <div each={ tab in tabDefs} id="REPT_CONTENT_{tab.name}" class="tab-content">
+    <div data-is="rept-page-content" def= { tab } class="rept-page-content"></div>
+  </div>
+  <div id="rept-menu" class="homepage grey-scroll"></div>
+
+  <script>
+    import '../../tags/transfer-menu/transfer-menu.html'
+    import './rept-page-content.html'
+    import '../sass/rept-page.sass'
+
+    this.tabDefs = []
+    this.tabNameList = []
+    this.activeTabName = null
+    this.menus = opts.menus
+
+    xbus.on('MAP-LOAD-SUCESS',()=>{
+      this.tabDefs = []
+      this.tabNameList = []
+      this.activeTabName = null
+      this.update()
+    })
+
+    /*组件挂载后，mount/unmonut transfer-menu组件*/
+    this.on('mount', () => {
+      this.mountReptMenu()
+    })
+
+    /*组件更新渲染后，重新 mount/unmonut transfer-menu组件*/
+    this.on('update', ()=> {
+      this.mountReptMenu()
+    })
+
+    /*监听OPEN-TAB事件，执行跳转tab函数*/
+    this.on('OPEN-TAB', (tabDef) => {
+      if (!this.tabNameList.includes(tabDef.name)) {
+        this.tabDefs.unshift(tabDef)
+        this.tabNameList.unshift(tabDef.name)
+      } else {
+        let index = this.tabNameList.indexOf(tabDef.name)
+        this.tabDefs[index] = tabDef
+      }
+      this.update()
+      this.gotoTab(tabDef.name)
+    })
+
+    /*点击li函数，执行跳转tab函数*/
+    this.switchTab = (evt) => {
+      let item = evt.item
+      let tabName = item.tab.name
+      xbus.trigger('REPORT-ACTIVE-ITEM', tabName)
+      this.gotoTab(tabName)
+    }
+
+    /*跳转tab函数，设置tab得active/hide*/
+    this.gotoTab = (tabName) => {
+      if (this.activeTabName == tabName) return
+      this.setTabVisibility(this.activeTabName, false)
+      this.activeTabName = tabName
+      this.setTabVisibility(this.activeTabName, true)
+    }
+
+    /*设置tab得显隐*/
+    this.setTabVisibility = (tabName, visible) => {
+      let oTitle = this.root.querySelector(`#REPT_TITLE_${tabName}`)
+      let oContent = this.root.querySelector(`#REPT_CONTENT_${tabName}`)
+      if (oTitle && oContent) {
+        if (visible) {
+          oTitle.classList.add('active')
+          oContent.classList.remove('hide')
+        } else {
+          oTitle.classList.remove('active')
+          oContent.classList.add('hide')
+        }
+      }
+    }
+
+    /*点击x的关闭函数，执行关闭tab函数*/
+    this.close = (evt) => {
+      evt.stopPropagation()
+      let item = evt.item
+      let tabName = item.tab.name
+      this.closeTab(tabName)
+      this.update()
+    }
+
+    /*关闭tab函数，关闭具体tab，并跳转其它tab*/
+    this.closeTab = (tabName) => {
+      for (let i = 0; i < this.tabNameList.length; i++) {
+        if (this.tabNameList[i] == tabName) {
+          this.tabNameList.splice(i, 1)
+          this.tabDefs.splice(i, 1)
+          if (this.activeTabName == tabName && this.tabNameList.length > 0) {
+            let nextActiveIndex = this.tabNameList[i] ? i : i - 1
+            let nextAtiveTabName = this.tabNameList[nextActiveIndex]
+            xbus.trigger('REPORT-ACTIVE-ITEM', nextAtiveTabName)
+            this.gotoTab(nextAtiveTabName)
+          }
+          return
+        }
+      }
+    }
+
+    /*根据tabDefs的长度，mount/unmonut transfer-menu组件*/
+    this.mountReptMenu = () => {
+      if (this.tabDefs.length > 0 && this.reptMenu) {
+        this.reptMenu.unmount(true)
+      } else {
+        this.reptMenu = riot.mount('div#rept-menu', 'transfer-menu', {
+          name: 'REPT',
+          menus: this.menus
+        })[0]
+      }
+    }
+
+    /*无tab时，注销全局事件 REPT-SHOW-RESULT*/
+    // this.on('update', () => {
+    //   if (!this.tabDefs || this.tabDefs.length === 0) xbus.off(`REPT-SHOW-RESULT`)
+    // })
+
+  </script>
+</rept-page>

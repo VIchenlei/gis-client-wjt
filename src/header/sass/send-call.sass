@@ -1,0 +1,49 @@
+@import '../../style/defs'
+
+.send-call
+  font-size: $font-m
+  .dlg-window
+    width: 5rem
+  .send-content
+    width: 100%
+    padding: .2rem
+    p, .call-type, .call-field, .call-time
+      margin-bottom: .15rem
+    .rs-box
+      margin-bottom: .55rem
+    p
+      border-bottom: 1px solid $color-ccc
+      @include line-center(.4rem)
+      font-weight: 600
+    .call-type
+      @include flex-between-center
+    .call-field
+      .rs-condition-filter
+        width: 100%
+        margin-right: 0
+        font-size: 0.12rem
+        .rs-fuzzy-search
+          width: 100%
+          position: absolute
+          top: 0.44rem
+          .popup-list
+            height: 3.6rem
+            li
+              width: 100%
+        legend
+          color: #666666
+          padding: 0 .1rem
+        .search-icon
+          input
+            width: 100%
+        .popup-list
+          li
+            width: 100%
+    .call-time
+      fieldset
+        width: 100%
+      .ul-warp
+        width: 4.5rem
+
+    .send-btn
+      @include flex-around-center

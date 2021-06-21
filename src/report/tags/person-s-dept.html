@@ -1,0 +1,145 @@
+<person-s-dept class="person-s-dept">
+	<div class="op-panel" if={ hasdata }>
+		<span class="staffnum">当前查询结果数: {dailyNum}条</span>
+		<div data-is="rs-rept-print" printdefs={ reptPrint } cb={ askFile } class="rs-rept-print"></div>
+	</div>
+	<table if={hasdata}>
+		<thead>
+			<tr>
+				<th each={label in labels}>{ label }</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr each={ month in deptMonth }>
+				<td each={ name in fields.names }>{ getname(name, month[name]) }</td>
+			</tr>
+		</tbody>
+	</table>
+	<div data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message" if={ !hasdata }></div>
+	<script>
+		import { printDef } from '../js/report_defs.js'
+		import { objKeySort } from '../../js/utils/utils.js'
+		import '../../tags/rs-rept-print/rs-rept-print.html'
+		import '../../tags/rs-blank-message/rs-blank-message.html'
+		import '../sass/person-s-dept.sass'
+
+		this.getname = (name, value) => {
+			if (name === 'start_time') {
+				value = new Date(value).format('yyyy-MM')
+			}
+			return xdata.metaStore.getNameByID(name, value)
+		}
+
+		this.getShift = (shiftID, curDept) => {
+			switch (shiftID) {
+				case 1:
+					curDept.zero = curDept.zero ? ++curDept.zero  :  1
+					break
+				case 2:
+					curDept.eight = curDept.eight ? ++curDept.eight : 1
+					break
+				case 3:
+					curDept.four = curDept.four ? ++curDept.four : 1
+					break
+			}
+		}
+
+		this.getCheck = (checkWork, curDept) => {
+			switch (checkWork) {
+				case 'all':
+					curDept.all = curDept.all ? ++curDept.all : 1
+					break
+				case 'absence':
+					curDept.absence = curDept.absence ? ++curDept.absence : 1
+					break
+				default:
+					break
+			}
+		}
+	
+		this.concatTable = (ds) => {
+			const {rows} = ds
+			if (rows) {
+				this.deptMap = new Map()
+				this.hasdata = rows.length > 0 ? true : false
+				rows.forEach(item => {
+					const {dept_id} = item
+					if (!this.deptMap.get(dept_id)) {
+						const msg = {
+							dept_id: dept_id
+						}
+						this.deptMap.set(dept_id, msg)
+					}
+					const curDept = this.deptMap.get(dept_id)
+					const {shift_id} = item
+					this.getShift(shift_id, curDept)
+					const checkWork = item.nn
+					this.getCheck(checkWork, curDept)
+					curDept.sumtime = curDept.sumtime ? curDept.sumtime + item.sm : item.sm 
+					curDept.sumnum = curDept.sumnum ? curDept.sumnum + item.num : item.num 
+					curDept.averagetime = curDept.sumnum && curDept.sumtime && (curDept.sumtime / curDept.sumnum / 60).toFixed(1)
+				})
+			}
+      this.deptMonth = Array.from(this.deptMap.values())
+      this.dailyNum = this.deptMonth.length
+			window.xhint.close()
+			this.update()
+		}
+
+		this.askFile = (opName) => {
+			const data = this.dealPrintData(this.deptMonth, this.fields.names)
+      const msg = {
+        cmd: 'file',
+        name: this.def.name,
+        labels: this.fields.labels,
+        title: this.def.label,
+        namesInShort: this.namesInShort,
+        types: this.fields.types,
+        fileType: opName,
+				reptIndex: this.reptIndex,
+				data: JSON.stringify(data),
+				isQuery: true
+			}
+      xbus.trigger('ASK-FILE', msg)
+		}
+		
+		this.dealPrintData = (rows, names) => {
+			const dealData = rows.map(item => {
+				const objValue = objKeySort(item, names)
+				return objValue
+			})
+			return dealData
+		}
+
+		/*接收查询的数据*/
+    this.updateDs = (ds) => {
+      if (ds.def.name !== this.name || !ds.rows) return
+			this.concatTable(ds)
+      this.update()
+		}
+		
+
+		/*初始化函数*/
+		this.init = (opts) => {
+			this.def = opts.def
+			this.name = opts.def.name
+			this.reptIndex = opts.def.reptIndex
+			this.fields = {
+				names: ['dept_id', 'all', 'absence', 'zero', 'eight', 'four', 'averagetime'],
+				types: ['SELECT', 'NUMBER', 'NUMBER', 'NUMBER', 'NUMBER', 'NUMBER', 'NUMBER'],
+				labels: ['部门', '全勤次数', '缺升井次数', '零点班次数', '八点班次数', '四点班次数', '平均工作时间(h)']
+			}
+			this.labels = this.fields.labels
+			this.reptPrint = printDef.reptDeptMonth
+			this.namesInShort = this.fields.names.map((item) => {
+        const name = item.split('.').pop()
+        return name.split(' ').pop()
+			})
+			this.deptMonth = null
+			this.dailyNum = 0
+		}
+
+		this.init(opts)
+
+	</script>
+</person-s-dept>

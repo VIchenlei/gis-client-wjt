@@ -1,0 +1,46 @@
+@import '../../style/defs.sass'
+.rs-meta-table, .config-table
+  width: 100%
+  padding: .1rem
+  .fuzzy
+    width: 2rem
+    height: 0.48rem
+    position: relative
+  .popup-list
+    position: absolute
+    max-height: 2.56rem
+    overflow-y: inherit
+  .search-icon, .popup-list
+    width: 2rem
+  .rs-table-icon-btn
+    width: 100%
+    overflow-x: auto 
+    margin: .2rem 0
+    table
+      font-size: $font-s
+      tbody
+        max-height: inherit
+        tr
+          &:hover
+            background: #E2F1FC
+      tr
+        border-bottom: 1px solid $color-border
+        cursor: pointer
+        th, td
+          padding: .1rem .05rem
+        th
+          overflow: inherit
+          text-overflow: inherit
+          white-space: inherit
+        td
+          .text
+            width: 100%
+            max-width: 1.6rem
+            display: inline-block
+            overflow: hidden
+            text-overflow: ellipsis
+            white-space: nowrap
+        .color-label
+          .text
+            @include wh(.3rem, .1rem)
+            display: inline-block

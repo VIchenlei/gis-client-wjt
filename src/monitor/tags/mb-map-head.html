@@ -1,0 +1,85 @@
+<mb-map-head class="mb-map-head hide-on-pc">
+  <rs-fuzzy-search ref='fuzzy' message={ getComponentMessage() } class='page-fuzzy-search'></rs-fuzzy-search>
+  <script>
+    import '../../tags/rs-fuzzy-search/rs-fuzzy-search.html'
+    import '../sass/mb-map-head.sass'
+    import {composeCardID} from '../../js/utils/utils.js'
+    import { CARD } from '../../js/def/state.js'
+
+    this.startLocating = (sid, stype, scard) => {
+      let deviceType = [3, 4]
+      if (!deviceType.includes(stype)) {
+        let cardID = scard || composeCardID(`00${stype}`, sid)
+        let card = xdata.cardStore.getLastState(cardID)
+        if (!card) return
+        let mapID = card[CARD.map_id]
+        if (mapID !== xdata.metaStore.defaultMapID) return
+        window.cardStartLocating({cards: [cardID]})
+      } else {
+        let deviceName = stype === 3 ? 'reader' : 'landmark'
+        let msg = {
+          mapID: xdata.metaStore.defaultMapID,
+          symbolType: deviceName,
+          mapType: 'MONITOR',
+          isVisible: 'true'
+        }
+        xbus.trigger(`MAP-SHOW-${deviceName.toUpperCase()}`, msg)
+        window.cardStartLocating({
+          cards: [sid],
+          symbolType: deviceName
+        })
+      }
+    }
+
+    this.getResult = (result) => {
+      if (!result) return
+      let data = result.row
+      let ele = this.refs['fuzzy'].refs['searchinput']
+      ele.value = data['n']
+      this.startLocating(data.id, data.t, data.c)
+    }
+
+    this.getComponentMessage = () => {
+      let staff = xdata.cardStore.getSearchData(1)
+      let vehicle = xdata.cardStore.getSearchData(2)
+      let device = xdata.deviceStore.getSearchData(3)
+      let landmark = xdata.deviceStore.getSearchData(4)
+      let data = staff.concat(vehicle).concat(device).concat(landmark)
+
+      let typeDef = {
+        name: 'all',
+        label: '搜索对象',
+        placeholder: '请输入人员、车辆、分站、地标信息',
+        isShowResultList: false,
+        cb: this.getResult
+      }
+      let dataSet = {
+        desc: 'n',
+        keys: ['id', 'n', 'b', 't', 'c'] ,
+        data: data
+      }
+      return {
+        typeDef: typeDef,
+        dataSet: dataSet,
+        needSearchIcon: 'right',
+        type: 'RADIO',
+        isShowPopup: true
+      }  
+    }
+
+    this.fuzzyFocus = () => {
+      let staff = xdata.cardStore.getSearchData(1)
+      let vehicle = xdata.cardStore.getSearchData(2)
+      let device = xdata.deviceStore.getSearchData(3)
+      let landmark = xdata.deviceStore.getSearchData(4)
+      let data = staff.concat(vehicle).concat(device).concat(landmark)
+      let dataSet = {
+        desc: 'n',
+        keys: ['id', 'n', 'b', 't', 'c'] ,
+        data: data
+      }
+      this.refs['fuzzy'] && this.refs['fuzzy'].updateSearchDataSet(dataSet)
+    }
+
+  </script>
+</mb-map-head>

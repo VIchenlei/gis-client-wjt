@@ -1,0 +1,25 @@
+@import '../../style/defs'
+.ip-title
+  font-size: $font-xs
+  color: $font-weight-grey
+.device-ip
+  @include flex-row-center
+  margin: .05rem 0 .1rem
+  .start-ip-address, .end-ip-address
+    @include flex-row-center
+    div
+      @include flex-row-center
+    .ip-input
+      display: flex
+      @include wh(100%, 0.4rem)
+      border: 1px solid $color-border
+      border-radius: 5px
+      margin: 2px 0
+      input
+        width: 100%
+        padding: 5px 9px
+        border: none
+        outline: none
+        height: 0.4rem
+  span
+    margin: 0 4px    

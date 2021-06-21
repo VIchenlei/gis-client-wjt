@@ -1,0 +1,98 @@
+<rs-choose-date-year class="rs-choose-date-year">
+  <div class="calendar-panel-header">
+    <div onclick={ handle }>
+      <a class="calendar-prev-year-btn" name="prevYear" title="上一年"><<</a> 
+      <a class="calendar-prev-month-btn" name="prevMonth" title="上个月"><</a> 
+      <span class="calendar-ym-select">
+        <a class="calendar-year-select">{ dateOpt.year }年</a>
+        <a class="calendar-month-select">{
+          dateOpt.month+1 }月</a>
+      </span>
+      <a class="calendar-next-month-btn" name="nextMonth" title="下个月">></a>
+      <a class="calendar-next-year-btn" name="nextYear" title="下一年">>></a>
+    </div>
+  </div>
+  <div class="calendar-panel-body">
+    <table class="calendar-table" cellspacing="0" role="grid">
+      <thead>
+        <tr role="row">
+          <th each={ item in weekList } role="columnheader" title="周{ item }" class="calendar-column-header">
+            <span class="calendar-column-header-inner">{ item }</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody class="calendar-tbody"></tbody>
+    </table>
+  </div>
+  <script>
+    import '../sass/rs-choose-date-year.sass'
+    import utils from '../js/utils.js'
+    let calendarTbody = null
+    this.weekList = ['一', '二', '三', '四', '五', '六', '日']
+
+    this.getTbodyTemplate = (opt) => {
+      if (opt) this.dateOpt = opt
+      let dateOpt = this.dateOpt
+      // 当月第一天日期对象
+      var currentMonthFirstDateObj = new Date(dateOpt.year, dateOpt.month, 1)
+      // 当月第一天星期
+      var currentMonthFirstDay = currentMonthFirstDateObj.getDay() || 7
+      // 当月最后一天日期对象
+      var currentMonthLastDateObj = new Date(dateOpt.year, dateOpt.month + 1, 0)
+      // 当月最后一天日期
+      var currentMonthLastDay = currentMonthLastDateObj.getDate()
+      // 上个月最后一天日期对象
+      var lastMonthLastDateObj = new Date(dateOpt.year, dateOpt.month, 0)
+      // 上个月最后一天日期
+      var lastMonthLastDate = lastMonthLastDateObj.getDate()
+
+      var html = ''
+      for (var i = 1; i <= 42; i++) {
+        if (i % 7 === 1) html += '<tr>'
+        var date = '', className = ''
+        if (i < currentMonthFirstDay) {
+          date = lastMonthLastDate - currentMonthFirstDay + i + 1
+          className = 'calendar-last-month-cell'
+        } else if (i > currentMonthFirstDay + currentMonthLastDay - 1) {
+          date = i - currentMonthFirstDay - currentMonthLastDay + 1
+          className = 'calendar-next-month-btn-day'
+        } else {
+          // 今天
+          date = i - currentMonthFirstDay + 1
+          if (dateOpt.year === dateOpt.curYear && dateOpt.month === dateOpt.curMonth && dateOpt.curDate === date) className = 'calendar-cell calendar-today'
+          if (dateOpt.selectYear === dateOpt.year && dateOpt.selectMonth === dateOpt.month && dateOpt.selectDate === date) className += ' calendar-selected-date'
+          if (this.dateOpt.date === date) className += ' calendar-selected-day'
+        }
+        html += `<td class="calendar-cell ${className}"><div class="calendar-date">${date}</div></td>`
+        if (i % 7 === 7) {
+          html += '</tr>'
+        }
+      }
+      return html
+    }
+
+    // 切换年月
+    this.handle = (evt) => {
+      evt.stopPropagation()
+      let name = evt.target.getAttribute('name')
+      typeof this.parent.chooseDate === 'function' && this.parent.chooseDate(name)
+    }
+
+    //选择天
+    this.handleDay = () => {
+      typeof this.parent.handleTbody === 'function' && this.parent.handleTbody(calendarTbody, this)
+    }
+
+    this.on('mount', () => {
+      calendarTbody = this.root.querySelector('.calendar-tbody')
+      typeof this.parent.updateHtml === 'function' && this.parent.updateHtml()
+      this.handleDay()
+    })
+
+    this.init = (opts) => {
+      this.dateOpt = opts.dateopt
+    }
+
+    this.init(opts)
+  </script>
+</rs-choose-date-year>

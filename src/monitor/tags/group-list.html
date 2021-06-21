@@ -1,0 +1,257 @@
+<group-list class="group-list-container grey-scroll">
+  <div class="group-panel">
+    <div class="group-list group-list-title">
+      <span each={ label in topic.label.group }>{ label }</span>
+    </div>
+    <div each={ group in groups }>
+      <p class="group-list group-list-item { group[0] == currentGroupID ? 'active' : ''}" data-groupid={ group[0] }  ondblclick={ toggleLocateAll }>
+        <span data-groupid={ group[0] } onclick={ switchGroup }>{ group[2] }</span>
+        <span if={ topic.groupName === 'area' } data-groupid={ group[0] }>{ getMapByAreaID(group[0]) }</span>
+        <span data-groupid={ group[0] } onclick={ showDetailTable }>{ group[1] }</span>
+      </p>
+      <div if={ group[0] == currentGroupID } class="detail-panel">
+        <p class="detail-list detail-list-title">
+          <span each={ label in topic.label.detail}>{ label }</span>
+        </p>
+        <div if={ currentGroup && currentGroup.cards } each={ row in currentGroup.cards } class="detail-list detail-list-item" id = { row[0] }>
+          <p>
+            <span>{ row[1] }</span>
+            <span class={ topic.type == 1 ? 'staff-topic-date' : 'vehicle-topic' }>{ row[2] }</span>
+            <span calss={ topic.type == 1 ? 'staff-topic-null' : 'vehicle-topic-speed' }>
+              <virtual if={ topic.type == 2 && !currentGroup.isSpecial }>{ Math.abs(row[3]).toFixed(1) }</virtual>
+            </span>
+            <span if={ topic.groupName !== 'area' } >{ row[4] }</span>
+            <span>
+              <card-opbar cardid={row[0]} cardtypeid={topic.type} isspecial={ currentGroup.isSpecial } needhide="0"></card-opbar>
+            </span>
+          </p>
+          <p>{ topic.type==2 ? row[4] : row[3] }</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div if={ !hasData } data-is="rs-blank-message" message="没有相关记录！" class="rs-blank-message"></div>
+
+  <script>
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import './card-opbar.html'
+    import '../sass/group-list.sass'
+    import { CARD } from '../../js/def/state.js'
+    import { OD, ST } from '../../js/def/odef.js'
+    import { TOPIC } from '../js/topic_def.js'
+    import leftCount from '../js/left_area.js'
+    import { compare } from '../../js/utils/utils.js'
+    let self = this
+
+    this.on('update', (topicName) => {
+      let target = leftCount[topicName]
+      if (target) { 
+        this.topic = target
+        this.currentGroupID = -1
+        this.updateData()
+      }
+    })
+
+    xbus.on('CARD-STATE-CHANGED', () => {
+      this.refresh()
+    })
+
+    this.getMapByAreaID = (areaID) => {
+      let areaObj = xdata.metaStore.data.area && xdata.metaStore.data.area.get(areaID)
+      let mapID = areaObj && areaObj.map_id
+      return xdata.metaStore.getNameByID('map_id', mapID)
+    }
+
+    this.showDetailTable = (evt) => {
+      let target = evt.currentTarget
+      let groupID = target.getAttribute('data-groupid')
+      let msg = {
+        type: 'card',
+        subTypeID: this.topic.type,
+        statType: this.topic.groupName,
+        groupID: parseInt(groupID, 10)
+      }
+      window.showDetailDialog(msg)
+    }
+
+    this.setActive = (obj, isActive) => {
+      if (obj) {
+        let cl = obj.classList
+        isActive ? cl.add('active') : cl.remove('active')
+      }
+    }
+
+    this.switchGroup = (evt) => {
+      let el = evt.currentTarget
+      let sid = el.getAttribute('data-groupid')
+      if (sid) {
+        let groupID = parseInt(sid, 10)
+        if (groupID === self.currentGroupID) {
+          self.currentGroupID = -1
+          self.currentGroup = null
+        } else {
+          self.updateDetailData(groupID)
+        }
+      }
+    }
+
+    this.isSpecial = (id) => {
+      let ret = false
+      let areaTypeID = null
+      if (id !== 0) {
+        areaTypeID = xdata.metaStore.data.area.get(id) && xdata.metaStore.data.area.get(id).area_type_id
+      }
+      if (this.topic.groupName === ST.AREA) {
+        ret = id === 0 || areaTypeID == 1000
+      }
+      return ret
+    }
+
+    this.refresh = () => {
+      this.updateData()
+      this.update()
+    }
+
+    this.judgeAreaNeedDisplay = (data, areas) => {
+      let group = []
+      data && data.filter(item => {
+        let areaID = item[0]
+        let area = areas.get(areaID)
+        if (area && area.need_display !== 0) group.push(item)
+      })
+      return group
+    }
+
+    this.hideWorkFaceV = (data) => {
+      let group = []
+      data && data.filter((item) => {
+        if (item[0] !== 28 && item[0] !== 29) {
+          group.push(item)
+        }
+      })
+      return group
+    }
+
+    this.updateData = () => {
+      let rows = xdata.cardStore.getStat(self.topic.type, self.topic.groupName)
+      if (this.topic.groupName === 'occupation_level') {
+        rows = rows && rows.sort(function (x, y) {
+          return x[0] - y[0]
+        })
+      } else {
+        rows = rows && rows.sort(function (x, y) {
+          return x[2].toString().localeCompare(y[2].toString())
+        })
+      }
+      self.groups = rows || null
+      if (xdata.isCheck === 1 && self.topic.groupName === 'area') {
+        let areas = xdata.metaStore.data.area
+        self.groups = this.judgeAreaNeedDisplay(self.groups, areas)
+      }
+
+      if (self.groups && self.groups.length > 0) {
+        self.hasData = true
+        if (self.currentGroupID > 0) {
+          self.updateDetailData(this.currentGroupID)
+        }
+      } else {
+        self.hasData = false
+      }
+    }
+
+    this.updateDetailData = (groupID) => {
+      let cards = xdata.cardStore.getDetail(self.topic.type, self.topic.groupName, groupID)
+      let data = null
+      if (cards && cards.length > 0) {
+        data = self.formatDetailData(cards)
+      }
+      self.currentGroup = {
+        cards: data,
+        isSpecial: self.isSpecial(groupID)
+      }
+      self.currentGroupID = groupID
+    }
+
+    this.formatDetailData = (cards) => {
+      let data = []
+      if (self.topic.type === OD.VEHICLE) {
+        for (let i = 0, len = cards.length; i < len; i++) {
+          let row = []
+          let card = cards[i]
+          let stateDef = xdata.cardStore.stateDefs['vehicle']
+          let state = xdata.metaStore.formatStateArray(stateDef, card, null)
+          let vname = card[CARD.object_id]
+          let driver = xdata.metaStore.getVehicleDriver(vname)
+          let dname = driver ? driver.name : ''
+          let speed = card[CARD.speed]
+          let land = state[16]
+          let mapName = xdata.metaStore.getNameByID('map_id', card[10])
+          row = this.topic.groupName === 'area' ? [card[0], vname, dname, speed, land] : [card[0], vname, dname, speed, land, mapName]
+          data.push(row)
+        }
+      } else {
+        for (let i = 0, len = cards.length; i < len; i++) {
+          let row = []
+          let card = cards[i]
+          let stateDef = xdata.cardStore.stateDefs['staff']
+          let state = xdata.metaStore.formatStateArray(stateDef, card, null)
+          let sname = card[CARD.object_id]
+          let t = card[CARD.down_time]
+          let dtime = t ? new Date(t).format('MM-dd hh:mm:ss') : ''
+          let land = state[16]
+          let mapName = xdata.metaStore.getNameByID('map_id', card[10])
+          row = this.topic.groupName === 'area' ? [card[0], sname, dtime, land] : [card[0], sname, dtime, land, mapName]
+          data.push(row)
+        }
+      }
+      return data
+    }
+
+    this.toggleLocateAll = (evt) => {
+      self.switchGroup(evt)
+      let localcards = []
+      let el = evt.currentTarget
+      let sid = el.getAttribute('data-groupid')
+      if (sid) {
+        let groupID = parseInt(sid, 10)
+        let cards = xdata.cardStore.getDetail(self.topic.type, self.topic.groupName, groupID)
+        for (let i = 0, len = cards.length; i < len; i++) {
+          let card = cards[i]
+          let cardID = card[CARD.card_id]
+          let areaID = card[CARD.area_id]
+          let areaTypeID = xdata.metaStore.data.area.get(areaID).area_type_id
+          if (areaTypeID < 1000) {
+            localcards.push(cardID)
+          }
+        }
+        if (localcards.length > 0) window.triggerLocating({ cards: localcards })
+      }
+    }
+
+    this.toggleLocate = (evt) => {
+      let target = evt.currentTarget
+      let id = target.getAttribute('id')
+      let tags = this.tags['card-opbar']
+      if (!tags.length) {
+        this.tags['card-opbar'].toggleLocate(evt)
+      } else {
+        for (let i = 0, len = tags.length; i < len; i++) {
+          let tag = tags[i]
+          if (tag.cardid === id) {
+            tag.toggleLocate(evt)
+          }
+        }
+      }
+    }
+
+    this.init = (opts) => {
+      this.staffTopic = false
+      this.currentGroupID = -1
+      this.currentGroup = null
+      this.hasData = false
+      this.topic = leftCount[TOPIC.VEHICLE_BY_AREA]
+    }
+
+    this.init(opts)
+  </script>
+</group-list>

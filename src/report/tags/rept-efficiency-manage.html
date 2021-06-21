@@ -1,0 +1,402 @@
+<rept-efficiency-manage>
+  <div class="rept_efficiency_manage_warp" if={hasdata}>
+    <h2>“数字化” 管理工作调度日报</h2>
+    <div class="op-panel manage-panel hide-on-mb">
+        <div data-is="rs-rept-print" printdefs={ efficiencyManage } cb={ askFile } class="rs-rept-print"></div>
+    </div>
+    <div class="manage-time"><span>{nomaltime}</span></div>
+    <table class="efficiency-table">
+      <tbody>
+        <tr class="sanlvtitle">
+          <td class={ bootDataJue.length == 1 && bootDataCai.length == 1 ? 'noData' : 'havedata' } rowspan={bootData && bootData.length+1}>开机率</td>
+          <td each={ title, i in BOOTTITLE } >{title} </th>
+        </tr>
+        <tr each={ i, num in bootDataJue} if={bootDataJue.length != 1}>
+          <td if={num === 0} rowspan={bootDataJue.length-1}>{i.workType}</td>
+          <td if={num === bootDataJue.length-1}>{i.workType}</td>
+          <td>{i.name}</td>
+          <td>{i.replace}</td>
+          <td>{i.overWorktime && i.overWorktime.toFixed(2)}</td>
+          <td>{i.overChecktime && i.overChecktime.toFixed(2)}</td>
+          <td style="width: 1.28rem;">{i.worktime !== '' ? i.worktime + '%' : ''}</td>
+          <td>{i.Analysis}</td>
+        </tr>
+        <tr each={ i, num in bootDataCai} if={bootDataCai.length != 1}>
+          <td if={num === 0} rowspan={bootDataCai.length-1}>{i.workType}</td>
+          <td if={num === bootDataCai.length-1}>{i.workType}</td>
+          <td>{i.name}</td>
+          <td>{i.replace}</td>
+          <td>{i.overWorktime && i.overWorktime.toFixed(2)}</td>
+          <td>{i.overChecktime && i.overChecktime.toFixed(2)}</td>
+          <td>{i.worktime ? i.worktime + '%' : ''}</td>
+          <td>{i.Analysis}</td>
+        </tr>
+      </tbody>
+
+      <tbody>
+        <tr class="sanlvtitle">
+          <td class={ worktimeDataJue.length == 1 && worktimeDataCai.length == 1 ? 'noData' : 'havedata' } rowspan={worktimeData && worktimeData.length+1}>工时利用率</td>
+          <td each={ title, i in WORKTIMETITLE } >{title} </th>
+        </tr>
+        <tr each={ i, num in worktimeDataJue} if={worktimeDataJue.length != 1}>
+          <td if={num === 0} rowspan={worktimeDataJue.length-1}>{i.workType}</td>
+          <td if={num === worktimeDataJue.length-1}>{i.workType}</td>
+          <td>{i.name}</td>
+          <td>{i.replace}</td>
+          <td>{i.overWorktime && i.overWorktime.toFixed(2)}</td>
+          <td>{i.overChecktime && i.overChecktime.toFixed(2)}</td>
+          <td>{i.worktime ? i.worktime + '%' : ''}</td>
+          <td>{i.Analysis}</td>
+        </tr>
+        <tr each={ i, num in worktimeDataCai} if={worktimeDataCai.length != 1}>
+          <td if={num === 0} rowspan={worktimeDataCai.length-1}>{i.workType}</td>
+          <td if={num === worktimeDataCai.length-1}>{i.workType}</td>
+          <td>{i.name}</td>
+          <td>{i.replace}</td>
+          <td>{i.overWorktime && i.overWorktime.toFixed(2)}</td>
+          <td>{i.overChecktime && i.overChecktime.toFixed(2)}</td>
+          <td>{i.worktime ? i.worktime + '%' : ''}</td>
+          <td>{i.Analysis}</td>
+        </tr>
+      </tbody>
+
+      <tbody>
+        <tr class="sanlvtitle">
+          <td class={ rugularDataJue.length == 1 && rugularDataCai.length == 1 ? 'noData' : 'havedata' } rowspan={rugularData && rugularData.length+2}>正规循环率</td>
+          <td each={ title, i in RUGULARTITLEJUE } >{title} </th>
+        </tr>
+        <tr each={ i, num in rugularDataJue} if={rugularDataJue.length != 1}>
+          <td if={num === 0} rowspan={rugularDataJue.length-1}>{i.workType}</td>
+          <td if={num === rugularDataJue.length-1}>{i.workType}</td>
+          <td>{i.name}</td>
+          <td>{i.replace}</td>
+          <td>{i.overWorktime && i.overWorktime.toFixed(2)}</td>
+          <td>{i.overChecktime && i.overChecktime.toFixed(2)}</td>
+          <td>{i.worktime ? i.worktime + '%' : ''}</td>
+          <td>{i.Analysis}</td>
+        </tr>
+        <tr class="sanlvtitle">
+          <td each={ title, i in RUGULARTITLECAI } >{title} </td>
+        </tr>
+        <tr each={ i, num in rugularDataCai} if={rugularDataCai.length != 1}>
+          <td if={num === 0} rowspan={rugularDataCai.length-1}>{i.workType}</td>
+          <td if={num === rugularDataCai.length-1}>{i.workType}</td>
+          <td>{i.name}</td>
+          <td>{i.replace}</td>
+          <td>{i.overWorktime && i.overWorktime.toFixed(2)}</td>
+          <td>{i.overChecktime && i.overChecktime.toFixed(2)}</td>
+          <td>{i.worktime ? i.worktime + '%' : ''}</td>
+          <td>{i.Analysis}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message" if={ !hasdata }></div>
+  <script>
+    import '../sass/rept-efficiency-manage.sass'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import '../../tags/rs-rept-print/rs-rept-print.html'
+    import {getMonth, clone, getDeptID} from '../../js/utils/utils.js'
+    import { printDef } from '../js/report_defs.js'
+    this.efficiencyManage = printDef.efficiencyManage
+    const ZONGCAI = 25 // 综采队标识
+    const JUEJIN = 26 // 掘进队标识
+    // 开机率的title
+    this.BOOTTITLE = ['管理项目', '队组', '工作面', '实际开机时长(h)', '计划开机时长(h)', '当日开机率', '原因分析']
+    // 正规率掘进工作面的title
+    this.RUGULARTITLEJUE = ['管理项目', '队组', '工作面', '实际进尺(米)', '计划进尺(米)', '当日正规循环率', '原因分析']
+    // 正规率采煤面的title
+    this.RUGULARTITLECAI = ['管理项目', '队组', '工作面', '实际刀数(刀)', '计划刀数(刀)', '当日正规循环率', '原因分析']
+    // 工时率的title
+    this.WORKTIMETITLE = ['管理项目', '队组', '工作面', '有效时长(h)', '无效时长(h)', '当日工时利用率', '原因分析']
+    // 当前页面的index
+    this.reptIndex = opts.def.reptIndex
+    
+    /*查询数据函数*/
+    this.query = (name, sqlString) => {
+      let time = new Date(new Date(this.time).getTime()).format('yyyy-MM')
+      let termTime = getMonth(time, 'worktime')
+      let message = {
+          cmd: 'query',
+          data: {
+            name: name,
+            sql: sqlString,
+            searchTime: time,
+            termTime: termTime
+        }
+      }
+      console.log(sqlString)
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: {
+          name: name
+        }
+      })
+      window.xhint.showLoading()
+    }
+
+    /*处理sql后执行查询函数*/
+    this.doQuery = (tabDef, time = new Date().format('yyyy-MM-dd')) => {
+      this.name = tabDef.name
+      this.time = time
+      let sqlString = clone(tabDef.sqlTmpl)
+      for (let i = 0; i < Object.keys(sqlString).length; i++) {
+        let name = Object.keys(sqlString)[i]
+        sqlString[name] = sqlString[name].replace('{exprString}', `'${time}' and '${time}'`)
+      }
+      this.sql = sqlString
+      this.query(this.name, sqlString)
+      sqlString = null
+    }
+
+    /*获取时长，刀数，进尺数，率值*/
+    this.getSum = (data, name) => {
+      let schedule = 0, actrual = 0, dataLength = 0
+      data.forEach(item => {
+        if (item['overChecktime']) {
+          schedule += Number(item['overChecktime'])
+        }
+        if (item['overWorktime']){ 
+          actrual += Number(item['overWorktime'])
+          dataLength += 1
+        }
+      })
+      let eff = schedule ? Number((actrual / schedule * 100).toFixed(1)) : ''
+      if (name === 'dept_worktime') eff = Number((actrual / (dataLength * 8) * 100).toFixed(1))
+      return {
+        overChecktime: schedule === 0 ? '' : Number((schedule).toFixed(2)),
+        overWorktime: actrual === 0 ? '' : Number((actrual).toFixed(2)),
+        worktime: eff
+      }
+    }
+
+    /*最终处理数据函数*/
+    this.dealData = (datas, name, facetype, title) => {
+      let list = [JUEJIN, ZONGCAI]
+      let self = this
+      list.forEach(item => {
+        let name = item === JUEJIN ? 'j' : 'c',
+            nameUpperCase = name.toLocaleUpperCase(),
+            deptArr = `deptArr${name}`,
+            label = item === JUEJIN ? '掘进面' : '综采面'
+        if (!datas.get(item)) {
+          let store = new Map()
+          datas.set(item, store)
+        }
+
+        for (let i = 0, len = self[deptArr].length; i < len; i++) {
+          let dept = self[deptArr][i]
+          let analysis = this.getAnalysis(facetype, dept.deptID)
+          let name = xdata.metaStore.getNameByID('dept_id', dept.deptID)
+          let replace = dept.name
+          let planing = 0
+          // 补足开机率与正规率的计划值
+          if (this.planing && name !== 'dept_worktime') {
+            planing = this.planing.filter(item => item.workface_id === dept.workfaceId && item.workface_type === dept.workfaceType)
+            planing = planing && planing[0] ? planing[0].boot_time : 0
+          }
+
+          if (!datas.get(item).get(dept.deptID)) {
+            datas.get(item).set(dept.deptID, {
+              dept_id: dept.deptID,
+              name: name,
+              rateType: title,
+              workType: label,
+              worktime: '',
+              overChecktime: planing,
+              overWorktime: '',
+              rank: dept.rank,
+              replace: replace,
+              Analysis: analysis
+            })
+          }
+        }
+      })
+
+      list.forEach(item => {
+        if (datas.get(item)) {
+          let data = Array.from(datas.get(item).values())
+          let dataSum = this.getSum(data, name)
+          datas.get(item).set('all', {
+            name: item === ZONGCAI ? '综采工作面' : '掘进工作面',
+            overChecktime: dataSum.overChecktime,
+            overWorktime: dataSum.overWorktime,
+            worktime: dataSum.worktime,
+            workType: '合计'
+          })
+        }
+      })
+    }
+
+    /*处理查询回来的数据*/
+    this.splitData = (name, rows, title, facetype) => {
+      if (!this.sanlvMap.get(name)) {
+        let ret = new Map()
+        this.sanlvMap.set(name, ret)
+      }
+      let lvMap = this.sanlvMap.get(name)
+      let accessResult = xdata.depts
+      let showAllDept = !accessResult
+      rows.forEach((row) => {
+        let data = clone(row)
+        let deptID = row.dept_id
+        if (name === 'dept_worktime' || name === 'dept_boot') {
+          deptID = getDeptID(row)
+        }
+        
+        if ((accessResult.includes(deptID) || showAllDept) && row.need_display == 1) {
+          let DEPTFACE = this.deptArrj.concat(this.deptArrc).find(item => item.deptID === deptID)
+          if(!DEPTFACE) return
+          data['rank'] = DEPTFACE.rank
+          data['overWorktime'] = Number(row['overWorktime'].toFixed(2))
+          data['overChecktime'] = Number(row['overChecktime'].toFixed(2))
+          data['name'] = xdata.metaStore.getNameByID('dept_id', deptID)
+          data['rateType'] = title
+          data['replace'] = DEPTFACE && DEPTFACE.name
+          data['Analysis'] = this.getAnalysis(facetype, deptID)
+          let type = JUEJIN
+          if (this.deptArrc.find(item => item.deptID === deptID)) type = ZONGCAI
+          data['workType'] = type === JUEJIN ? '掘进面' : '综采面'
+          if (!lvMap.get(type)) {
+            let ret = new Map()
+            lvMap.set(type, ret)
+          }
+          let deptLv = lvMap.get(type)
+          deptLv.set(deptID, data)
+          data = null
+        }
+      })
+      this.dealData(lvMap, name, facetype, title)
+    }
+
+    /*合并数据中用的工具函数*/
+    this.composeData = (datas) => {
+      let junData = datas && datas.get(JUEJIN)
+      junData = junData ? Array.from(junData.values()) : []
+      let caiData = datas && datas.get(ZONGCAI)
+      caiData = caiData ? Array.from(caiData.values()) : []
+      return {
+        length: junData.length + caiData.length,
+        data: [junData, caiData]
+      }
+    }
+
+    /*合并数据*/
+    this.concatData = () => {
+      const list = ['boot', 'rugular', 'worktime']
+      const self = this
+      list.forEach(item => {
+        const datas = self.sanlvMap.get(`dept_${item}`)
+        self[`${item}Data`] = self.composeData(datas)
+        self[`${item}DataJue`] = datas && datas.get(JUEJIN) && Array.from(datas.get(JUEJIN).values()).sort((a, b) => a.rank - b.rank)
+        self[`${item}DataCai`] = datas && datas.get(ZONGCAI) && Array.from(datas.get(ZONGCAI).values()).sort((a, b) => a.rank - b.rank)
+      })
+
+      this.total = [this.bootData.data, this.worktimeData.data, this.rugularData.data]
+    }
+
+    /*处理原因分析数据*/
+    this.dealAnalysis = (rows) => {
+      rows && rows.forEach(row => {
+        const {work_face_type, work_face_id} = row.work_face_type
+        const name = work_face_type === 1 ? 'coalface' : 'drivingface'
+        const datas = xdata.metaStore.data[name]
+        let workID = datas && datas.get(work_face_id)
+        workID = workID && workID[`${name}_id`]
+        let workfaceVehicle = xdata.metaStore.data[`${name}_vehicle`]
+        workfaceVehicle = workID && workfaceVehicle && workfaceVehicle.get(workID)
+        workfaceVehicle = workfaceVehicle && workfaceVehicle.vehicle_id
+        let deptID = workfaceVehicle && xdata.metaStore.data.vehicle_extend
+        deptID = workfaceVehicle && deptID && deptID.get(workfaceVehicle)
+        deptID = deptID && deptID.dept_id
+        row['dept_id'] = deptID
+      })
+      return rows
+    }
+
+    /*接收查询的数据*/
+    this.updateDs = (ds) => {
+      if (ds.def.name !== this.name || !ds.rows) return
+      this.init()
+      let {rows} = ds
+      if (rows) this.hasdata = true
+      this.analysis = this.dealAnalysis(rows['analysis'])
+      this.planing = rows['planing']
+      rows['dept_boot'] && this.splitData('dept_boot', rows['dept_boot'], '开机率', 1)
+      rows['dept_rugular'] && this.splitData('dept_rugular', rows['dept_rugular'], '正规循环率', 2)
+      rows['dept_worktime'] && this.splitData('dept_worktime', rows['dept_worktime'], '工时利用率', 3)
+      this.concatData()
+      this.nomaltime = `日期：${this.time.replace('-','年').replace('-','月')}日`
+      window.xhint.close()
+      this.update()
+    }
+
+    /*打印函数*/
+    this.askFile = (opname) => {
+      const data = JSON.stringify(this.total)
+      const msg = {
+        cmd: 'file',
+        name: 'rept_efficiency_manage',
+        title: '“数字化” 管理工作调度日报',
+        fileType: opname,
+        labels: [],
+        data: data,
+        sql: this.sql.dept_boot,
+        time: '日期：'+ this.time.replace('-', '年').replace('-', '月') + '日',
+        reptIndex: this.reptIndex
+      }
+      xbus.trigger('ASK-FILE', msg)
+    }
+
+    /*获取工作面数据*/
+    this.getWorkFaceArray = (workfaceType, dataName) => {
+      const workFaces = xdata.metaStore.data.work_face && Array.from(xdata.metaStore.data.work_face.values())
+      const chooseWorkFaces = workFaces && workFaces.filter(item => item.work_face_type === workfaceType && item.need_display === 1)
+      const face = xdata.metaStore.data[dataName]
+      const vehicleExtend = xdata.metaStore.data.vehicle_extend
+      return chooseWorkFaces && chooseWorkFaces.map(item => {
+        let {work_face_id, work_face_type} = item,
+            chooseface = face.get(work_face_id),
+            vehicleID = chooseface && chooseface.vehicle_id,
+            deptID = vehicleExtend.get(vehicleID) && vehicleExtend.get(vehicleID).dept_id
+        return {
+          deptID: deptID,
+          name: item.name.slice(0, -5), 
+          workfaceId: work_face_id, 
+          workfaceType: work_face_type, 
+          rank: item.rank,
+          needDisplay: item.need_display
+        }
+      })
+    }
+
+    /*获取过滤后的原因分析*/
+    this.getAnalysis = (facetype, deptID) => {
+      let analysisText = ''
+      if (this.analysis) {
+        let analysis = this.analysis.filter(item => item.Rpt_Type === facetype && item.dept_id === deptID)
+        analysis.sort(function(a, b){return b.ID - a.ID})
+        analysisText = analysis[0] && analysis[0].Analysis
+      }
+      return analysisText
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.sanlvMap = new Map()
+      this.deptReplace = new Map()
+      this.bootData = null
+      this.bootDataJue = null
+      this.bootDataCai = null
+      this.rugularData = null
+      this.rugularDataJue = null
+      this.rugularDataCai = null
+      this.worktimeData = null
+      this.worktimeDataJue = null
+      this.worktimeDataCai = null
+      this.total = null
+      this.deptArrj = this.getWorkFaceArray(2, 'drivingface_vehicle')
+      this.deptArrc = this.getWorkFaceArray(1, 'coalface_vehicle')
+    }
+  </script>
+</rept-efficiency-manage>

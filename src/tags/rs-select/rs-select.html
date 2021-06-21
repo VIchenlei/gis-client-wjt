@@ -1,0 +1,54 @@
+<rs-select class="rs-select">
+  <div class="ul-warp grey-scroll">
+    <ul onclick={ choose }>
+      <li each={ row,index in rows } data-index={ index } data-value={ isSearch ? index : row.value } data-label={ isSearch ? row.name : row.label } >{ isSearch ? (key ? row[key] : row.name) : row.label }</li>
+    </ul>
+  </div>
+
+  <script>
+    import './rs-select.sass'
+
+    this.position = (target) => {
+      if (this.parenTag && typeof this.parenTag.setPosition === 'function') {
+        const self = this
+        this.parenTag.setPosition(target, self)
+      }
+    }
+
+    /*select的选择结果函数，将结果返回到传过来的cb中*/
+    this.choose = (evt) => {
+      let target = evt.target
+      let index = target.getAttribute('data-index')
+      let value = target.getAttribute('data-value')
+      let label = target.getAttribute('data-label')
+      let mapRows = Array.from(this.result)
+      if (mapRows.length) {
+        mapRows.forEach((e, i) => {
+          let idx = e[1].value
+          this.result.delete(idx)
+        })
+      }
+      this.result.set(index, {value, label})
+      this.cb && this.cb instanceof Function ? this.cb(this.result) : console.warn('cb in not function')
+    }
+
+    this.updateData = (message) => {
+      this.rows = message.rows
+      this.cb = message.cb
+      this.update()
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      let message = opts.message
+      this.rows = message && message.rows
+      this.cb = message && message.cb
+      this.result = new Map()
+      this.isSearch = opts.issearch
+      this.key = opts.key || null
+      this.parenTag = opts.parentag || null
+    }
+    
+    this.init(opts)
+  </script>
+</rs-select>

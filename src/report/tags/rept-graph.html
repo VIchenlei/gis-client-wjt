@@ -1,0 +1,205 @@
+<rept-graph class="rept-graph">
+  <rs-graph if={ showGraph } each={ graphOption in graphOptionsResult } graphdef={ graphOption }></rs-graph>
+  <script>
+  import '../../tags/rs-graph/rs-graph.html'
+  import reptGraphQuery from '../js/rept_graph_query.js'
+  import '../sass/rept-graph.sass'
+  import {
+    computeDays,
+    computeMonthDays
+  } from '../../js/utils/utils.js'
+
+  let graphOptionDef = {
+    'pieOption': 'createPieData',
+    'barOption': 'createBarData',
+    'lineOption': 'createLineData'
+  }
+
+  this.getShowGraph = (ds) => {
+    let showGraph = false
+    let showGraphNames = ['v_vehicle_day', 'v_vehicle_month', 'person_month']
+    if (showGraphNames.includes(this.name)) {
+      showGraph = true
+    }
+    return showGraph
+  }
+
+  this.updateDs = (ds) => {
+    if (ds.def.rept === this.name && ds.rows && ds.rows.length > 0) {
+      this.showGraph = this.getShowGraph(ds)
+      this.getGraphDatas(ds)
+      this.update()
+    }
+  }
+
+  this.getGraphDatas = (ds) => {
+    let data = ds.rows
+    this.graphType && this.graphType.length > 0 ? this.graphType.forEach((item) => {
+      this.createData(data, item, ds.monthTime)
+    }) : ''
+    this.graphOptionsResult = Array.from(this.graphOptions.values())
+  }
+
+  this.createData = (data, item, monthTime) => {
+    let creatFunName = graphOptionDef[item]
+    let graphOption = this[creatFunName](item, data, monthTime)
+    this.graphOptions.set(item, graphOption)
+  }
+
+  this.createPieData = (graphName, data) => {
+    let graph = this.graph
+    let names = graph.fields
+    let indexed = graph.indexField
+    let mcount = graph.countField
+    let title = graph.label
+    let tip = graph.tipText
+    let piedatas = names.map((field) => {
+      return {
+        name: field,
+        value: 0
+      }
+    })
+    data && data.length > 0 ? data.forEach((item) => {
+      if (item[indexed] > 0 && item[indexed] < 4) {
+        let index = item[indexed] - 1
+        piedatas[index].value += item[mcount]
+      }
+    }) : '' 
+
+    return {
+      graphName: graphName,
+      width: 500,
+      height: 250,
+      graphOption: {
+        text: title,
+        name: tip,
+        data: piedatas
+      }
+    }
+  }
+
+  this.createLineData = (graphName, data, monthTime) => {
+    let graph = this.graph
+    let {fields, indexField, countField, label, unit} = graph
+    let month = data[0] ? new Date(data[0].att_date).getMonth() + 1 : new Date().getMonth() + 1
+    let year = new Date().getFullYear()
+    let computeResult = null
+    if (monthTime) {
+      let stime = new Date(monthTime.stime).format('yyyy-MM-dd')
+      let etime = new Date(monthTime.etime).format('yyyy-MM-dd')
+      computeResult = computeMonthDays(stime, etime)
+    } else {
+      computeResult = computeDays(year, month)
+    }
+    let {days, daysArr, month_start, month_end} = computeResult
+    let linedatas = fields.map((item) => {
+      return {
+        name: item,
+        type: 'line',
+        data: new Array(days).fill(0)
+      }
+    })
+    data && data.length > 0 ? data.forEach((item) => {
+      if (item[indexField]) {
+        if (item[indexField] > 0 && item[indexField] < 4) {
+          let day = new Date(item.att_date).format('M-dd')
+          let index = item[indexField]
+          let tdIndex = daysArr.indexOf(day)
+          if (tdIndex > 0) {
+            linedatas[index - 1].data[tdIndex] = item[countField]
+          }
+        }
+      } else if (graph.name === 'driver_dept_month') {
+        let day = parseInt(new Date(item.att_date).format('dd'))
+        linedatas[0].data[day - month_start] = Math.round(item[countField] * 100) / 100
+      }
+    }) : ''
+
+    return {
+      graphName: graphName,
+      width: 500,
+      height: 250,
+      graphOption: {
+        text: label,
+        data: daysArr,
+        series: linedatas,
+        unit: unit
+      }
+    }
+  }
+
+  this.createBarData = (graphName, data, monthTime) => {
+    let legend, bardatas = [], xcoord
+    if (this.graphname === 'driver_dept_month') {
+      let graph = this.graphTwo
+      let names = graph.fields
+      legend = graph.fields
+      xcoord = []
+      bardatas = {
+        name: names[0],
+        type: 'bar',
+        data: []
+      }
+      data && data.length > 0 ? data.forEach((item) => {
+        xcoord.push(item.name)
+        bardatas.data.push(item.mcount)
+      }) : ''
+    } else {
+      let graph = this.graph
+      let namess = graph.fields
+      legend = graph.fields
+      let sDate = new Date(monthTime.stime).format('yyyy-MM-dd')
+      let eDate = new Date(monthTime.etime).format('yyyy-MM-dd')
+      let duration = (Date.parse(eDate) - Date.parse(sDate)) / (1000 * 60 * 60 * 24)
+      let gap = Math.round(duration * 3)
+      if (duration > 1 && Number.isInteger(duration)) {
+        duration = duration - 1
+      }
+      namess && namess.filter((item) => {
+        bardatas.push({
+          name: item,
+          type: 'bar',
+          data: new Array(gap).fill(0)
+        })
+      })
+      data && data.length > 0 ? data.forEach((item) => {
+        if (item.date && item.categoryId) {
+          let index = Math.round((Date.parse(item.date) - Date.parse(sDate)) / (1000 * 60 * 60 * 24) * 3 + item.shiftId - 1) - item.shiftId + 1
+          if (index < 0) index = 0
+          bardatas[item.categoryId - 1].data[index] = item.mcount
+        }
+      }) : ''
+      xcoord = []
+      for (let i = 0; i <= duration; i++) {
+        let fields = [' 0', ' 8', ' 4']
+        fields.forEach((item) => {
+          let shift = new Date(Date.parse(sDate) + i * 24 * 60 * 60 * 1000).format('yyyy-MM-dd') + item
+          xcoord.push(shift)
+        })
+      }
+    }
+    return {
+      graphName: graphName,
+      width: 1000,
+      height: 500,
+      graphOption: {
+        legend: legend,
+        data: xcoord,
+        series: bardatas
+      }
+    }
+  }
+
+  this.init = (opts) => {
+    this.def = opts.def
+    this.name = opts.def.name
+    this.showGraph = false
+    this.graph = reptGraphQuery[opts.def.name]
+    this.graphType = this.graph && this.graph.graphType
+    this.graphOptions = new Map()
+    this.graphOptionsResult = null
+  }
+
+  this.init(opts)
+  </script>
+</rept-graph>  

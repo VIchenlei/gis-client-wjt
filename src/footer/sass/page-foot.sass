@@ -1,0 +1,46 @@
+@import '../../style/defs'
+
+page-foot
+  flex: 0 0 .5rem
+  @include flex-between-center
+  background: #f5f5f5
+  border-top: 1px solid #e3e3e3
+  min-width: 8rem
+  font-size: $font-xs
+  @media screen and (max-width: $width-medium)
+    @include wh(100%,0.224rem)
+    position: absolute
+    bottom: 0
+    min-width: 0
+    background: rgba(0,0,0,.5)
+    border-radius: 0.16rem
+    border: 0
+    color: #eee
+  @media screen and (max-width: $width-medium) and (orientation: landscape)
+    bottom: 0.016rem
+
+  .foot-right
+    @include flex-row-center
+
+    .page-footer__network-status
+      flex: 2 2 auto
+      padding: 0 0.16rem
+      @include flex-row-center
+      .connected
+        fill: #27CA41
+
+      .disconnected
+        fill: #ff5454
+    .page-footer__last-update
+      @include flex-row-center
+      padding: 0 0.16rem
+      span
+        padding: 0 .032rem
+
+  .foot-left
+    @include flex-row-center
+    .current-leaders
+      padding: 0 .08rem
+      @include flex-row-center
+      .icon
+        fill: #08f

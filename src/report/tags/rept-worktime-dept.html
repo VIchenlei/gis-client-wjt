@@ -1,0 +1,174 @@
+<rept-worktime-dept>
+  <div if={ hasdata }>
+    <div class="worktime-title">
+      <span>查询日期：{ stime }</span>
+      <div data-is="rept-print" printdefs={ worktimeDeptShift } cb={ askFile }></div>
+    </div>
+    <table class="worktime-table">
+      <thead>
+        <tr>
+          <th rowspan="2">部门</th>
+          <th colspan="2">0点班</th>
+          <th colspan="2">8点班</th>
+          <th colspan="2">4点班</th>
+          <th colspan="2">当日合计</th>
+        </tr>
+        <tr>
+          <th each={th in ths}>{th}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr each={list in lists} data-id={list}>
+          <td>{getDeptName(list)}</td>
+          <td each={item, i in ths}>{getShiftDeptResult(i, list)}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message" if={ !hasdata }></div>
+  <script>
+    import '../sass/rept-worktime-dept.sass'
+    import '../../tags/rs-blank-message/rs-blank-message.html'
+    import { getMonth, clone } from '../../js/utils/utils.js'
+    import { printDef } from '../js/report_defs.js'
+    this.ths = ['人数', '平均时长', '人数', '平均时长', '人数', '平均时长', '人数', '合计时长']
+    this.reptIndex = opts.reptindex
+    this.hasdata = false
+    this.worktimeDeptShift = printDef.worktimeDeptShift
+    const CM = 1
+    const JJ = 2
+
+    /*接收查询的数据*/
+    this.updateDs = (ds) => {
+      this.worktimeDept = new Map()
+      let rows = ds.rows
+      if (!rows || rows.length <= 0) {
+        this.hasdata = false
+        return
+      } 
+      this.hasdata = true
+      this.splitData(rows)
+      this.lists = Array.from(this.worktimeDept.keys())
+      this.namesInShort = this.getCleanName()
+      window.xhint.close()
+      this.update()
+    }
+
+    /*获取简洁的names集合*/
+    this.getCleanName = () => {
+      return this.def.fields.names.map((item) => {
+		    let name = item.split('.').pop()
+		    return name.split(' ').pop()
+  		})
+    }
+
+    /*处理数据*/
+    this.splitData = (rows) => {
+      let accessResult = xdata.depts
+      let showAllDept = accessResult == '' ? true : false
+      rows.forEach(row => {
+        let workfaceType = row.workface_type
+        let workfaces = workfaceType === CM ? xdata.metaStore.data.coalface_vehicle : xdata.metaStore.data.drivingface_vehicle
+        let workfaceID = workfaces && workfaces.get(row.workface_id)
+        let vehicleID = workfaceID && workfaceID.vehicle_id
+        let vehicles = xdata.metaStore.data.vehicle
+        let vehicle = vehicles && vehicleID && vehicles.get(vehicleID)
+        row['dept_id'] = vehicle && vehicle.dept_id
+        let deptID = row.dept_id
+        if (accessResult.includes(deptID) || showAllDept) {
+          if (!this.worktimeDept.get(deptID)) {
+            let ret = new Map()
+            this.worktimeDept.set(deptID, ret)
+          }
+          let deptrow = this.worktimeDept.get(deptID)
+          let shiftID = row.shift_id
+          let msg = {
+            num: row.num,
+            worktime: row.worktime
+          }
+          deptrow.set(shiftID, msg)
+        }
+      })
+    }
+
+    /*根据deptID获取部门名称*/
+    this.getDeptName = (deptID) => {
+      let depts = xdata.metaStore.data.dept
+      let dept = depts && depts.get(deptID)
+      return dept ? dept.name : deptID
+    }
+
+    /*获取班次信息*/
+    this.getShiftResult = (shiftID, rows, index) => {
+      let row = rows.get(shiftID)
+      if (!row) return ''
+      return index % 2 === 0 ? row.num : Number((row.worktime).toFixed(2))
+    }
+
+    /*获取班次部门信息*/
+    this.getShiftDeptResult = (index, deptID, row) => {
+      let rows = this.worktimeDept.get(deptID)
+      let shiftID = null
+      if (index <= 5) {
+        if (index <= 1) {
+          shiftID = 1
+        } else if (index === 2 || index === 3) {
+          shiftID = 2
+        } else if (index === 4 || index === 5) {
+          shiftID = 3
+        }
+        let result = this.getShiftResult(shiftID, rows, index)
+        return result
+      } else {
+        let deptValues = Array.from(rows.values())
+        let sum = 0
+        index === 6 ? deptValues.forEach(item => sum += Number(item.num)) : deptValues.forEach(item => sum += Number(item.worktime))
+        if (!rows.get('all')) {
+          rows.set('all', { num: 0, worktime: 0 })
+          if (index === 6) rows.get('all')['num'] = sum
+        } else if (!rows.get('all')['worktime']) {
+          rows.get('all')['worktime'] = sum
+        }
+        return index === 6 ? rows.get('all')['num'] : Number(rows.get('all')['worktime']).toFixed(2)
+      }
+    }
+
+    /*查询数据库*/
+    this.doQuery = (def, stime) => {
+      this.def = def
+      this.name = 'rept_worktime_dept'
+      let time = new Date(stime).format('yyyy-MM')
+      this.stime = stime
+      let message = {
+        cmd: 'query',
+        data: {
+          name: this.name,
+          sql: `select hwr.workface_id, work_face_type as workface_type, hwrd.shift_id,hwrd.avg_valid_time as worktime, hwrd.staff_count as num from his_worktime_rate hwr left join his_worktime_rate_detail hwrd on hwr.rate_id = hwrd.rate_id left join dat_work_face dwf on hwr.workface_id = dwf.work_face_id where hwr.work_date = '${stime}'`
+        }
+      }
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: {
+          name: this.name
+        }
+      })
+      window.xhint.showLoading()
+    }
+
+    /*打印文件函数*/
+    this.askFile = (opname) => {
+      let msg = {
+        cmd: 'file',
+        name: 'worktime_dept_shift',
+        title: '各队组班次入井时间统计',
+        labels: this.def.fields.labels,
+        namesInShort: this.def.fields.names,
+        types: this.def.fields.types,
+        fileType: opname,
+        reptIndex: this.reptIndex,
+        sql: `select hwr.workface_id, work_face_type as workface_type, hwrd.shift_id,hwrd.avg_valid_time as worktime, hwrd.staff_count as num from his_worktime_rate hwr left join his_worktime_rate_detail hwrd on hwr.rate_id = hwrd.rate_id left join dat_work_face dwf on hwr.workface_id = dwf.work_face_id where hwr.work_date = '${new Date(this.stime).format('yyyy-MM-dd')}'`
+      }
+      xbus.trigger('ASK-FILE', msg)
+    }
+  </script>
+</rept-worktime-dept>

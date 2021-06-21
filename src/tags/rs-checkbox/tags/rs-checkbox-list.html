@@ -1,0 +1,106 @@
+<rs-checkbox-list class="rs-checkbox-list">
+  <ul class="list grey-scroll" onclick={storeMenu}>
+    <li each={list, i in lists} data-name={list.name} card-spell={list.spy}>
+      <div id="checkbox">
+        <input type="checkbox" 
+          id={list[keyName]} 
+          class="list{list[keyName]} checkbox-input" 
+          checked={judgeChecked(list[keyName], i)} 
+          disabled={judgeDisabled(list)}>
+        <label class={judgeChecked(list[keyName], i) ? 'selected' : 'unselected'} for={list[keyName]}></label>
+      </div>
+      <label class="checkbox-text {judgeClass(list)}" for={list[keyName]}>{list.name}</label>
+    </li>
+  </ul>
+  <script>
+    import '../sass/rs-checkbox-list.sass'
+    import { compare } from '../../../js/utils/utils.js'
+
+    this.storeMenu = (evt) => {
+      this.parent.storeMenu(evt)
+    }
+
+    this.judgeChecked = (name, index) => {
+      if (this.checkedMenus) {
+        if (this.keyName === "area_business_id") {
+          if (parseInt(this.checkedMenus[index], 10)) return 'checked'
+        } else if (this.checkedMenus.includes(name.toString())) {
+          return 'checked'
+        }
+      }
+      if (this.setting && this.setting.includes(index)) return 'checked'
+      return ''
+    }
+
+    this.judgeClass = (list) => {
+      let businessID = list.area_business_id
+      if (!this.setting || !this.nosetting) return ''
+      if (this.setting.includes(businessID)) return 'green'
+      if (this.nosetting.includes(businessID)) return 'red'
+      return ''
+    }
+
+    this.judgeDisabled = (list) => {
+      if (this.parent.disabled) return 'disabled'
+      let businessID = list.area_business_id
+      let disabledArray = this.setting && this.setting.concat(this.nosetting)
+      if (!disabledArray) return ''
+      if (disabledArray.includes(businessID)) return 'disabled'
+      return ''
+    }
+
+    this.updateSelect = (businesses) => {
+      this.updateSelectList(businesses)
+      this.checkedMenus = null
+      this.update()
+    }
+
+    this.initCheckbox = () => {
+      let inputs = this.root.querySelectorAll('input')
+      if (inputs.length > 0) {
+        inputs.forEach(input => {
+          input.checked = false
+          let label = input.nextElementSibling
+          let nextLabel = input.parentNode.nextElementSibling
+          if (!nextLabel.className.includes('green') && !nextLabel.className.includes('red')) {
+            label.classList.remove('selected')
+            label.classList.add('unselected')
+          }
+        })
+      }
+    }
+
+    this.updateSelectList = (businesses, type) => {
+      if (this.keyName === "area_business_id") {
+        this.initCheckbox()
+        businesses = type ? this.parent.selectbusiness : businesses
+        this.setting = businesses && businesses['setting']
+        this.nosetting = businesses && businesses['nosetting']
+      }
+
+      this.update()
+    }
+
+    this.init = (opts) => {
+      this.lists = opts.dataList
+      this.keyName = opts.dataKey
+      this.lists = this.keyName === 'area_business_id' ? this.lists : this.lists.sort(compare('name', 'chinese'))
+      if (opts.dataAll) {
+        this.lists.unshift({
+          name: opts.dataAll,
+          spy: xdata.spell.makePy(opts.dataAll)[0]
+        })
+        this.lists[0][this.keyName] = 0
+      }
+      this.checkedMenus = opts.dataChecked
+      this.updateSelectList('', 'init')
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.setting = null
+      this.nosetting = null
+    })
+  </script>
+</rs-checkbox-list>

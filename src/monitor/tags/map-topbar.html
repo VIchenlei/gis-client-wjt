@@ -1,0 +1,290 @@
+<map-topbar class="map-topbar hide-on-mb">
+    <ul class="tool-panel" onclick={ switchItem }>
+      <li each={ toolbar } name={ icon } id={ icon } ref={ icon } class='hint--bottom' aria-label={ name } if={ isShow(menuID) }>
+        <span class="icon { icon } { class }"></span>
+        <span class="icon icon-down" if={ !notHaveDown.includes(icon) }></span>
+      </li>
+    </ul>
+    <rs-list ref="tool-down" rslist={tooldown} class="hide"></rs-list>
+  <script>
+    import '../sass/map-topbar.sass'
+    import { tools } from '../js/map-topbar.js'
+    import { messageTip, resetAll } from '../../js/utils/utils.js'
+    import '../../tags/rs-list/rs-list.html'
+    import OlMapService from '../../js/service/OlMapService.js'
+    
+    this.isShow = (menuID) => {
+      let isShow = false
+      if (!xdata.hasMenus || xdata.menus.includes(menuID)) isShow = true
+      return isShow
+    }
+
+    this.resetMap = (iconname) => {
+      let mapID = Number(iconname.split('pos_')[1])
+      let currentMapID = xdata.metaStore.defaultMapID
+      if (mapID === currentMapID) return
+      xbus.trigger('RESET-MAP', (mapID))
+      this.clear(iconname)
+    }
+
+    // 重置store中的状态以及其它相关状态
+    this.clear = (iconname) => {
+      this.activeArray = new Map()
+      this.activeArray.set('areaStaff', true)
+      this.activeArray.set(iconname, true)
+      this.update()
+    }
+
+    this.dohandleItem = (item) => {
+      let iconname = item.icon
+      let target = this.refs['tool-down'].root.querySelector(`.${iconname}`).parentElement
+      let ptagClass = target.classList
+      if (tools.statusNames.includes(iconname)) ptagClass.toggle('active')
+      let status = ptagClass.contains('active')
+      if (status) {
+        this.activeArray.set(iconname, true)
+      } else {
+        this.activeArray.delete(iconname)
+      }
+      let msg = null
+      this.refs['tool-down'].root.classList.add('hide')
+      this.tooldownName = null
+      switch (true) {
+        case ['reader', 'light', 'camera', 'landmark', 'fault', 'underground', 'readerPath', 'antenna'].includes(iconname):
+          msg = {
+            mapID: this.mapID,
+            symbolType: iconname,
+            mapType: this.mapType,
+            isVisible: status
+          }
+          xbus.trigger(`MAP-SHOW-${iconname.toLocaleUpperCase()}`, msg)
+          break
+        case iconname.includes('area_'):
+          msg = {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            isVisible: status,
+            visiblearea: iconname
+          }
+          xbus.trigger('MAP-SHOW-AREA', msg)
+          break
+        case iconname.includes('pos_'):
+          this.resetMap(iconname)
+          break
+        case iconname === 'reset':
+          xbus.trigger('MAP-RESET-POS', {mapID: this.mapID})
+          break
+        case iconname === 'measure_length': 
+          xbus.trigger('MAP-MEASURE', {geometry: 1})
+          break
+        case iconname === 'measure_area':
+          xbus.trigger('MAP-MEASURE', {geometry: 2})
+          break
+        case Object.keys(tools.magnifierDef).includes(iconname):
+          let {type, shape} = tools.magnifierDef[iconname]
+          xbus.trigger('MAP-SEARCH-GEO', {
+            tool: target,
+            mapID: this.mapID,
+            mapType: this.mapType,
+            status: status,
+            type: type,
+            geotype: shape
+          })
+          break
+        case iconname === 'areaStaff':
+          xbus.trigger('MAP-SHOW-CARD', {
+            mapID: this.mapID,
+            symbolType: iconname,
+            isVisible: status
+          })
+          break
+        case iconname === 'edit_area':
+        case iconname === 'edit_forbid_area':
+          xbus.trigger('MAP-LAYER-EDIT', {
+            layername: 'areaLayer',
+            tool: target,
+            iconname: iconname
+          })
+          break
+        case iconname === 'edit_landmark':
+          console.log('mapID', this.mapID)
+          xbus.trigger('MAP-LANDMARK-EDIT', {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            tool: target
+          })
+          break
+        case iconname === 'edit_forbid_bstation':
+          xbus.trigger('MAP-READER-EDIT', {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            tool: target
+          })
+          break
+        case iconname === 'edit_route_plan':
+          xbus.trigger('DRAW-ROUTEPLAN', {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            isEdit: false
+          })
+          break
+        case iconname === 'edit_goaf':
+          xbus.trigger('MAP-DRAW-GOAF', {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            tool: target
+          })
+          break
+        case iconname === 'edit_point':
+        case iconname === 'delete_point':
+          const name = iconname === 'edit_point' ? 'delete_point' : 'edit_point'
+          const poinTag = this.refs['tool-down'].root.querySelector(`.${name}`).parentElement
+          poinTag && poinTag.classList.remove('active')
+
+          xbus.trigger('MAP-DRAW-POINT', {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            status: status,
+            name: iconname
+          })
+          break
+        case iconname === 'fade_area':
+          if (status) {
+            xbus.trigger('MAP-HIDE-FADEAREA', {readerId: ''})
+          } else {
+            this.doqueryFadeArea()
+          }
+          break
+      }
+    }
+
+    this.showMapNames = () => {
+      let maps = xdata.metaStore.dataInArray && xdata.metaStore.dataInArray.get('map')
+      let mapList = []
+      if (maps) {
+        for (let i = 0; i < maps.length; i++) {
+          let map = maps[i]
+          let msg = {
+            icon: 'pos_' + map.map_id,
+            name: map.name
+          }
+          mapList.push(msg)
+        }
+      }
+      return mapList
+    }
+
+    this.judgeCurrentTooldown = (opname, list, target) => {
+      if (this.tooldownName === opname) {
+        this.refs['tool-down'].root.classList.add('hide')
+        this.tooldownName = null
+      } else {
+        this.refs['tool-down'].root.classList.remove('hide')
+        this.tooldown = opname === 'switch_map' ? this.showMapNames() : list
+        this.tooldownName = opname
+        this.refs['tool-down'].update()
+      }
+    }
+    
+    xbus.on('HIDE-ALL-POPUP', () => {
+      this.hideList()
+    })
+
+    this.hideList = () => {
+      this.refs['tool-down'].root.classList.add('hide')
+      this.tooldownName = null
+    }
+    
+    this.switchItem = (evt) => {
+      let localMap = window.localStorage.getItem('map')
+      let localMapRow = window.localStorage.getItem('maprow')
+      if (!localMap || !localMapRow) {
+        return messageTip('未配置地图！请配置地图后再进行操作', 'warning')
+      }
+      let target = evt.target
+      let tagName = target.tagName
+      if (tagName !== 'SPAN') return
+      let opName = target.parentElement.id
+      this.tags['rs-list'] && this.tags['rs-list'].position(target)
+      switch (opName) {
+        case 'vehicle':
+        case 'staff':
+          this.hideList()
+          target.classList.toggle('active')
+          let status = target.classList.contains('active')
+          let msg = {
+            mapID: xdata.metaStore.defaultMapID,
+            symbolType: opName,
+            isVisible: status
+          }
+          xbus.trigger('MAP-SHOW-CARD', msg)
+          break
+        case 'visual':
+        case 'magnifier':
+        case 'measure':
+        case 'visualarea':
+        case 'switch_map':
+          this.judgeCurrentTooldown(opName, tools[opName], target)
+          break
+        case 'edit_map':
+          this.hideList()
+          target.classList.toggle('active')
+          xbus.trigger('MAP-TOGGLE-EDIT', target.classList.contains('active'))
+          break
+      }
+    }
+
+    //rs-list组件列表是否添加选中状态
+    this.istActive = (name) => {
+      if (name ==='fade_area') {
+        let status = xdata.metaStore.fadeAreaArr.size > 0 ? true : false
+        return status
+      }
+      if (this.activeArray.get(name)) {
+        return true
+      } else if (name === 'reader') {
+        if (Array.from(xdata.locateStore.localReader.keys()).length > 0 || window.isShowReader) {
+          return true
+        }
+      } else if (name === 'landmark') {
+        if (Array.from(xdata.locateStore.locateLandmark.keys()).length > 0 || window.isShowLandMarker) {
+          return true
+        }
+      } else if (name === 'light') {
+        if (Array.from(xdata.locateStore.localLight.keys()).length > 0 || window.isShowLight) {
+          return true
+        }
+      }
+      return false
+    }
+
+    this.doqueryFadeArea = () => {
+      let message = {
+        cmd: 'fadeArea',
+        data: {
+          name: 'fadeArea',
+          readerId: ''
+        }
+      }
+      window.xhint.showLoading()
+      xbus.trigger('FADE-READER-DATA', {
+        req: message,
+        def: {
+          name: 'fadeArea'
+        }
+      })
+    }
+
+    this.init = (opts) => {
+      this.notHaveDown = ['vehicle', 'staff', 'edit_map', 'cancel_view']
+      this.toolbar = tools.toolbarItems
+      this.mapID = this.parent.mapID
+      this.mapType = this.parent.mapType
+      this.activeArray = new Map()
+      this.activeArray.set('areaStaff', true)
+      this.activeArray.set('pos_5', true)
+      // if (xdata.isCheck === 1) this.toolbar.pop()
+    }
+    this.init(opts)
+  </script>
+</map-topbar>

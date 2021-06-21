@@ -1,0 +1,30 @@
+@import '../../style/defs'
+
+.ul-warp
+  width: 100%
+  position: relative
+  background: #f5f5f5
+  padding: 0.008rem
+  min-width: 1.12rem
+  overflow: auto
+  z-index: 999
+  ul
+    positon: absolute
+    width: 100%
+    font-size: $font-xs
+    max-height: 2.56rem
+    li
+      border-bottom: 1px solid #fff
+      flex: 0 0 0.352rem
+      display: flex
+      justify-content: center
+      align-items: center
+      height: 0.32rem
+      line-height: 0.32rem
+      width: 100%
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+      cursor: pointer
+    li:hover
+      color: $font-main

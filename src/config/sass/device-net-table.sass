@@ -1,0 +1,65 @@
+@import '../../style/defs'
+.device-panel
+  display: flex
+  justify-content: flex-end
+.software-panel
+  @include flex-between-center
+  padding: 0 .1rem
+  .software-file
+    button
+      width: auto
+      padding: 0 .05rem
+.device-net-table
+  margin-top: .45rem
+  .rs-table-icon-btn, .device-tree-table
+    margin: .2rem .1rem
+    overflow-x: overlay
+    table
+      font-size: $font-s
+      tbody
+        max-height: inherit
+        tr
+          &:hover
+            background: #E2F1FC
+          &.odd
+            background: #efefef
+          &.green
+            background: rgba(76, 175, 80, .4)
+      tr
+        border-bottom: 1px solid $color-border
+        cursor: pointer
+        th, td
+          padding: .1rem .02rem
+        th
+          overflow: inherit
+          text-overflow: inherit
+          white-space: inherit
+        td
+          .text
+            width: 100%
+            max-width: 1.6rem
+            display: inline-block
+            overflow: hidden
+            text-overflow: ellipsis
+            white-space: nowrap
+        .color-label
+          .text
+            @include wh(.3rem, .1rem)
+            display: inline-block
+        .select-icon
+          width: 6px
+          height: 6px
+          border-top: 1px solid #999
+          border-right: 1px solid #999
+          transform: rotate(45deg)
+          display: inline-block
+          margin: 0 6px
+        .expanded
+          transform: rotate(135deg)
+  .device-tree-table
+    input[type='checkbox']
+      @include wh(.2rem, auto)
+      cursor: pointer
+    button
+      @include wh(.5rem, .2rem)
+      font-size: 12px

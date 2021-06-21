@@ -1,0 +1,45 @@
+<rs-import-table class="rs-import-table grey-scroll">
+  <table>
+    <thead>
+      <tr>
+        <th each={ label in labels }>{ label }</th>
+        <th>状态</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr each={ row in rows }>
+        <td each={ value, name in row }>{ getName(value, name) }</td>
+        <td data-id={ delBlank(row[keyName]) }>{ fileState }</td>
+      </tr>
+    </tbody>
+  </table>
+  <script>
+    import '../sass/rs-import-table.sass'
+    this.fileState = '未导入'
+
+    this.getName = (value, name) => {
+      const def = this.def
+      const fields = def.fields
+      const { names, labels, types } = fields
+      const fieldName = names[labels.indexOf(name)]
+      const fieldType = types[labels.indexOf(name)]
+      value = this.parent.getName instanceof Function && this.parent.getName(value, fieldName, fieldType)
+      return value
+    }
+
+    this.delBlank = (key) => {
+      return this.parent.delBlank instanceof Function && this.parent.delBlank(key)
+    }
+
+    this.init = (opts) => {
+      const { data } = opts
+      this.def = data.def
+      this.name = this.def.name
+      this.labels = this.def.fields.labels
+      this.keyName = this.def.fields.labels[this.def.keyIndex]
+      this.rows = data.rows
+    }
+
+    this.init(opts)
+  </script>
+</rs-import-table>

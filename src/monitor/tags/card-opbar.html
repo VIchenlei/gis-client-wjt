@@ -1,0 +1,138 @@
+<card-opbar class="opbar">
+  <b class="circle-b">
+    <i class="circle"></i>
+    <img id={ cardid } class="icon opicon { isLocating ? 'activated' : ''}" src="/img/{ isLocating ? 'locating.png' : 'location.png'}" title="定位" onclick={ toggleLocate } >
+  </b>
+  <b class="circle-b">
+    <i class="circle"></i>
+    <img id={ cardid } class="icon opicon { isTracking ? 'activated' : ''}" src="/img/{ isTracking ? 'earthing.png' : 'earth.png'}" title="跟踪" onclick={ toggleTrack } >
+  </b>
+  <b if={ cardtypeid === 1 } class="circle-b">
+    <i class="circle"></i>
+    <img id={ cardid } class="icon opicon" src="/img/call.png" title="呼叫" onclick={ doCall } >
+  </b>
+  <b class="circle-b">
+    <i class="circle"></i>
+    <img id={ cardid } class="icon opicon" src="/img/track.png" title="历史轨迹" onclick={ gotoTrackFast }/>
+  </b>
+  <b class="circle-b">
+    <i class="circle"></i>
+    <img id={ cardid } class="icon opicon hide-on-mb" src="/img/checkwork.png" title="考勤" onclick={ docheckwork }>
+  </b>
+
+  <script>
+    import CALLPERSON from '../../js/utils/callUtils.js'
+    import { CARD } from '../../js/def/state.js'
+    const areatype = 1000
+
+    this.on('update', () => {
+      this.init(opts)
+    })
+
+    this.toggleLocate = (evt) => {
+      let target = evt.currentTarget
+      let id = target.getAttribute('id')
+      let card = xdata.cardStore.getLastState(id)
+      let mapID = card[CARD.map_id]
+      let defaultMapID = parseInt(xdata.metaStore.defaultMapID, 10)
+      if (mapID !== defaultMapID) {
+        xbus.trigger('RESET-MAP', (mapID))
+      }
+      let areaID = card[CARD.area_id]
+      let atype = xdata.metaStore.data.area && xdata.metaStore.data.area.get(areaID) && xdata.metaStore.data.area.get(areaID).area_type_id
+      if (atype === areatype) {
+        xbus.trigger('MAP-SHOW-AREA', {
+          areas: [areaID],
+          mapID: card[CARD.map_id],
+          mapType: 'MONITOR',
+          type: 'location',
+          isVisible: 'true'
+        })
+        xdata.locateStore.locateAreas.set(areaID, true)
+      } else {
+        window.triggerLocating({ cards: [id] })
+      }
+      this.hideDetailDialog()
+      this.isLocating = !this.isLocating
+      this.update()
+    }
+
+    this.hideDetailDialog = () => {
+      let className = this.parent.root.getAttribute('class')
+      if (className === 'detailDialog') this.parent.hide()
+    }
+
+    this.toggleTrack = (evt) => {
+      let target = evt.currentTarget
+      let id = target.getAttribute('id')
+      let card = xdata.cardStore.getLastState(id)
+      let mapID = card[CARD.map_id]
+      let defaultMapID = parseInt(xdata.metaStore.defaultMapID, 10)
+      if (mapID !== defaultMapID) {
+        xbus.trigger('RESET-MAP', (mapID))
+      }
+      window.trackToggle({ cards: [id] })
+      this.hideDetailDialog()
+      this.isTracking = !this.isTracking
+    }
+
+    this.gotoTrackFast = (evt) => {
+      let id = evt.currentTarget.getAttribute('id')
+      if (!id) return window.xMessage.open({ value: 'error', message: '信息不完整，请检查配置！'})
+      let cardType = xdata.metaStore.getCardInfo(id)
+      let cardTypeID = cardType ? cardType.card_type_id : ''
+      let card = cardTypeID === 1 ? xdata.cardStore.scards.get(id) : xdata.cardStore.vcards.get(id)
+      let start_time = card[CARD.down_time]
+      xbus.trigger('TRACK-FAST-OPERATE', { id: id, start_time: start_time })
+
+      this.needhide && this.parent.hide()
+    }
+
+    this.doCall = (evt) => {
+      let target = evt.currentTarget
+      this.cardid = target.getAttribute('id')
+      if (this.activePanel) {
+        this.activePanel.unmount(true)
+      }
+      this.activePanel = riot.mount('rs-dialog', {
+        title: '发起呼叫',
+        content: '您确认要发送呼叫吗？',
+        cb: this.doCallCb
+      })[0]
+      this.needhide && this.parent.hide()
+    }
+
+    this.doCallCb = () => {
+      let message = CALLPERSON([{stationid: 0}], [{cardid: this.cardid, cardtype: 1}], 1, 1)['call_card_req']
+      xbus.trigger('CALL-CARD-START', message)
+      let key = `${xdata.userName}-${this.cardid}`
+      xdata.callStore.selfcallCardList.set(key, [{cardid: this.cardid,cardtype: 1}])
+    }
+
+
+    this.docheckwork = (evt) => {
+      let target = evt.currentTarget
+      let cardID = target.getAttribute('id')
+      let name = this.cardtypeid === 1 ? 'staff' : 'vehicle'
+      if (cardID) {
+        xbus.trigger('REPORT-FAST-OPEN', {
+          cardID: cardID,
+          name: name,
+          title: 'fast-jump',
+          report: name === 'staff' ? 'person' : 'vehicle_updown_mine'
+        })
+      }
+      this.needhide && this.parent.hide()
+    }
+
+    this.init = (opts) => {
+      this.cardid = opts.cardid
+      this.cardtypeid = opts.cardtypeid
+      this.needhide = opts.needhide ? parseInt(opts.needhide, 10) : false
+      this.isLocating = xdata.locateStore.get(this.cardid)
+      this.isTracking = xdata.trackStore.get(this.cardid)
+    }
+    
+    this.init(opts)
+  </script>
+</card-opbar>

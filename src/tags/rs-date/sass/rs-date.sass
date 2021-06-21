@@ -1,0 +1,42 @@
+@import '../../../style/defs'
+.rs-date
+  @include wh(2rem, 0.7rem)
+  display: inline-block
+  height: 0.7rem
+  font-size: $font-xs
+  position: relative
+  .choose-date
+    display: flex
+    @include wh(2rem, 0.48rem)
+    border: 1px solid $color-border
+    border-radius: 5px
+    margin: 2px 0
+    position: relative
+    outline: none
+  .choose-date-line
+    border: 2px solid $color-main !important
+    .choose-date-label
+      color: $color-main
+  .choose-date-red-line
+    border: 2px solid red
+    .choose-date-label
+      color: red
+  .info
+    position: absolute
+    color: red
+  legend
+    height: 0.17rem
+    font-size: $font-xs
+    color: #666666
+    line-height: 0.17rem
+    margin-left: 8px
+    white-space: nowrap
+    padding: 0 2px
+    .choose-date-tips
+      color: #ff6057
+  .calendar-select
+    padding: 5px 9px
+    border: none
+    outline: none
+    height: 0.3rem
+    cursor: pointer

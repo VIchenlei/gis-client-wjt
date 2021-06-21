@@ -1,0 +1,763 @@
+<sp-manage>
+  <aside id="manage-menu" data-is="side-bar" menus={manageMenu} class="sidebar" name="MANAGE"></aside>
+  <div class="manages grey-scroll {name}">
+    <div class="back-homepage hide" onclick={backHomepage}>
+      <img src="/img/back.png" alt="">
+    </div>
+    <div class="leader-search" if={name === 'leader_scheduling'}></div>
+    <div id="transfer-menu" class="homepage grey-scroll hide" menus={ manageMenu } name="MANAGE"></div>
+    <div class="rs-meta-table {learderSearch ? 'leader-scheduling' : ''} hide"></div>
+    <div class="basic-message hide"></div>
+    <div class="echarts-work hide"></div>
+    <div class="driver-schedule grey-scroll hide"></div>
+    <div class="reader-topology grey-scroll hide"></div>
+  </div>
+  <script>
+    import manageMenu from '../js/manage_menu.js'
+    import manageQuery from '../js/manage_query.js'
+    import manageDef from '../js/manage_def.js'
+    import { trim, inquireDB, copySubRows, formatFieldValue, clone, setPosition, getDisPlayList, messageTip } from '../../js/utils/utils.js'
+    import { getInfo } from '../../manage/js/utils.js'
+    import { config } from '../../config/js/config_def.js'
+    import fuzzySearch from '../../js/def/fuzzy_search.js'
+    import { askFileSql } from '../../js/def/askfile_query.js'
+    import '../../tags/transfer-menu/transfer-menu.html'
+    import '../../tags/rs-meta-table/rs-meta-table.html'
+    import '../../manage/tags/basic-message.html'
+    import '../../tags/rs-meta-dialog/rs-meta-dialog.html'
+    import '../../tags/rs-merge-dialog/tags/rs-merge-dialog.html'
+    import './dept-staff-manage.html'
+    import './echarts-work.html'
+    import './driver-schedule.html'
+    import './topology-echarts.html'
+    import './leader-search.html'
+    import '../../tags/side-bar/side-bar.html'
+
+    const echartsWork = ['coalface_work', 'drivingface_work', 'sanlv_schedule'] // 综采、掘进作业计划name
+    let inputValue = '' //用户使用sql检索时给input输入框赋值
+    const basicmsg = ['dat_dept', 'dat_group', 'dat_worktype', 'dat_occupation', 'dat_shift_type', 'dat_shift', 'dat_occupation_level', 'dat_vehicle_type']
+    const needDisplay = `${xdata.isCheck === 1 ? 'and dse.need_display' : ''}`
+    const deptID = xdata.depts ?  ` and dse.dept_id in (${xdata.depts.join(',')})` : ''
+    const CK = xdata.isCheck === 1 ? '_ck' : ''
+    const self = this
+
+    this.names = ['coalface_id', 'drivingface_id', 'dept_id_ck'] // 导入功能需要特殊处理的字段，
+    this.allCheckedNames = ['rt_person_forbid_down_mine', 'credentials_staff', 'credentials_vehicle'] // 需要批量删除配置界面
+    this.showSecondNames = ['area_persons_dynamic_thre'] // 需要展示秒
+    this.spliceInputs = ['reader_planning', 'route_planning']
+    this.learderSearch = false
+
+    this.on('mount', () => {
+      if (this.sidebar) {
+        this.sidebar.unmount(true)
+      }
+      if (this.roleID !== 100) {
+        this.sidebar = riot.mount('div#transfer-menu', 'transfer-menu', {
+          name: 'MANAGE',
+          menus: this.manageMenu
+        })
+        this.root.querySelector('.homepage').classList.remove('hide')
+      } else {
+        this.switchItem('staff')
+      }
+      // this.init()
+    })
+
+    /*领导排班获取默认开始与结束时间*/
+    this.getTime = () => {
+      const date = new Date()
+      const year = date.getFullYear()
+      const month = date.getMonth() + 1
+      const day = date.getDate()
+      this.driverDate = date.format('yyyy-MM-dd')
+      this.startTime = `${year}-${month}-01`
+      this.endTime = `${year}-${month + 1}-01`
+      if (month === 12) {
+        this.endTime = `${year + 1}-1-1`
+      }
+    }
+
+    this.chooseShowDialog = (msg) => {
+      if (msg.name === 'leader_arrange') this.name = 'leader_scheduling'
+      if (['coalface', 'drivingface'].includes(msg.name)) {
+        this.getTable(msg.name)
+        this.showMergeDialog(msg)
+      } else {
+        msg.papa = opts.papa
+        this.showMetaDialog(msg)
+      }
+    }
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('MANAGE-SWITCH-MENU', (msg) => {
+        this.switchTopic(msg.menuname)
+      })
+
+      this.on('META-INSERT-ROW', (msg) => {
+        this.chooseShowDialog(msg)      
+      })
+
+      this.on('META-UPDATE-ROW', (msg) => {
+        this.chooseShowDialog(msg)
+      })
+
+      this.on('META-DELETE-ROW', (msg) => {
+        this.chooseShowDialog(msg)
+      })
+
+      /*查询数据返回结果*/
+      xbus.on('REPT-SHOW-RESULT', (ds) => {
+        if (this.name !== ds.def.name && this.name !== 'driver') return
+        if (ds.def.name) window.xhint.close()
+        if (this.rsMetaTable) this.rsMetaTable.unmount(true)
+        if (ds.def.name === 'curDayDriver') {
+          let table = {
+            name: 'driver',
+            def: xdata.metaStore.defs['staff'],
+            rows: ds.rows,
+            parenTag: this,
+            shiftType: this.shiftType,
+            driverDate: this.driverDate,
+            time: this.timestamp
+          }
+          this.rsMetaTable = riot.mount('.driver-schedule', 'driver-schedule', table)[0]
+        } else if (this.name === ds.def.name) {
+          const specialParameter = this.getSpecialParameter(ds.def.name)
+          const table = manageDef[ds.def.name] ? manageDef[ds.def.name] : {rows: '', def: xdata.metaStore.defs[this.name]}
+          const msg = {
+            rows: ds.rows,
+            total: ds.total,
+            pageIndex: ds.pageIndex,
+            sql: this.sql,
+            countSql: this.countSql,
+            value: inputValue,
+            specialParameter: specialParameter,
+            parenTag: self
+          }
+          const data = table && Object.assign(table, msg)
+          this.rsMetaTable = data && riot.mount('.rs-meta-table', 'rs-meta-table', data)[0]
+          if (this.name === 'leader_scheduling') {
+            if (this.learderSearch) this.learderSearch.unmount(true)
+            this.learderSearch = riot.mount('.leader-search', 'leader-search', {name: ds.def.name, fuzzydatas: ds.rows, parenTag: self })[0]
+            this.name = null
+          }
+        }   
+      })
+    }
+
+    /*初始化函数*/
+    this.init = () => {
+      this.readersStore = new Map()
+      this.driversStore = new Map()
+      this.roleID = this.opts.roleID || xdata.roleID
+      this.manageMenu = this.roleID === 100 ? manageMenu.slice(0, 1) : manageMenu
+      this.getTime()
+      this.shiftType = 1
+      this.registerGlobalEventHandlers()
+    }
+
+    /*执行初始化函数*/
+    this.init()
+
+    this.unmountDialog = () => {
+      if (this.rsMetaDialog) {
+        this.rsMetaDialog.unmount(true)
+      }
+    }
+
+    // 执行弹出新增、编辑对话框
+    this.showMetaDialog = (msg) => {
+      this.unmountDialog()
+      msg.spliceInputs = this.spliceInputs
+      this.rsMetaDialog = riot.mount('rs-meta-dialog', { message: msg, parenTag: self })[0]
+    }
+
+    // 执行弹出合并弹出窗
+    this.showMergeDialog = (msg) => {
+      this.unmountDialog()
+      const datas = this.getMergeData(msg)
+      this.rsMergeDialog = riot.mount('rs-merge-dialog', { message: datas, parenTag: self })[0]
+    }
+
+    // 处理合并页面下的基础数据
+    this.getMergeData = (msg) => {
+      const value = msg.rows[0].field_value
+      const {cmd, key} = msg
+      const sencondMsg = getInfo(this.sencondTable, value, cmd, key) 
+      const thirdMsg = getInfo(this.thirdTable, value, cmd, key)
+
+      const datas = {
+        firstMsg: msg,
+        sencondMsg: sencondMsg,
+        thirdMsg: thirdMsg
+      }
+      if (msg.name === 'drivingface') {
+        const pointMsg = getInfo(this.pointTable, value, cmd, key)
+        const warnMsg = getInfo(this.warnTable, value, cmd, key)
+        datas.pointMsg = pointMsg
+        datas.warnMsg = warnMsg
+      }
+      
+      return datas
+    }
+
+    // 更新绑定司机 绑定分站结果
+    this.upDateSensor = () => {
+      const sensorReaders = xdata.metaStore.data.sensor_reader_map && Array.from(xdata.metaStore.data.sensor_reader_map.values())
+      const driverNames = xdata.metaStore.data.sensor_driver_map && Array.from(xdata.metaStore.data.sensor_driver_map.values())
+      const reader = xdata.metaStore.data.reader
+      const staffs = xdata.metaStore.staffs
+      this.thirdTable.rows.forEach(item => {
+        const sensorID = item.sensor_id
+        this.readersStore.set(sensorID, new Map())
+        this.driversStore.set(sensorID, new Map())
+        const readers = sensorReaders && sensorReaders.filter(item => item.sensor_id === sensorID)
+        const drivers = driverNames && driverNames.filter(item => item.sensor_id === sensorID)
+        const readerName = this.getname(readers, 'reader', 'brief_name', reader, this.readersStore.get(sensorID))
+        const driverName = this.getname(drivers, 'staff', 'name', staffs, this.driversStore.get(sensorID))
+        item['readers'] = readerName
+        item['drivers'] = driverName
+      })
+    }
+
+    this.getname = (rows, storename, typename, store, setStore) => {
+      let values = ''
+      if (rows && rows.length > 0) {
+        rows.forEach((item, i) => {
+          const key = item[`${storename}_id`]
+          const id = store.get(key) && store.get(key)[`${storename}_id`]
+          const datas = store.get(key) && clone(store.get(key))
+          if (datas) {
+            values += i < rows.length - 1 ? `${id};` : `${id}`
+            if (storename === 'staff') {
+              datas.name = `${datas.staff_id}-${datas.name}-${xdata.metaStore.getNameByID('dept_id', datas.dept_id)}`
+            }
+            setStore.set(key, {
+              row: datas,
+              index: key
+            })
+          } 
+        })
+      }
+      return values
+    }
+
+    this.getInquireData = (name, excerpt) => {
+      const sqlName = manageQuery[name].sqlName
+      this.sql = manageQuery[name].sql.replace('{exprString}', excerpt)
+      this.countSql = manageQuery[name].countSql
+      if (name === 'leader_scheduling') {
+        this.name = name
+        this.sql = this.sql.replace('{deptID}', deptID)
+        this.countSql = this.countSql.replace('{exprString}', excerpt).replace('{deptID}', deptID)
+      } else if (name === 'driver') {
+        this.sql = this.sql.replace('{shiftType}', this.shiftType)
+      }
+      inquireDB(sqlName, this.sql, this.countSql)
+    }
+
+    // 获取合并页面下table数据
+    this.getTable = (name) => {
+      this.sencondTable = {
+        def: xdata.metaStore.defs[`${name}_vehicle`],
+        rows: xdata.metaStore.dataInArray.get(`${name}_vehicle`),
+        maxid: xdata.metaStore.maxIDs[`${name}_vehicle`],
+      }
+      this.thirdTable = {
+        def: config['sensor'].def,
+        rows: xdata.metaStore.dataInArray.get('sensor'),
+        maxid: xdata.metaStore.maxIDs['sensor'],
+      }
+      if (name === 'drivingface') {
+        this.pointTable = {
+          def: xdata.metaStore.defs['drivingface_ref_point'],
+          rows: xdata.metaStore.dataInArray.get('drivingface_ref_point'),
+          maxid: xdata.metaStore.maxIDs['drivingface_ref_point'],
+        }
+        this.warnTable = {
+          def: xdata.metaStore.defs['drivingface_warning_point'],
+          rows: xdata.metaStore.dataInArray.get('drivingface_warning_point'),
+          maxid: xdata.metaStore.maxIDs['drivingface_warning_point'],
+        }
+      }
+      this.upDateSensor()
+    }
+
+    // 添加删除、打印图标
+    this.getProcess = (process, name) => {
+      if (name === 'leader_arrange') {
+        process.push({label: "打印", name: "printPDF", icon: "icon-printer"})
+      } else if (this.allCheckedNames.includes(name)) {
+        process.push({label: "删除", name: "delete", icon: "icon-delete-1"})
+      }
+      return process
+    }
+
+    // 获取需要隐藏名称、字段
+    this.getHideTds = (name) => {
+      let hidetds = null
+      // if (name === 'vehicle_category') {
+      //   hidetds =  {
+      //     labels: ['类型颜色'],
+      //     names: ['color']
+      //   }
+      // }
+      return hidetds
+    }
+
+    // 获取需要传入子页面的参数
+    this.getSpecialParameter = (name) => {
+      const isFuzzySearch = this.isFuzzySearch(name)
+      const hidetds = this.getHideTds(name) // 列表需要隐藏的字段
+      return { 
+        isFuzzySearch: isFuzzySearch,
+        hidetds: hidetds,
+        dealShowResult: this.dealShowResult
+      }
+    }
+
+    /*点击左侧导航进入内容页*/
+    this.switchTopic = (name) => {
+      this.name = name
+      this.root.querySelector('.back-homepage').classList.remove('hide')
+      this.root.querySelector('.homepage').classList.add('hide')
+      if (this.rsMetaTable) this.rsMetaTable.unmount(true)
+      const store = xdata.metaStore
+      const specialParameter = this.getSpecialParameter(name)
+      if (manageQuery.hasOwnProperty(name)) {
+        let excerpt = null
+        if (name === 'leader_scheduling') {
+          excerpt = `and duty_date >= '${this.startTime}' and duty_date < '${this.endTime}' ${needDisplay}`
+        } else if (name === 'driver') {
+          this.driverDate = new Date().format('yyyy-MM-dd')
+          excerpt = `"${this.driverDate}"`
+          this.timestamp = new Date().getTime()
+        }
+        this.getInquireData(name, excerpt)
+      } else if (['staff', 'vehicle'].includes(name)) {
+        this.rsMetaTable = riot.mount('.basic-message', 'basic-message', {
+          name: name,
+          parenTag: self
+        })[0]
+      } else if (['staff_lamp'].includes(name)) {
+        this.rsMetaTable = riot.mount('.rs-meta-table', 'dept-staff-manage', {
+          name: name,
+          parenTag: self
+        })[0]
+      } else if (echartsWork.includes(name)) {
+        this.rsMetaTable = riot.mount('.echarts-work', 'echarts-work', {
+          name: name,
+          parenTag: self
+        })[0]
+      } else if (name === 'reader_topology') {
+        this.rsMetaTable = riot.mount('.reader-topology', 'topology-echarts', {
+          name: name,
+          parenTag: self
+        })[0]
+      } else {
+        const def = config[name] ? config[name].def : store.defs[name]
+        let table = {
+          def: def,
+          rows: store.dataInArray.get(name),
+          maxid: store.maxIDs[name],
+          parenTag: self,
+          specialParameter: specialParameter
+        }
+        if (name === 'credentials_staff') table.def = config[name].def
+        this.rsMetaTable = riot.mount('.rs-meta-table', 'rs-meta-table', table)[0]
+      }
+      this.learderSearch = false
+      this.update()
+    }
+
+    this.backHomepage = (evt) => {
+      if (this.rsMetaTable) {
+        this.rsMetaTable.unmount(true)
+        this.root.querySelector('.rs-meta-table') && this.root.querySelector('.rs-meta-table').classList.add('hide')
+      }
+      this.root.querySelector('.homepage').classList.remove('hide')
+      this.sidebar = riot.mount('div#manage-menu', 'transfer-menu', {
+        name: 'MANAGE',
+        menus: manageMenu
+      })[0]
+      this.root.querySelector('.back-homepage').classList.add('hide')
+    }
+
+    this.on('unmount', () => {
+      this.readersStore = null
+      this.driversStore = null
+    })
+
+    // 补全禁止人员下井默认数据
+    this.completRtData  = (tableName, fields, values) => {
+      if (tableName === 'rt_person_forbid_down_mine') {
+        if (!fields.includes('start_time')) {
+          fields += ',start_time'
+          values += `,'${new Date().format('yyyy-MM-ddThh:mm:ss')}'`
+        }
+        if (!fields.includes('end_time')) {
+          fields += ',end_time'
+          values += `,'${new Date().getFullYear() + 1}-${new Date().format('MM-dd hh:mm:ss')}'`
+        }
+        if (!fields.includes('oper_time')) {
+          fields += ',oper_time'
+          values += `,'${new Date().format('yyyy-MM-ddThh:mm:ss')}'`
+        }
+        if (!fields.includes('oper_user')) {
+          fields += ',oper_user'
+          values += `,'${xdata.userName}'`
+        }
+        if (fields.includes('name') && fields.includes('dept_id')) {
+          fields = fields.split(',')
+          values = values.split(',')
+          let fieldsArray = []
+          let valuesArray = []
+          fields.forEach((item, index) => {
+            if (!['name', 'dept_id'].includes(item)) {
+              fieldsArray.push(item)
+              valuesArray.push(values[index])
+            }
+          })
+          fields = fieldsArray.join(',')
+          values = valuesArray.join(',')
+        }
+      }
+      return { fields, values }
+    }
+
+    // 导入功能领导排班filed为shift_type_id跳过循环
+    this.jumpCycle = (fieldName, tableName) => {
+      if (fieldName === 'shift_type_id' && tableName === 'dat_leader_arrange') return true
+    }
+
+    // 导出功能获取sql特殊处理
+    this.getSpecialAskFile = (def) => {
+      const names = def.fields.names
+      const fstring = names.join(',')
+      const keyIndex = def.fields.names[def.keyIndex]
+      let sql = `select ${fstring} from ${def.table} order by ${keyIndex};`
+      if (def.name === 'leader_arrange') {
+        let excerpt = `and duty_date >= '${this.startTime}' and duty_date < '${this.endTime}' ${needDisplay}`
+        sql = manageQuery.leader_scheduling.sql
+        sql = sql.replace('{exprString}', excerpt).replace('{deptID}', deptID).replace(', dla.staff_id', ', ds.name')// 导出姓名文字展示
+      } else if (['rt_person_forbid_down_mine', 'credentials_staff', 'tt_inspection_route_planning'].includes(def.name)) {
+        sql = askFileSql[def.name]
+        sql = sql.replace('{exprString}', needDisplay).replace('{deptID}', deptID).replace(/{CK}/g, CK)
+      } else {
+        sql = `select ${fstring} from ${def.table} order by ${keyIndex};`
+      }
+      return sql
+    }
+
+    this.getAllSqlData = (msg) => {
+      let { name, self } = msg
+      name = name === 'leader_arrange' ? 'leader_scheduling' : name
+      if (manageQuery.hasOwnProperty(name)) {
+        let excerpt = `and duty_date >= '${this.startTime}' and duty_date < '${this.endTime}' ${needDisplay}`
+        this.getInquireData(name, excerpt)
+        inputValue = '' 
+      } else {
+        let rows = Array.from(xdata.metaStore.data[self.name].values())  
+        self.rows = getDisPlayList(rows, fuzzySearch[name].keys)
+        self.subRows = copySubRows(self.rows)
+        self.tags['rs-table-icon-btn'].updateRows(self.subRows)
+      }
+      self.getPages()
+      self.update()
+    }
+
+    // 获取sql查询的数据
+    this.getSpeicalData = (msg) => {
+      let { data, name, self } = msg
+      name = name === 'leader_arrange' ? 'leader_scheduling' : name
+      if (manageQuery.hasOwnProperty(name)) {
+        const field = manageQuery[name].field
+        const excerpt = `and dla.staff_id=${data[field]} ${needDisplay}`
+        this.getInquireData(name, excerpt)
+        inputValue = data[self.desc]
+        self.getPages()
+        self.update()
+      } else {
+        const ele = self.tags['rs-fuzzy-search'].refs['searchinput'] 
+        ele.value = data[self.desc]
+        if (['coalface', 'drivingface'].includes(name)) {
+          const faces = Array.from(xdata.metaStore.data[name].values())
+          const faceName = name === 'coalface' ? 'coalface_id' : 'drivingface_id'
+          data = faces.find(item => item[faceName] === data.work_face_id)
+        }
+        self.updateData(data)
+      }
+    }
+
+    this.setInputValue = (msg, currenTag) => {
+      if (msg.hasOwnProperty('value') && currenTag.name !== 'leader_arrange') {
+        const ele = currenTag.tags['rs-fuzzy-search'].refs['searchinput'] 
+        ele.value = msg.value
+      }
+    }
+
+    this.editSearchData = (msg) => {
+      const { rows, name } = msg
+      let data = xdata.metaStore.data[name] && Array.from(xdata.metaStore.data[name].values())
+      data = data || rows
+      if (['coalface', 'drivingface'].includes(name)) {
+        const type = name === 'coalface' ? 1 : 2
+        const workFaces = xdata.metaStore.data.work_face && Array.from(xdata.metaStore.data.work_face.values()) 
+        data = workFaces && workFaces.filter(item => item.work_face_type === type)
+      }
+      return {data, name}
+    }
+
+    // 设置操作中编辑、删除显示隐藏
+    this.setOperate = (msg) => {
+      const hideEditNames = ['rt_person_forbid_down_mine', 'staff', 'vehicle']
+      const { editTag, name } = msg
+      if (hideEditNames.includes(name)) {
+        Array.isArray(editTag) ? editTag.forEach(el => {el.classList.add('hide')}) : editTag.classList.add('hide') 
+      }
+    }
+
+    this.downWellCondition = (downWellValue) => {
+      const manDownWellCards = Array.from(xdata.metaStore.data.staff_extend.values())
+      const manDownWellCard = manDownWellCards.find(item => item.staff_id === Number(downWellValue))
+      const manDownWellArr = Array.from(xdata.cardStore.scards.values())
+      const manDownWell = manDownWellArr.find(item => item[0] == manDownWellCard.card_id)
+      if (manDownWell) return messageTip('已经下井的人员不能添加')
+      return true
+    }
+
+    // 删除判断该名目下是否绑定人员车辆
+    this.isBound = (tableName, keyValue) => {
+      if (basicmsg.includes(tableName)) {
+        const isBound = this.judgebasicmsg(keyValue, tableName)
+        if (isBound) {
+          messageTip('请先将该名目下绑定的人员或车辆解绑，再删除！')
+          return true
+        }
+      }
+      return false
+    }
+    
+    // 判断是否绑定
+    this.judgebasicmsg = (keyValue, tableName) => {
+      keyValue = parseInt(keyValue, 10)
+      const key = tableName.slice(4) + '_id'
+      const staffs = xdata.metaStore.data.staff && Array.from(xdata.metaStore.data.staff.values())
+      const staffextend = xdata.metaStore.data.staff_extend && Array.from(xdata.metaStore.data.staff_extend.values())
+      const vehicles = xdata.metaStore.data.vehicle && Array.from(xdata.metaStore.data.vehicle.values())
+      const vehiclextend = xdata.metaStore.data.vehicle_extend && Array.from(xdata.metaStore.data.vehicle_extend.values())
+      const deleteBasicStaff = staffs && staffs.some(item => item[key] === keyValue)
+      if (deleteBasicStaff) {
+        return true
+      } else {
+        let deleteBasicVehicle = vehicles && vehicles.some(item => item[key] === keyValue)
+        if (deleteBasicVehicle) {
+          return true
+        } else {
+          let deleteBasicStaffExtend = staffextend && staffextend.some(item => item[key] === keyValue)
+          if (deleteBasicStaffExtend) {
+            return true
+          } else {
+            let deleteBasicVehicleExtend = vehiclextend && vehiclextend.some(item => item[key] === keyValue)
+            if (deleteBasicVehicleExtend) {
+              return true
+            } else {
+              return false
+            }
+          }
+        }
+      }
+    }
+
+    // 是否检索
+    this.isSearch = (tableName, fieldName) => {
+      const names = ['staff_id', 'drivers']
+      if (tableName !== 'dat_staff') {
+        if (names.includes(fieldName) || fieldName === 'readers' || fieldName === 'reader_id') return true
+        if (tableName === 'dat_credentials_vehicle' && fieldName === 'vehicle_id') return true
+      }
+      return false
+    }
+
+    // 删除特殊处理sql
+    this.deleteSql = (tableName, tableKeyName, keyValue, rows) => {
+      let sql = null, 
+          notifyId = null, 
+          notifyShaffId = null,
+          sqlObj = {}
+      if (tableName === 'dat_user') keyValue = `"${keyValue}"`
+      if (tableName === 'dat_leader_arrange') {
+        sql = `DELETE from ${tableName} where ${tableKeyName}='${keyValue}' and shift_id=${rows[2].field_value} and staff_id=${rows[3].field_value}`
+      } else if (tableName === 'rt_person_forbid_down_mine') {
+        notifyId = rows[0].field_value
+        notifyShaffId = rows[1].field_value
+        sql = `UPDATE rt_person_forbid_down_mine set status = 0 where ${tableKeyName}=${keyValue}`
+      } else if (tableName === 'dat_vehicle_type') {
+        sql = `DELETE from ${tableName} where ${tableKeyName}=${keyValue}`
+        let deleteSql = `DELETE from dat_att_rule_vehicle_type where vehicle_type_id =${keyValue}`
+        sqlObj['deleteSql'] = deleteSql
+      } else {
+        sql = `DELETE from ${tableName} where ${tableKeyName}=${keyValue}`
+      }
+      sqlObj['sql'] = sql
+      return {sqlObj, keyValue, notifyId, notifyShaffId}
+    }
+
+    // 获取下拉输入框数据
+    this.getItems = (fieldName,topicName,tableFieldName) => {
+      let items = []
+      if (['drivingface_id', 'coalface_id'].includes(fieldName)) {
+        let faceType = fieldName === 'coalface_id' ? 1 : 2
+        let faces = xdata.metaStore.data.work_face && Array.from(xdata.metaStore.data.work_face)
+        let workfaces = xdata.metaStore.data.work_face
+        if (!workfaces) return items
+        for (let i = 0; i < faces.length; i++) {
+          let key = faces[i][1].work_face_id
+          if (faces[i][1].work_face_type === faceType) {
+            let item = {
+              label: workfaces && workfaces.get(key) && workfaces.get(key).name,
+              value: key
+            }
+            items.push(item)
+          }
+        }
+      } else if (fieldName === 'state_id') {
+        return [{label: '启用', value: 0}, {label: '停用', value: 1}]
+      } else if (fieldName === 'warn_id') {
+        return [{label: '提醒', value: 0}, {label: '不提醒', value: 1}]
+      } else {
+        let ds = xdata.metaStore.data[topicName]        
+        if (!ds) {
+          console.warn(`metaselect: 没有以 ${tableFieldName} 为 KEY 的数据。`)
+          return items
+        }
+        for (let rec of ds.values()) {
+          let item = {
+            label: fieldName === 'card_type_id' ? rec.detail : rec.name,
+            value: rec[tableFieldName]
+          }
+          items.push(item)
+        }
+      }
+
+      return items
+    }
+
+    // 执行编辑、新增获取keyValue
+    this.getKeyValue = (ele, type, tableName) => {
+      let keyValue = type === 'SELECT' ?  ele.getAttribute('name') : ele.value
+      if (['rt_person_forbid_down_mine', 'tt_inspection_route_planning', 'dat_leader_arrange'].includes(tableName)) {
+        keyValue = ele.getAttribute('data-type')
+      }
+      return keyValue
+    }
+
+    this.setPosition = (target, currenTag) => {
+      let parent = null
+      if (this.name === 'staff') {
+        parent = currenTag.parent.parent.parent.root.querySelector('.basic-right')
+      } else if (this.name === 'driver') {
+        parent = currenTag.parent.parent.root
+      }
+      if (parent) setPosition(target, parent, currenTag)
+    }
+
+    this.changeValue = (msg) => {
+      const { value, shiftType } = msg
+      this.driverDate = value
+      this.timestamp = value
+      this.shiftType = shiftType
+    }
+
+    // 是否显示检索输入框
+    this.isFuzzySearch = (name) => {
+      if (name === 'leader_scheduling') return true
+      return false
+    }
+
+    /*根据name处理模糊查询的结果*/
+    this.dealShowResult = (matchs, s, keys) => {
+      if(this.name === 'dept'){
+        matchs = matchs && matchs.filter(item => {
+          if (!xdata.depts || xdata.depts.includes(item.dept_id)) return item
+        })
+      } else if (['staff', 'vehicle'].includes(this.name) && (xdata.objRange === 1 || xdata.isCheck === 1)) {
+        matchs = matchs.filter((item) => item.need_display != 0)
+      }
+      let dittoname = clone(matchs)
+      if (keys.includes('staff_id')) {
+        dittoname.forEach(e => {
+          e.name = e.hasOwnProperty('reader_id') ? e.name : `${e.staff_id}-${e.name}-${xdata.metaStore.getNameByID('dept_id', e.dept_id)}`
+        })  
+      }
+      return dittoname
+    }
+
+    // 增删改后更改列表展示
+    this.updateList = (msg) => {
+      let { data, self } = msg
+      if (data.def.name === self.name) {
+        let rows = data.rows
+        let maxid = data.maxid
+        if (self.name === 'leader_arrange') {
+          const msg = {
+            name: self.name,
+            data: self.rows,
+            self: self
+          }
+          return this.getAllSqlData(msg)
+        }
+        return { rows, maxid }
+      }
+      return null
+    }
+
+    // 根据name:函数名 调用对应的函数
+    this.commentFn = (msg, name) => {
+      if (name === 'setOperate') this.setOperate(msg) // 设置编辑、删除icon显示隐藏
+      if (name === 'allResult') return this.getAllSqlData(msg) // 清空输入框获取全部数据
+      if (name === 'specialData') this.getSpeicalData(msg) // 获取查询的数据
+      if (name === 'updateList') return this.updateList(msg) // 更新列表特殊处理
+      if (name === 'editSearchData') return this.editSearchData(msg) // 修改检索集数据
+    }
+
+    // 批量导入列表值特殊处理
+    this.getImportName = (msg) => {
+      let { fieldName, value, fieldType } = msg
+      if (fieldType === 'DATE' && value) {
+        if (typeof value !== 'string') {
+          value = new Date(value).getTime() - value.getTimezoneOffset() * 60 * 1000
+        }
+        value = new Date(value).format('yyyy-MM-dd')
+      }
+      return value
+    }
+    
+    this.isBindCredentials = (self) => {
+      if (['credentials_staff', 'credentials_vehcile'].includes(self.topicName)) {
+        let name = self.topicName.includes('staff') ? 'staff_id' : 'vehicle_id'
+        let nameID = this.refs[name] && this.refs[name].refs[name].getAttribute('data-type')
+        let credentialsId = self.refs['credentials_id'] && self.refs['credentials_id'].refs['credentials_id'].getAttribute('name')
+        let datas = xdata.metaStore.data[self.topicName]
+        datas = datas && Array.from(datas.values())
+        const data = datas.find(item => item[name] === nameID && item.credentials_id === credentialsId)
+        if (data) return true
+      }
+      return false
+    }
+
+    // 获取批量删除特殊sql
+    this.getDeleteAllSql = (deletes, tableKeyName, tableName) => {
+      let deleteAllSql = '',
+          condition = ''
+      if (tableName === 'rt_person_forbid_down_mine') {
+        condition = `staff_id in (${deletes})`
+        deleteAllSql = `update rt_person_forbid_down_mine set status = 0 where ${condition};`
+      } else {
+        condition = `${tableKeyName} in (${deletes})`
+        deleteAllSql = `DELETE from ${tableName} where ${condition}`
+      }
+      return deleteAllSql
+    }
+  </script>
+</sp-manage>

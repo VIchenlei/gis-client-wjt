@@ -1,0 +1,106 @@
+<history-player>
+  <player-view-change></player-view-change>
+  <player-map mapid={mapID}></player-map>
+  <history-track-list></history-track-list>
+  <player-ctrl></player-ctrl>
+
+  <script>
+    import Ticker from '../js/Ticker.js'
+    import './player-map.html'
+    import './player-view-change.html'
+    import './history-track-list.html'
+    import './player-ctrl.html'
+    import '../sass/history-player.sass'
+    import '../sass/history-track-list-left.sass'
+    this.on('mount', () => {
+      this.map = this.tags['player-map']
+      this.ctrl = this.tags['player-ctrl']
+      this.ticker = new Ticker(this)
+      xbus.on('MAP-HISTORY-RESET', this.reset)
+    })
+
+    xbus.on('TRACK-DATA-UPDATE', (msg) => {
+      this.processTrackData(msg)
+    })
+
+    this.on('unmount', () => {
+      this.ticker.stopTimer()
+    })
+
+    this.initPlayer = (msg) => {
+      this.reset()
+      this.ticker.initTrack(msg)
+      this.ctrl.initTrack(msg)
+    }
+
+    this.initTrack = (msg) => {
+      this.map.initTrack(msg)
+      this.ticker.initTrack(msg)
+      this.ctrl.initTrack(msg)
+    }
+
+    this.reset = () => {
+      this.ticker.stopPlay()
+      this.ctrl && this.ctrl.reset()
+      this.map && this.map.reset()
+    }
+
+    this.loadMap = (mapID) => {
+      this.selectMapID = mapID
+      const playerMapTag = this.tags['player-map']
+      playerMapTag && playerMapTag.loadMap(mapID)
+    }
+
+    this.processTrackDataCheckout = (rows) => {
+      if (rows && rows[0]) {
+        let smapID = rows[0]['map_id']
+        let mapID = smapID ? parseInt(smapID, 10) : -1
+        if (mapID > 0) {
+          if (this.selectMapID !== null && this.selectMapID !== mapID && window.trackmap.childNodes[0]) {
+            const playerMapTag = this.tags['player-map']
+            playerMapTag.reloadMap(mapID)
+          }
+          this.loadMap(mapID)
+          let cardID = rows[0]['card_id']
+          let count = rows.length
+          let startTime = rows[0]['cur_time']
+          let endTime = rows[count - 1]['end_time']
+          let msg = {
+            cardID: cardID,
+            mapID: mapID,
+            rows: rows,
+            startTime: new Date(startTime).getTime(),  // ms
+            endTime: new Date(endTime).getTime()  // ms
+          }
+          this.initTrack(msg)
+          this.parent.tagQuery.root.classList.add('hide')
+          window.xhint.close()
+        } else {
+          window.xhint.showHint(`当前系统中没有编号为 ${mapID} 的地图。`, '请与系统管理员确认后再试。')
+          console.warn('NO map data for mapID : ', mapID)
+        }
+      } else {
+        window.xhint.showHint('系统中没有对应的轨迹数据。', '请确认您的查询条件后再试。')
+        console.warn('NO track data fetched.')
+      }
+    }
+
+    this.processTrackData = (ds) => {
+      this.ticker.stopPlay()
+      this.isCheckout = this.parent.tags["history-query"].checkoutWork
+      let rows = this.isCheckout ? ds.rows : ds
+      this.processTrackDataCheckout(rows)
+    }
+
+    this.init = (opts) => {
+      this.mapID = xdata.metaStore.defaultMapID
+      this.map = null
+      this.ctrl = null
+      this.ticker = null
+      this.isDataLoaded = false
+      this.selectMapID = null
+    }
+
+    this.init(opts)
+  </script>
+</history-player>

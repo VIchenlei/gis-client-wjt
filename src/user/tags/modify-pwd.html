@@ -1,0 +1,97 @@
+<modify-pwd>
+  <div class="modify-body modify-form" if={ notModify }>
+    <div each={modifyPwdDef in modifyPwdDefs} >
+      <label for={modifyPwdDef.sign}>{modifyPwdDef.labelText}</label>
+      <input class="login-input" ref={modifyPwdDef.sign} id={modifyPwdDef.sign} type="password" placeholder={modifyPwdDef.placeholder}/>
+    </div>
+    <div class="error-message {hint ? '' : 'node-hide'}">{ hint }</div>
+  </div>
+  <div class="modify-body modify-result" if={ !notModify }>
+    <span>{ resMessage }</span>
+  </div>
+  <div class="op-panel">
+    <button class="modify-button" onclick={comfirm}>确定</button>
+  </div>
+
+
+  <script>
+    import { encrypt } from '../../js/utils/utils.js'
+    import { MODIFYPWDDEFS } from '../js/Credential.js'
+    
+    this.on('mount', () => {
+      xbus.on('USER-MODIFY-PWD-RES', (res) => {
+        this.notModify = false
+        this.resCode = res.code
+        this.resMessage = res.code === 0 ? '您的密码已修改，将在下次登录时启用，请牢记。' : res.msg
+        this.update()
+      })
+    })
+
+    this.on('unmount', () => {
+      xbus.off('USER-MODIFY-PWD-RES')
+    })
+              
+    
+
+    this.comfirm = () => {
+      if (this.notModify) {
+        this.modifyPWD()
+      } else {
+        if (this.resCode === 0) {
+          this.parent.close()
+        } else {
+          this.goback()
+        }
+      }
+    }
+
+    this.modifyPWD = () => {
+      this.hint = null
+      if (!this.checkIsMatch()) return
+      let oldpwd = this.refs.oldpwd.value
+      let newpwd = this.refs.newpwd.value
+      oldpwd = encrypt(this.username, oldpwd)
+      newpwd = encrypt(this.username, newpwd)
+      if (this.username !== '' && newpwd !== '') {
+        xbus.trigger('USER', {
+          cmd: 'MODIFY_PWD',
+          data: {
+            username: this.username,
+            oldpwd: oldpwd,
+            newpwd: newpwd
+          }
+        })
+      }
+    }
+
+    this.checkIsMatch = () => {
+      let ret = false
+      if (this.refs.newpwd.value && this.refs.newpwdRpt.value) {
+        let newpwd = this.refs.newpwd.value.trim()
+        let newpwdRpt = this.refs.newpwdRpt.value.trim()
+        ret = newpwdRpt === newpwd
+        if (!ret) this.hint = '您两次输入的密码不匹配，请重新输入。'
+      } else {
+        this.hint = '请先输入您的新旧密码，再点 “确定”。'
+      }
+      return ret
+    }
+
+    this.goback = () => {
+      this.notModify = true
+      this.hint = null
+    }
+
+    this.init = (opts) => {
+      this.modifyPwdDefs = MODIFYPWDDEFS
+      this.title = opts.title
+      this.tagModifyPwd = null
+      this.name = opts.username
+      this.username = opts.username
+      this.notModify = true
+      this.hint = null
+    }
+
+    this.init(opts)
+  </script>
+</modify-pwd>

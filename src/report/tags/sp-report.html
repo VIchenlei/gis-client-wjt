@@ -1,0 +1,38 @@
+<sp-report>
+  <aside data-is="side-bar" id="rept-menu" name="REPT" menus={ reptMenu } class="sidebar"></aside>
+  <div data-is="rept-page" id="rept-canvas" class="report-canvas grey-scroll" menus={ reptMenu } ></div>
+
+  <script>
+    import reptMenu from '../js/rept_menu.js'
+    import reptQuery from '../js/rept_query.js'
+    import { clone } from '../../js/utils/utils.js'
+    import { searchchoose } from '../js/report_utils.js'
+    import '../../tags/side-bar/side-bar.html'
+    import './rept-page.html'
+    import '../sass/report.sass'
+
+    /*监听REPT-SWITCH-MENU  执行switchTopic函数*/
+    xbus.on('REPT-SWITCH-MENU', (msg) => {
+      this.switchTopic(msg)
+    })
+
+    /*触发 OPEN-TAB*/
+    this.switchTopic = (msg) => {
+      let reportDef = clone(reptQuery[msg.menuname])
+      reportDef.msg = msg.msg ? msg.msg : ''
+      if (reportDef.msg) {
+        searchchoose(reportDef)
+      }
+      reportDef.reptIndex = new Date().getTime()
+      this.tags['rept-page'] && this.tags['rept-page'].trigger('OPEN-TAB', reportDef)
+    }
+
+    /*初始化函数*/
+    this.init = () => {
+      this.reptMenu = reptMenu
+    }
+
+    /*执行初始化函数*/
+    this.init()
+  </script>
+</sp-report>

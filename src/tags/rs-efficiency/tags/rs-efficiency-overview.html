@@ -1,0 +1,305 @@
+<rs-efficiency-overview class="rs-efficiency-overview-warp">
+  <div class="overview">
+    <div class="top">
+      <span class="top-title">概况</span>
+      <div class="top-charts">
+        <div class="charts-warp" style="height:200px;" each={ list in overViewLists }>
+            <div class={ list } data-dept={ list } style="width:100%;height:100%;"></div>
+        </div>
+      </div> 
+    </div>
+    <div class="bottom">
+      <span class="bottom-title">队组</span>
+      <div class="bottom-charts">
+        <div class="charts-warp" style="height:200px;" each={ list in lists }>
+            <div class={ "dept"+list.dept_id } 
+              data-dept={ list.dept_id } 
+              style="width:100%;height:100%;" 
+              onclick={ getDeptDetail }>
+            </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="detail hide" data-is="rs-efficiency-detail"></div>
+  <script>
+    import echarts from 'echarts'
+    import './rs-efficiency-detail.html'
+    import '../sass/rs-efficiency-overview.sass'
+    import { efficiencyLineDept, efficiencyDeptY } from "../../../js/def/graph_def.js"
+    import { LEGENDNAME, DEPTEFFICIENCYS, COLORDEFS, SPLITDEFS, CM, JJ, getVehcileID, getBeforeMonth, searchTime, getDeptName, currentMonthdays } from "../js/rs_efficiency_defs.js"
+    import { clone, getDeptID } from '../../../js/utils/utils.js'
+    let self = this
+
+    /*query函数，查询数据*/
+    this.query = (name, sqlString, value, deptID) => {
+      let message = {
+        cmd: 'query',
+        data: {
+          name: name,
+          sql: sqlString,
+          searchTime: this.time,
+          termTime: value,
+          deptid: deptID
+        }
+      }
+      xbus.trigger('REPT-FETCH-DATA', {
+        req: message,
+        def: {
+          name: name
+        }
+      })
+      window.xhint.showLoading()
+    }
+
+    /*处理query时需要的数据，执行query函数*/
+    this.doQuery = (tabDef, time) => {
+      this.name = tabDef.name
+      const isCurrtMonth = new Date().format('yyyy-MM') == time ? true : false
+      this.getQueryTime(time, isCurrtMonth)
+      let sqlString = null
+      sqlString = clone(tabDef.sqlTmpl)
+      const value = searchTime(isCurrtMonth, null, time )
+      const valuetime = searchTime(isCurrtMonth, 'worktime', time)
+      for (let i = 0; i < Object.keys(sqlString).length; i++) {
+        const name = Object.keys(sqlString)[i]
+        sqlString[name] = sqlString[name].replace('{exprString}', value)
+        if (name.includes('worktime')) sqlString[name] = sqlString[name].replace('{exprString}', valuetime)
+      }
+      this.query(this.name, sqlString, valuetime)
+      sqlString = null
+    }
+
+    /*获取查询时所使用的时间*/
+    this.getQueryTime = (time, isCurrtMonth) => {
+      this.time = time
+      if (new Date().getDate() === 1 && !time) {
+        this.time = getBeforeMonth()
+      }
+      if (isCurrtMonth) {
+        this.time = this.time ? this.time : `${new Date(new Date().getTime()).format('yyyy-MM')}`
+      }
+    }
+
+    /*按照部门处理每个部门的三率数据*/
+    this.splitDeptData = (rows, name) => {
+      const accessResult = xdata.depts
+      const showAllDept = accessResult == '' ? true : false
+      rows && rows.forEach(row => {
+        if (name === 'dept_worktime' || name === 'dept_boot') row['dept_id'] = getDeptID(row)
+        if ((accessResult.includes(row['dept_id']) || showAllDept) && row.need_display == 1) {
+          if (!this.sortMap.get(row.dept_id)) {
+            this.sortMap.set(row.dept_id, {
+              dept_id: row.dept_id,
+              rank: row.rank,
+              workfaceID: row.workface_id,
+              workfaceType: row.workface_type
+            })
+          }
+          if (!this.deptMap.get(row.dept_id)) this.deptMap.set(row.dept_id, new Map())   
+          const deptmap = this.deptMap.get(row.dept_id)     
+          if (!deptmap.get(name)) deptmap.set(name, new Map()) 
+          const data = deptmap.get(name)      
+          const stime = new Date(row.stime).getDate()
+          if (isNaN(stime)) return
+          if (name === 'dept_worktime') {
+            if (!deptmap.get('wholeworktime')) deptmap.set('wholeworktime', new Map())
+            deptmap.get('wholeworktime').set(stime, row)
+          }
+          data.set(stime, [stime, row.worktime])
+          if (name === 'dept_rugular' && row.work_face_type) {
+            if (!deptmap.get('rugular')) deptmap.set('rugular', new Map())
+            const rugular = deptmap.get('rugular')
+            rugular.set(stime, {
+              sumnum: row.sumnum,
+              workfaceID: row.work_face_id,
+              vehicleTypeID: row.work_face_type
+            })
+          }
+        } else {
+          console.warn('该队组已被过滤:', row.dept_id)
+        }
+      })
+    }
+    
+    /*处理总的三率数据*/
+    this.splitOverviewData = (rows, name) => {
+      const accessResult = xdata.depts
+      const showAllDept = accessResult == '' ? true : false
+      rows && rows.forEach(row => {
+        if (name === 'overview_worktime' || name === 'overview_boot') {
+          row['dept_id'] = getDeptID(row)
+        }
+        if ((accessResult.includes(row['dept_id']) || showAllDept) && row.need_display == 1) {
+          if (!this.overViewMap.get(name)) this.overViewMap.set(name, new Map())
+          const data = this.overViewMap.get(name)
+          const stime = new Date(row.stime).getDate()
+          if (isNaN(stime)) return
+          data.set(stime, [stime, row.worktime])
+        }
+      })
+    }
+    
+    /*初始化概况中总的三率图表*/
+    this.initoverviewcharts = () => {
+      const [, time] = this.time.split('-')
+      for (let i = 0; i < this.overViewLists.length; i++) {
+        const series = []
+        const overViewName = this.overViewLists[i]
+        const initdom = this.root.querySelector('.' + overViewName)
+        if (!initdom) return
+        echarts.dispose(initdom)
+        const chart = echarts.init(initdom)
+        const rows = Array.from(this.overViewMap.get(overViewName).values()).sort(function(a,b){return a[0] - b[0]})
+        const dataArr = rows.map( item=> item[1])
+        const max = Math.ceil(Math.max.apply(Math, dataArr))
+        const min = Math.floor(Math.min.apply(Math, dataArr))
+        const color = COLORDEFS[overViewName]
+        series.push({
+          name: LEGENDNAME[overViewName],
+          id: overViewName,
+          data: rows,
+          type: 'line',
+          smooth: true,
+          showAllSymbol: true,
+          itemStyle:{
+            normal: {
+                color: color,
+                lineStyle: {color: color}
+            }
+          },
+        })
+        const msg = {
+          title: LEGENDNAME[overViewName],
+          time: time,
+          series: series,
+          max: max,
+          min: 0
+        }
+        const option = efficiencyLineDept(msg)
+        chart.setOption(option)
+      }
+    }
+
+    /*初始化每个部门的三率图表*/
+    this.initdeptcharts = () => {
+      const [, time] = this.time.split('-')
+      for (let i = 0; i < this.lists.length; i++) {
+        let series = []
+        let legend = []
+        let deptID = this.lists[i].dept_id
+        let deptname = getDeptName(this.lists[i])
+        let initdom = this.root.querySelector('.dept'+ deptID)
+        let deptmax = 0
+        let deptmin = 0
+        let usemax = 100
+        let usemin = 70
+        let worktimeMax = 14
+        for(let i=0; i < DEPTEFFICIENCYS.length; i++ ) {
+          if (!this.deptMap.get(deptID).get(DEPTEFFICIENCYS[i])) this.deptMap.get(deptID).set(DEPTEFFICIENCYS[i], new Map())
+        }
+        if (!initdom) return
+        echarts.dispose(initdom)
+        let chart = echarts.init(initdom)
+        let rows = Array.from(this.deptMap.get(deptID).keys())
+        rows.forEach(row => {
+          if (['rugular', 'wholeworktime'].includes(row)) return
+          let color = COLORDEFS[row]
+          if (['dept_boot', 'dept_rugular'].includes(row)) {
+            let len = currentMonthdays(self.time)
+            for (let i = 1; i <= len; i++) {
+              if (!self.deptMap.get(deptID).get(row).get(i)) self.deptMap.get(deptID).get(row).set(i, [i, 0])
+            }
+          }
+          let data = Array.from(self.deptMap.get(deptID).get(row).values())
+          data.sort(function(a,b){return a[0]-b[0]})
+          let deptdataArr = data.map(item=> item[1] ? item[1] : 0)
+          if (row === 'dept_worktime') {
+            let max = Math.max.apply(Math, deptdataArr)
+            worktimeMax = max < worktimeMax ? worktimeMax : Math.ceil(max)
+          } else {
+            deptmax = Math.max.apply(Math, deptdataArr)
+            deptmin = Math.min.apply(Math, deptdataArr)
+            deptmax = deptmax < usemax ? usemax : Math.ceil(deptmax)
+            deptmin = deptmin < usemin ? Math.floor(deptmin) : usemin
+            usemax = deptmax
+            usemin = deptmin
+          }  
+          legend.push(LEGENDNAME[row])
+          series.push({
+            name: LEGENDNAME[row],
+            id: row,
+            yAxisIndex: row === 'dept_worktime' ? 1 : 0,
+            data: data,
+            type: 'line',
+            smooth: true,
+            showAllSymbol: true,
+            itemStyle: {
+              normal: {
+                color: color
+              }
+            }
+          })
+        })
+        let msg = {
+          time :  time,
+          legend: legend,
+          title: deptname,
+          series: series,
+          max : usemax,
+          min : 0,
+          worktimeMax: worktimeMax
+        }
+        let option = efficiencyDeptY(msg)
+        chart.setOption(option)
+      }
+    }
+
+    /*接收数据函数*/
+    this.updateDs = (ds) => {
+      const {rows} = ds
+      if (ds.def.name === this.name) {
+        if (!rows) return
+        this.rows = ds.rows
+        this.sortfun()
+      } else if (ds.def.name === 'efficiency-detail') {
+        this.tags['rs-efficiency-detail'] && this.tags['rs-efficiency-detail'].splitData(rows)
+        window.xhint.close()
+      }
+    }
+    
+    /*整合数据函数，其中包括处理图表数据，排序以及初始化echarts*/
+    this.sortfun = ()=> {
+      this.deptMap = new Map()
+      this.sortMap = new Map()
+      this.overViewMap = new Map()
+      for (let i = 0; i < SPLITDEFS.length; i++) {
+        const splitDef = SPLITDEFS[i]
+        const {name, funName} = splitDef
+        this[funName](this.rows[name], name)
+      }
+      this.overViewLists = Array.from(this.overViewMap.keys())
+      this.lists = Array.from(this.sortMap.values()).sort(function(a, b) {
+        return a.rank - b.rank
+      })
+      this.deptID && this.getDeptDetail()
+      this.update()
+      this.initoverviewcharts()
+      this.initdeptcharts()
+      !this.deptID && window.xhint.close()
+    }
+
+    /*点击单独的图表，跳转至三率详情界面*/
+    this.getDeptDetail = (evt) => {
+      if (!this.root.querySelector('.overview')) return
+      this.root.querySelector('.overview').classList.add('hide')
+      this.root.querySelector('.detail').classList.remove('hide')
+      const target = evt && evt.currentTarget
+      const deptID = target ? parseInt(target.getAttribute('data-dept'), 10) : this.deptID 
+      this.deptID = deptID
+      const data = getVehcileID(deptID)
+      const {vehicleID, workfaceID} = data
+      this.tags['rs-efficiency-detail'].init(deptID, vehicleID, workfaceID)
+    }
+  </script>
+</rs-efficiency-overview>

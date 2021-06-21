@@ -1,0 +1,295 @@
+<rept-table class="rept-table">
+	<div if={ hasData }>
+		<div class="op-panel">
+			<span class="staffnum">{ totalTitle }</span>
+			<div data-is="rs-rept-print" printdefs={ reptPrint } cb={ askFile } class="rs-rept-print"></div>
+			</span>
+		</div>
+		<rs-table-icon-btn fields={ getFields() } 
+			rows={ subRows } 
+			showbat={ showBat } 
+			showtitle={ showtitle } 
+			hidetds={
+			hidetds }
+			showoperate={ showoperate }
+			>
+		</rs-table-icon-btn>
+		<div class="pagination" 
+			if={ name !== 'person_reader_detail' } 
+			data-is="rs-pagination" 
+			totalpage={ totalPage} 
+			pageindex={ pageIndex } 
+			tablename={ name }>
+		</div>
+	</div>
+	<div if={ !hasData } data-is="rs-blank-message" message="没有符合条件的记录！请确认您的查询条件后再试。" class="rs-blank-message"></div>
+	<script>
+		import '../sass/rept-table.sass'
+		import '../../tags/rs-table/tags/rs-table-icon-btn.html'
+		import '../../tags/rs-rept-print/rs-rept-print.html'
+		import '../../tags/rs-pagination/rs-pagination.html'
+		import '../../tags/rs-bat-curve/rs-bat-curve.html'
+		import {
+      clone,
+      computeDays,
+			computeMonthDays,
+			initPagination,
+			copySubRows,
+			compare
+    } from '../../js/utils/utils.js'
+		import {
+			printDef,
+			printFields
+		} from '../js/report_defs.js'
+		let REPTNAMEARR = ['person_card_battery_alarm', 'person', 'person_well_overtime', 'vehicle_updown_mine']
+		 // 显示一个月份具体天数的数组
+		const TABLEIDARR = ['person_month', 'leader_month', 'driver_dept_month', 'v_vehicle_month']
+
+    /*显示电量图表*/
+    this.handleOperate = (evt) => {
+      let target = evt.target
+      let value = target.innerText
+      let item = evt.item
+      let className = target.parentNode.getAttribute('class')
+      if (item.name === 'card_id' && className && className.includes('islink')) {
+        if (this.activePanel) {
+          this.activePanel.unmount(true)
+        }
+        this.activePanel = riot.mount('rs-bat-curve', {cardID: value})[0]
+      }
+    }
+
+		this.getQueryResult = (querynews) => {
+			let queryResult = null
+			let currentTagName = this.name
+			if (!querynews) return queryResult
+			if (Array.isArray(querynews)) {
+				queryResult = querynews.find(item => item.def.name === currentTagName)
+			} else if (querynews.def.name === currentTagName) {
+				queryResult = querynews
+			}
+			return queryResult
+		}
+
+		this.getSureQueryResult = () => {
+			let querynews = this.parent.tags['rs-query-exprs']
+			let queryResult = this.getQueryResult(querynews)
+			return queryResult
+		}
+
+		this.sortAllRows = (name, type, reverse) => {
+      this.rows = this.rows.sort(compare(name, type , reverse))
+      this.subRows = copySubRows(this.rows, this.pageIndex)
+      return this.subRows
+    }
+
+		this.on('PAGEINDEX-CHANGE', (msg) => {
+			// msg.total = this.total
+			// let queryResult = this.getSureQueryResult()
+			// if (queryResult) queryResult.trigger('PAGEINDEX-CHANGE-REPT', msg)
+			this.pageIndex = msg.pageIndex
+			this.subRows = copySubRows(this.rows, this.pageIndex)
+			let rsTableTag = this.tags['rs-table-icon-btn']
+			rsTableTag && rsTableTag.updateRows(this.subRows)
+			this.update()
+			window.xhint.close()
+		})
+
+		/*打印函数*/
+		this.askFile = (opName) => {
+			let def = this.getPrintDef(this.def.name)
+			let rows = null
+			let isQuery = false
+      if (this.def.name === "person_reader_detail") {
+        rows = JSON.stringify(this.rows)
+        isQuery = true
+      }
+			let msg = {
+				cmd: 'file',
+				name: this.def.name,
+				labels: def.labels,
+				title: this.def.label,
+				namesInShort: def.names,
+				types: def.types,
+				data: rows,
+				fileType: opName,
+				reptIndex: this.reptIndex,
+				searchTotal: this.total,
+				daysArr: this.daysArr,
+				isQuery: isQuery
+			}
+			xbus.trigger('ASK-FILE', msg)
+		}
+
+		/*获取打印配置*/
+		this.getPrintDef = (tableName) => {
+			if (printFields.hasOwnProperty(tableName)) {
+				let {names, labels, types} = printFields[tableName]
+				let daysArr = this.daysArr
+        labels = labels.concat(daysArr)
+        names = names.concat(daysArr)
+        return {
+          names,
+          labels,
+          types,
+        }
+			} else {
+        return {
+          names: this.namesInShort,
+          labels: this.def.fields.labels,
+          types: this.types
+        }
+      }
+		}
+
+		/*获取TotalTitle值*/
+		this.getTotalTitle = (reptName, total) => {
+			let staffnum = null
+			if (reptName === 'person_day') {
+				staffnum = `当前查询结果总人次: ${total}人`
+			} else {
+				staffnum = `当前查询结果数: ${total}条`
+			}
+			return staffnum
+		}
+
+		// 获取分页数据
+    this.getPages = (pageIndex) => {
+      let pages = initPagination(this.rows, pageIndex)
+      this.total = pages.total
+      this.totalPage = pages.totalPage
+      this.pageIndex = pages.pageIndex
+    }
+
+		/*更新ds*/
+		this.updateDs = (ds) => {
+			let names = null
+			this.ds = ds
+			if (this.def.name === "person_reader_detail" && ds.rows.alarmSql) {
+				this.rows = ds.rows.alarmSql.concat(ds.rows.wellSql)
+			} else {
+				this.rows = ds.rows
+			}
+			this.hasData = (this.rows && this.rows.length > 0) || false
+			if (this.hasData) {
+        this.getPages(this.pageIndex)
+        this.subRows = copySubRows(this.rows, this.pageIndex) // 初始化显示第一页        
+      }
+			// this.total = this.def.name === "person_reader_detail" ? this.rows.length : ds.total
+			this.totalTitle = this.getTotalTitle(ds.def.name, this.total)
+			// this.totalPage = Math.ceil(this.total / PAGE_SIZE)
+			// this.pageIndex = ds.pageIndex
+			this.update()
+			if (TABLEIDARR.includes(ds.def.name) && this.hasData) {
+        let dealFields = this.creatDay(ds.rows, ds.monthTime)
+        let updateMsg = {
+          fields: dealFields,
+          data: this.subRows
+        }
+				this.tags['rs-table-icon-btn'] && this.tags['rs-table-icon-btn'].updateRowsFields(updateMsg)
+			} else {
+				this.tags['rs-table-icon-btn'] && this.tags['rs-table-icon-btn'].updateRows(this.subRows)
+			}
+			console.log('rows----------------------------', this.subRows)
+		}
+
+		/**
+     * @description: 月报中创建天的函数
+     * @param {type} result
+     * @return: 
+     */
+		 this.creatDay = (result, monthTime) => {
+      let computeResult = null
+      if (monthTime) {
+        let stime = new Date(monthTime.stime).format('yyyy-MM-dd')
+        let etime = new Date(monthTime.etime).format('yyyy-MM-dd')
+        computeResult = computeMonthDays(stime, etime)
+      } else {
+        let monthRefer = result[0]['month']
+        let yearMonth = monthRefer.split('-')
+        computeResult = computeDays(yearMonth[0], yearMonth[1])
+      }
+      let {daysArr} = computeResult
+			this.daysArr = daysArr
+			let labels = clone(this.labels).splice(0, this.labels.length - 1).concat(daysArr)
+      this.rows = this.rows.map(item => {
+        let dataArr = new Map()
+        item['concat_day'] && item['concat_day'].split(',').forEach(it => {
+					let itArr = it.split(';')
+          let itKey = itArr[0].toString()
+          let itKeyValue = itArr[1]
+          if (dataArr.get(itKey)) {
+            itKeyValue = dataArr.get(itKey)[itKey] + ',' + itKeyValue
+          }
+          dataArr.set(itKey, {
+            [itKey]: itKeyValue
+          })
+				})
+				delete item['concat_day']
+        for (let i = 0; i < daysArr.length; i++) {
+          let key = daysArr[i].toString()
+          item['z' + key] = dataArr.get(key) ? dataArr.get(key)[key] : null
+        }
+        return item
+			})
+
+			let names = Object.keys(this.rows[0])
+			return {
+				labels: labels,
+				names: names
+			}
+		}
+		
+		/*获取Fields给table子组件*/
+		this.getFields = () => {
+			let fields = opts.def.fields
+			let names = fields.names
+			this.names = names.map((item) => {
+				let fieldsName = item.includes('as ') ? item.split('as ')[1] : item
+				fieldsName = item.includes('decimal') ? item.split('as ')[2] : fieldsName
+				fieldsName = fieldsName.indexOf('.') === -1 ? fieldsName : fieldsName.split('.')[1]
+				return fieldsName
+			})
+			fields.names = this.names
+			return fields
+		}
+
+		this.getHideTds = () => {
+			let hidetds = null
+			if (REPTNAMEARR.includes(this.name)) hidetds = {
+				labels: ['充放电'],
+				names: ['isbat']
+			}
+			return hidetds
+		}
+
+		/*初始化函数*/
+		this.init = (opts) => {
+			this.reptPrint = printDef.reptTable
+			this.def = opts.def
+			this.name = opts.def.name
+			this.names = opts.def.fields.names
+			this.labels = opts.def.fields.labels
+			this.namesInShort = this.names.map((item) => {
+				let name = item.split('.').pop()
+				return name.split(' ').pop()
+			})
+			this.showBat = REPTNAMEARR.includes(this.name) && (!xdata.hasMenus || xdata.menus.includes('MO-A-012'))
+			console.log('showBat', this.showBat)
+			this.showoperate = ['person', 'vehicle_updown_mine'].includes(this.name)
+			this.hidetds = this.getHideTds()
+			this.showtitle = true
+			this.types = opts.def.fields.types
+			this.reptIndex = opts.def.reptIndex
+			this.ds = null
+			this.totalTitle = null
+			this.rows = null
+			this.total = null
+			this.totalPage = null
+			this.hasData = false
+			this.daysArr = null
+		}
+
+		this.init(opts)
+	</script>
+</rept-table>

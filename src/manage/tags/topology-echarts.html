@@ -1,0 +1,216 @@
+<topology-echarts onclick={ doHide }>
+  <div class="search-title">
+    <rs-select-field ref={conditionRow.field_name} data={ conditionRow } isshowdefault='true'></rs-select-field>
+    <rs-text-field data={readerRow} ref={readerRow.field_name} data-name='dat_reader'></rs-text-field>
+  </div>
+  <div class="summary-title">
+    <span>总数：{summaryNum.sum}；</span>
+    <span>直流供电：{summaryNum.charge}；</span>
+    <span>离线：{summaryNum.destroy}</span>
+  </div> 
+  <div class="content" onclick={ showTips }>
+    <div each={ row in subRows } class="content-wp">
+      <p class="desc">{ row.name }</p>
+      <ul>
+        <li each={ item in row.readers.split(';') } class="reader_{item}">
+          <i class={ getReader(item, 'icon') }></i>
+          <span>{ getReader(item, 'name') }</span>
+        </li>
+      </ul>
+    </div>
+  </div>
+  <div data-is="tool-tips" class="tool-tips-container hide"></div>
+  <script>
+    import '../sass/topology-echarts.sass'
+    import '../../tags/rs-text-field/rs-text-field.html'
+    import '../../tags//rs-select-field//rs-select-field.html'
+    import { concatAreaReader, compare } from '../../js/utils/utils.js'
+
+    const self = this
+    let readers = xdata.metaStore.data.reader && Array.from(xdata.metaStore.data.reader.values())
+
+    this.dealReaders = (rows, liNum, type) => {
+      const subRows = []
+      const msg = [...rows]
+      while (msg.length) {
+        const spliceRow = msg.splice(0, liNum)
+        const start = spliceRow[0][type]
+        const end = spliceRow[spliceRow.length - 1][type]
+        const spliceReaders = spliceRow.reduce((acc, cur) => {
+          return acc ? `${acc};${cur.reader_id}` : `${cur.reader_id}`
+        }, '')
+
+        subRows.push({
+          name: `${start}~${end}`,
+          readers: spliceReaders
+        })
+      }
+      return subRows
+    }
+
+    this.chooseItem = (fieldName, index, target) => {
+      const selectIndex = Number(index)
+      if (selectIndex === 0) {
+        this.getRows()
+      } else {
+        const contentEle = this.root.querySelector('.content')
+        const contentWidth = contentEle.clientWidth
+        const descWidth = contentEle.querySelector('.desc').clientWidth
+        const liWidth = contentEle.querySelector('li').clientWidth
+        const liNum = Math.floor((contentWidth - descWidth)/liWidth)
+
+        const sortRule = selectIndex === 1 ? 'reader_id' : 'ip'
+        const sortReaders = readers.sort(compare(sortRule))
+        this.subRows = this.dealReaders(sortReaders, liNum, sortRule)
+        this.update()
+      }
+
+      if (this.SearchReaderID) {// 按条件切换后添加分站选中状态
+        const oldEle = this.root.querySelector(`.reader_${this.SearchReaderID}`)
+        const searchReader = this.refs['reader_id'].refs['reader_id'] 
+        if (searchReader.value) {
+          oldEle && oldEle.classList.add('active')
+        }
+      }
+    }
+
+    this.getResult = (result, fieldName) => {
+      const oldEles = this.root.querySelectorAll('.active')
+      oldEles && oldEles.forEach(ele => { ele.classList.remove('active') })
+      if (result) {
+        this.SearchReaderID = result[fieldName]
+        this.root.querySelector(`.reader_${this.SearchReaderID}`).classList.add('active')
+      }
+    }
+
+    //获取下拉列表数据
+    this.getSelectItem = (fieldName) => {
+      return [
+        {label: '按区域显示', value: 0},
+        {label: '按分站ID显示', value: 1},
+        {label: '按分站IP显示', value: 2}
+      ]
+    }
+
+    // 关闭对话框
+    this.doHide = (evt) => {
+      evt.stopPropagation()
+      xbus.trigger('HIDE-ALL-POPUP')
+    }
+
+    // 显示分站具体信息对话框
+    this.showTips = (evt) => {
+      evt.stopPropagation()
+      const target = evt.target
+      const targetNode = target.nodeName
+      let chooseNode = target
+      if (targetNode === 'I' || targetNode === 'SPAN') {
+          chooseNode = target.parentElement
+      }
+      const readerID = chooseNode.className.replace('reader_', '')
+        if (!readerID || isNaN(readerID)) return this.doHide(evt)
+        const deviceInfoDef = xdata.metaStore.defs.reader
+        const deviceInfo = xdata.metaStore.data.reader.get(parseInt(readerID, 10))
+        const boundingClientRect = target.getBoundingClientRect()
+        const coordinate = [boundingClientRect.x, boundingClientRect.y]
+        let msg = {
+            type: 'DEVICE',
+            subtype: 'reader',
+            id: readerID,
+            event: evt,
+            state: {
+                def: xdata.deviceStore.getStateDefs(),
+                rec: xdata.deviceStore.getState(readerID, deviceInfo.device_type_id)
+            },
+            info: {
+                def: deviceInfoDef,
+                rec: xdata.metaStore.formatRecord(deviceInfoDef, deviceInfo, null)
+            },
+            coordinate: coordinate,
+            notShowLand: true,
+            notShowPath: true
+        }
+        xbus.trigger('MAP-TOOLTIPS-SHOW', msg)
+    }
+
+    this.getRows = () => {
+      this.subRows = concatAreaReader()
+      this.update()
+    }
+
+    // 获取分站总数、直流数、分站离线数
+    this.summary = () => {
+      const alarms = xdata.alarmStore.onAlarming && Array.from(xdata.alarmStore.onAlarming.values())
+      if (alarms) {
+        alarms.filter(alarm => {
+          const { obj_type_id, type_id, obj_id } = alarm
+          if (obj_type_id === 4) {
+            type_id === 6 ? this.destroyReaders.set(obj_id, alarm) : this.chargeReaders.set(obj_id, alarm)
+          }
+        })
+      }
+
+      return {
+        sum: readers ? readers.length : 0,
+        charge: Array.from(this.chargeReaders.values()).length,
+        destroy: Array.from(this.destroyReaders.values()).length
+      }
+    }
+
+    this.getReader = (item, desc) => {
+      if (!item) return
+      const readerID = parseInt(item, 10)
+      const reader = xdata.metaStore.data.reader.get(readerID)
+      if (desc === 'icon') {
+        let alarm = ''
+        const deviceType = xdata.metaStore.data.device_type
+        const { device_type_id } = reader
+        const readerDevice = deviceType.get(device_type_id)
+        const chargeReader = Array.from(this.chargeReaders.values()).some(item => parseInt(item.obj_id, 10) === readerID)
+        const destroyReader = Array.from(this.destroyReaders.values()).some(item => parseInt(item.obj_id, 10) === readerID)
+        if (chargeReader) alarm = 'charge'
+        if (destroyReader) alarm = 'destroy'
+        return readerDevice && `${readerDevice.name}${alarm}`
+      } else if (desc === 'name') {
+        return `${readerID}-${xdata.metaStore.getNameByID('reader_id', readerID)}`
+      }
+    }
+
+    this.on('mount', () => {
+      this.root.classList.remove('hide')
+      this.getRows()
+    })
+
+    this.init = (opts) => {
+      this.chargeReaders = new Map() // 供电告警分站
+      this.destroyReaders = new Map() // 通信异常分站
+      this.summaryNum = this.summary()
+
+      this.readerRow = {
+        field_label: '分站',
+        field_name: 'reader_id',
+        field_value: '',
+        field_type: 'SELECT',
+        field_enableNull: true,
+        fuzzy_datas: readers,
+        cb: this.getResult
+      }
+
+      this.conditionRow = {
+        field_label: '条件',
+        field_name: 'condition',
+        field_value: '',
+        field_enableNull: true
+      }
+
+      this.parenTag = opts.parenTag
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+      readers = null
+    })
+  </script>
+</topology-echarts>

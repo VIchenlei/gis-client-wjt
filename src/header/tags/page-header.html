@@ -1,0 +1,276 @@
+<page-header class="page-header hide-on-mb">
+  <!-- <img src="/img/logo.png" alt="精准定位"> -->
+  <main-nav menuitems={mainMenu}></main-nav>
+  <rs-fuzzy-search if={isShow('MO-A-001')} ref='fuzzy' message={ getComponentMessage() } class={'page-fuzzy-search'}></rs-fuzzy-search>
+  <shortcut-operation badgeitems={badgeItems} shortcut={shortcut} class="shortcut-operation hide-on-mb"></shortcut-operation>
+  <user-bar ></user-bar>
+
+  <script>
+    import './main-nav.html'
+    import '../../tags/rs-fuzzy-search/rs-fuzzy-search.html'
+    import './shortcut-operation.html'
+    import '../../user/tags/user-bar.html'
+    import './aboutus.html'
+    import './send-call.html'
+    import './staff-curve.html'
+    import './hand-upmine.html'
+    import './accompany.html'
+    import '../sass/page-header.sass'
+
+    import shortcutItems from '../js/shortcut_def.js'
+    import mainMenu from '../js/main_menu.js'
+    import CALLPERSON from '../../js/utils/callUtils.js'
+    import {composeUpdateDBReq, composeCardID} from '../../js/utils/utils.js'
+    import { CARD } from '../../js/def/state.js'
+
+    const GEOID = 12
+
+    xbus.on('ALARM-LIST-CHANGED', () => {
+
+    })
+
+    this.registerGlobalEventHandlers = () => {
+      xbus.on('META-UPDATE-DB-RES', (res) => {
+        if (res.data.name === 'setting') {
+          let msg = {
+            type: res.code === 0 ? 'success' : 'warning',
+            message: res.code === 0 ? '更新成功' : res.msg
+          }
+          window.xMessage.open(msg)
+        }
+      })
+    }
+
+    this.isShow = (menuID) => {
+      let isShow = false
+      if (!xdata.hasMenus || xdata.menus.includes(menuID)) isShow = true
+      return isShow
+    }
+
+    this.doStopCall = () => {
+      let message = CALLPERSON([{stationid: 0}], [{cardid: '0', cardtype: 1}])
+      xbus.trigger('CALL-REMOTE', message['call_card_cancel_req'])
+    }
+
+    this.doLeave = () => {
+      let message = CALLPERSON([{stationid: 0}], [{cardid: '0', cardtype: 1}], 2)
+      xbus.trigger('CALL-CARD-START', message['call_card_req'])
+    }
+
+    this.doGeowarn = (value) => {
+      if (!value || value === this.oldValue) return window.xMessage.open({
+        message: !value ? '请输入阈值数据' : '阈值没有修改',
+        type: 'warning'
+      })
+      let sql = `UPDATE dat_setting SET value = ${value} WHERE setting_id = 12`
+      let req = composeUpdateDBReq('UPDATE', 'setting', 12, sql)
+      xbus.trigger('META-UPDATE-DB', {
+        req: req
+      })
+    }
+
+    this.getDefaultValue = () => {
+      let geofault = xdata.metaStore.data.setting.get(GEOID)
+      this.oldValue = geofault && Number(geofault.value)
+      return this.oldValue
+    }
+
+    // 判断各种浏览器，找到正确的进入全屏的方法
+    // element : 需要全屏的 node
+    function requestFullScreen (element) {
+      let requestMethod = element.requestFullScreen || // W3C
+        element.webkitRequestFullScreen || // Chrome等
+        element.mozRequestFullScreen || // FireFox
+        element.msRequestFullScreen // IE11
+      if (requestMethod) {
+        requestMethod.call(element)
+      }
+    }
+
+    // 判断各种浏览器，找到正确的退出全屏的方法
+    function exitFullScreen () {
+      let exitMethod = document.cancelFullScreen || // W3C
+        document.webkitCancelFullScreen || // Chrome等
+        document.mozCancelFullScreen || // FireFox
+        document.msExitFullscreen // IE11
+      if (exitMethod) {
+        exitMethod.call(document)
+      }
+    }
+
+    this.fullScreen = () => {
+      this.isFullScreen = !this.isFullScreen
+      if (this.isFullScreen || window.document.body.clientHeight !== window.screen.height) {
+        requestFullScreen(document.documentElement)
+      } else {
+        exitFullScreen()
+      }
+    }
+
+    // 一键取消定位
+    this.cancelAllLocating = () => {
+      let keys = xdata.locateStore.getInArray()
+      if (keys.length > 0) {
+        window.cardStopLocating({ cards: keys })
+      }
+      let areas = Array.from(xdata.locateStore.locateAreas.keys())
+      if (areas.length > 0) {
+        let message = {
+          type: 'type',
+          mapType: 'MONITOR',
+          isVisible: false,
+          mapID: 5,
+          areas: areas
+        }
+        xbus.trigger('MAP-SHOW-AREA', message)
+      }
+      // 通知告警位置的定位图标  
+      // xbus.trigger('InitIcon')
+    }
+
+    this.doSwitchItem = (name) => {
+      if (this.activePanel) this.activePanel.unmount(true)
+      switch (name) {
+        case 'alarm':
+          xbus.trigger('ALARM-LIST-SHOW')
+          break
+        case 'location':
+          this.cancelAllLocating()
+          break
+        case 'sendcall':
+          this.activePanel = riot.mount('send-call')[0]
+          break
+        case 'stopcall':
+          this.activePanel = riot.mount('rs-dialog', {
+            content: '您确认要发送“停止呼叫”消息吗？',
+            tips: '提示：如果发送，将会取消您当前正在进行中的全部呼叫。',
+            cb: this.doStopCall
+          })[0]
+          break
+        case 'handupMine':
+          this.activePanel = riot.mount('hand-upmine')[0]
+          break
+        case 'leave': 
+          this.activePanel = riot.mount('rs-dialog', {
+            content: '您确认要发送“一键撤离”消息吗？',
+            tips: '提示：如果发送，井下所有人员都将收到“马上撤离”的信息。',
+            cb: this.doLeave
+          })[0]
+          break
+        case 'staffcurve':
+          this.activePanel = riot.mount('staff-curve')[0]
+          break
+        case 'geowarn':
+          let defaultValue = this.getDefaultValue()
+          this.activePanel = riot.mount('rs-dialog', {
+            content: '地质断层距离告警阈值',
+            tips: '米',
+            dialogInput: true,
+            defaultValue: defaultValue,
+            icon: 'null',
+            cb: this.doGeowarn
+          })[0]
+          break
+        case 'aboutus':
+          this.activePanel = riot.mount('aboutus', {})[0]
+          break
+        case 'fullscreen':
+          this.fullScreen()
+          break
+        case 'accompany':
+          this.activePanel = riot.mount('accompany', {papa: this.parent})[0]
+          break
+      }
+    }
+
+    // 定位卡
+    this.startLocating = (sid, stype, scard) => {
+      let deviceType = [3, 4]
+      if (!deviceType.includes(stype)) {
+        let cardID = scard || composeCardID(`00${stype}`, sid)
+        let card = xdata.cardStore.getLastState(cardID)
+        if (!card) return
+        let mapID = card[CARD.map_id]
+        if (mapID !== xdata.metaStore.defaultMapID) return
+        window.cardStartLocating({cards: [cardID]})
+      } else {
+        let deviceName = stype === 3 ? 'reader' : 'landmark'
+        let msg = {
+          mapID: xdata.metaStore.defaultMapID,
+          symbolType: deviceName,
+          mapType: 'MONITOR',
+          isVisible: 'true'
+        }
+        xbus.trigger(`MAP-SHOW-${deviceName.toUpperCase()}`, msg)
+        window.cardStartLocating({
+          cards: [sid],
+          symbolType: deviceName
+        })
+      }
+    }
+
+    this.getResult = (result) => {
+      if (!result) return
+      let data = result.row
+      let ele = this.refs['fuzzy'].refs['searchinput']
+      ele.value = data['n']
+      let mapID = data.m
+      let defaultMapID = parseInt(xdata.metaStore.defaultMapID, 10)
+      if (mapID !== defaultMapID) {
+        xbus.trigger('RESET-MAP', (mapID))
+      }
+      this.startLocating(data.id, data.t, data.c)
+    }
+
+    this.getComponentMessage = () => {
+      let staff = xdata.cardStore.getSearchData(1)
+      let vehicle = xdata.cardStore.getSearchData(2)
+      let device = xdata.deviceStore.getSearchData(3)
+      let landmark = xdata.deviceStore.getSearchData(4)
+      let data = staff.concat(vehicle).concat(device).concat(landmark)
+
+      let typeDef = {
+        name: 'all',
+        label: '搜索对象',
+        placeholder: '请输入人员、车辆、分站、地标信息',
+        isShowResultList: false,
+        cb: this.getResult
+      }
+      let dataSet = {
+        desc: 'n',
+        keys: ['id', 'n', 'b', 't', 'c'] ,
+        data: data
+      }
+      return {
+        typeDef: typeDef,
+        dataSet: dataSet,
+        needSearchIcon: 'right',
+        type: 'RADIO',
+        isShowPopup: true
+      }  
+    }
+
+    this.fuzzyFocus = () => {
+      let staff = xdata.cardStore.getSearchData(1)
+      let vehicle = xdata.cardStore.getSearchData(2)
+      let device = xdata.deviceStore.getSearchData(3)
+      let landmark = xdata.deviceStore.getSearchData(4)
+      let data = staff.concat(vehicle).concat(device).concat(landmark)
+      let dataSet = {
+        desc: 'n',
+        keys: ['id', 'n', 'b', 't', 'c'] ,
+        data: data
+      }
+      this.refs['fuzzy'] && this.refs['fuzzy'].updateSearchDataSet(dataSet)
+    }
+
+    this.init = () => {
+      this.opts = this.parent.opts
+      this.badgeItems = shortcutItems.slice(0, 1)
+      this.shortcut = shortcutItems.slice(1)
+      this.mainMenu = mainMenu
+      this.registerGlobalEventHandlers()
+    }
+    this.init()
+  </script>
+</page-header>

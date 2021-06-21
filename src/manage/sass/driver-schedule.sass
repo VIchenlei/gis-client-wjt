@@ -1,0 +1,21 @@
+@import '../../style/defs.sass'
+.driver-schedule
+  @include wh(100%,100%)
+  padding: .1rem
+  overflow-y: auto
+  .printer
+    display: flex
+    justify-content: flex-end
+    margin-bottom: .1rem
+    .printer-icon
+      @include wh(0.16rem,0.16rem)
+      cursor: pointer
+      fill: #333
+      fill-opacity: .8
+  .rs-select-field
+    margin-right: .1rem
+  .rs-select
+    margin-right: .1rem
+    position: absolute
+    width: 100%
+    box-shadow: 4px 4px 4px $color-grey-line

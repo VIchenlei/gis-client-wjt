@@ -1,0 +1,39 @@
+<rs-cascader class="rs-cascader">
+  <div>
+    <span class="text-field-label">{text}</span>
+    <rs-cascader-list data-list={lists} data-checked={checkedMenus} ></rs-cascader-list>
+  </div>
+  <script>
+    import './rs-cascader.sass'
+    import './rs-cascader-list.html'
+
+    let self = this
+
+    this.checkMenus = () => {
+      let parent = this.parent
+      let menus = parent.rows[2].field_value
+      if (menus === '0' || !menus) {
+        menus = []
+        let menusMap = xdata.metaStore.data.menu
+        for (let [key, value] of menusMap) {
+          if (value.level_id === 3) menus.push(key)
+        }
+      } else {
+        menus = menus.toString().split(';')
+      }
+      this.checkedMenus = menus
+    }
+
+    this.init = (opts) => {
+      let msg = opts.data
+      this.parenTag = this.parent.parenTag
+      this.tableName = opts.dataName
+      this.text = msg.field_label
+      this.fileName = msg.field_name
+      this.fieldType = msg.field_type
+      this.checkMenus()
+    }
+
+    this.init(opts)
+  </script>
+</rs-cascader>

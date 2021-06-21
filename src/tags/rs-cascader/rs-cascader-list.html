@@ -1,0 +1,186 @@
+<rs-cascader-list class="rs-cascader-list">
+  <div class="cascader-warp" tabindex="0" onfocus={ handleFocus } onfocusout={ handleFocusout }>
+    <div class="input-warp" if={ checkedMenus.length <= 0 }>
+      <input type="text" placeholder="请选择" disabled>
+    </div>
+    <div class="choose-scorll report-scroll" if={ checkedMenus.length > 0 }>
+      <div class="choose-result">
+        <span each={ row, i in checkedMenus } class="choose-result-content">
+          <span>{ getName(row) }</span>
+          <span onclick={ deleteElement }>x</span>
+        </span>
+      </div>
+    </div>
+    <div class="list-warp" if={ isShowChoose }>
+      <div class="cascader-ul-warp grey-scroll">
+        <ul>
+          <li each={ row, i in level1Rows }>
+            <div>
+              <span class={ getClassName(row) } onclick={ handleChange }></span>
+              <input name={ row.menu_id } type="checkbox" class="checkInput"/>
+              <span onclick={ getLevel2Rows }>{row.name}</span>
+              <span class="font-span">&gt</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="cascader-ul-warp grey-scroll" if={level2Rows && level2Rows.length>0}>
+        <ul>
+          <li each={ row, i in level2Rows }>
+            <div>
+              <span class={ getClassName(row) } onclick={ handleChange }></span>
+              <input name={ row.menu_id } type="checkbox" class="checkInput"/>
+              <span onclick={ getLevel3Rows }>{row.name}</span>
+              <span class="font-span">&gt</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+      <div class="cascader-ul-warp grey-scroll" if={level3Rows && level3Rows.length>0}>
+        <ul>
+          <li each={ row,i in level3Rows }>
+            <div>
+              <span class={ getClassName(row) } onclick={ handleChange }></span>
+              <input name={ row.menu_id } type="checkbox" class="checkInput"/>
+              <span>{row.name}</span>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <span class={info ? 'info' : ''}>{ info }</span>
+  <script>
+    import './rs-cascader-list.sass'
+
+    this.getClassName = (row) => {
+      const {menu_id, level_id} = row
+      let className = 'checkSpan'
+      if (level_id === 3) {
+        if (this.checkedMenus.includes(menu_id)) {
+          className = 'checkSpan ischecked'
+        } else {
+          className = 'checkSpan'
+        }
+      } else {
+        let checkedMenus = this.checkedMenus.filter(item => item.includes(menu_id))
+        let menus = this.menuRows.filter(item => {
+          return item.level_id === 3 && item.menu_id.includes(menu_id)
+        })
+        if (checkedMenus.length === 0 || menus.length === 0) {
+          className = 'checkSpan'
+        } else {
+          if (checkedMenus.length === menus.length ) {
+            className = 'checkSpan ischecked'
+          } else {
+            className = 'checkSpan isnosure'
+          }
+        }
+      }
+      return className
+    }
+
+    this.handleFocus = (evt) => {
+      let fieldsetElement = this.root.querySelector('.cascader-warp')
+      fieldsetElement.classList.add('cascader-focus')
+      this.isShowChoose = true
+      let chooseField = this.root.querySelector('.cascader-warp').classList
+      chooseField.remove('cascader-red-line')
+      this.info = ''
+    }
+
+    /*失去焦距隐藏搜索子组件*/
+    this.handleFocusout = (evt) => {
+      let fieldsetElement = this.root.querySelector('.cascader-warp')
+      let focusoutEl = evt.relatedTarget
+      if (!fieldsetElement.contains(focusoutEl)) {
+        fieldsetElement.classList.remove('cascader-focus')
+        this.isShowChoose = false
+        this.matchField(evt)
+      }
+    }
+
+    //检验输入框
+    this.matchField = (evt) => {
+      this.info = (this.checkedMenus && this.checkedMenus.length) > 0 ? '' : '不能为空'
+      let chooseField = this.root.querySelector('.cascader-warp').classList
+      this.info ? chooseField.add('cascader-red-line') : chooseField.remove('cascader-red-line')
+    }
+
+    this.handleChange = (evt) => {
+      const { row } = evt.item
+      const {menu_id, level_id} = row
+      if (level_id === 3) {
+        if (this.checkedMenus.includes(menu_id)) {
+          this.checkedMenus = this.checkedMenus.filter(item => item !== menu_id)
+        } else {
+          this.checkedMenus.push(menu_id)
+        }
+      } else {
+        let checkedMenus = this.checkedMenus.filter(item => item.includes(menu_id))
+        let menus = this.menuRows.filter(item => {
+          return item.level_id === 3 && item.menu_id.includes(menu_id)
+        })
+        if (checkedMenus.length === menus.length) {
+          for(let i = 0; i < menus.length; i++) {
+            let menu = menus[i]
+            if (this.checkedMenus.includes(menu.menu_id)) {
+              this.checkedMenus = this.checkedMenus.filter(item => item !== menu.menu_id)
+            }
+          }
+        } else {
+          for(let i = 0; i < menus.length; i++) {
+            let menu = menus[i]
+            if (!this.checkedMenus.includes(menu.menu_id)) {
+              this.checkedMenus.push(menu.menu_id)
+            }
+          }
+        }
+      }
+    }
+
+    this.getLevel1Rows = () => {
+      let level1Rows = this.menuRows.filter(item => item.level_id === 1)
+      return level1Rows
+    }
+
+    this.getLevelNRows = (evt, n) => {
+      const {row} = evt.item
+      const {menu_id: menuID} = row
+      this[`level${n}Rows`] = this.menuRows.filter(item => {
+        return item.level_id === n && item.menu_id.includes(menuID)
+      })
+    }
+
+    this.getLevel2Rows = (evt) => {
+      this.getLevelNRows(evt, 2)
+      this.level3Rows = null
+    }
+
+    this.getLevel3Rows = (evt) => {
+      this.getLevelNRows(evt, 3)
+    }
+
+    this.getName = (row) => {
+      let menu = xdata.metaStore.data.menu.get(row)
+      const {name} = menu
+      return name
+    }
+    
+    this.deleteElement = (evt) => {
+      const { row } = evt.item
+      this.checkedMenus = this.checkedMenus.filter(item => item !== row)
+    }
+
+    this.init = (opts) => {
+      this.checkedMenus = opts.dataChecked || []
+      this.menuRows = Array.from(xdata.metaStore.data.menu.values())
+      this.level1Rows = this.getLevel1Rows()
+      this.level2Rows = null
+      this.level3Rows = null
+      this.isShowChoose = false
+    }
+
+    this.init(opts)
+  </script>
+</rs-cascader-list>

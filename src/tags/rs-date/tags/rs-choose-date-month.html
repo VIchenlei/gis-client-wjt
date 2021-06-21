@@ -1,0 +1,61 @@
+<rs-choose-date-month class="rs-choose-date-month">
+  <div class="calendar-panel-header">
+    <div onclick={ handle }>
+      <a class="calendar-prev-year-btn" name="prevYear" title="上一年"><<</a> 
+      <span class="calendar-ym-select">
+        <a class="calendar-year-select">{ dateOpt.year }年</a>
+      </span>
+      <a class="calendar-next-year-btn" name="nextYear" title="下一年">>></a>
+    </div>
+  </div>
+  <div class="calendar-panel-body">
+    <table class="calendar-table" cellspacing="0" role="grid">
+        <tbody class="calendar-tbody"></tbody>
+    </table>
+  </div>
+  <script>
+    import '../sass/rs-choose-date-month.sass'
+    import utils from '../js/utils.js'
+    let calendarTbody = null
+
+    this.getTbodyTemplate = (opt) => {
+      if (opt) this.dateOpt = opt
+      var html = ''
+      for (var i = 1; i <= 12; i++) {
+        if (i % 3 === 1) html += '<tr>'
+        let className = '', dateList
+        if (this.dateOpt.month + 1 === i) className = 'calendar-month-cell-select'
+        html += '<td class="calendar-month-cell ' + className + '">' +
+          '<div class="calendar-month" value="' + `${i-1}` + '">' +
+          i + '月</div>' +
+          '</td>'
+        if (i % 3 === 3) html += '</tr>'
+      }
+      return html
+    }
+
+    //选择月
+    this.handleMonth = () => {
+      typeof this.parent.handleTbody === 'function' && this.parent.handleTbody(calendarTbody, this)
+    }
+
+    this.on('mount', () => {
+      calendarTbody = this.root.querySelector('.calendar-tbody')
+      typeof this.parent.updateHtml === 'function' && this.parent.updateHtml()
+      this.handleMonth()
+    })
+
+    // 切换年月
+    this.handle = (evt) => {
+      evt.stopPropagation()
+      let name = evt.target.getAttribute('name')
+      typeof this.parent.chooseDate === 'function' && this.parent.chooseDate(name)
+    }
+
+    this.init = (opts) => {
+      this.dateOpt = opts.dateopt
+    }
+
+    this.init(opts)
+  </script>
+</rs-choose-date-month>

@@ -1,0 +1,367 @@
+<rs-choose-date>
+  <div class="calendar" onclick={ stopPropagation }>
+    <div class="calendar-panel">
+      <div class="calendar-panel-box { this.type === 'DATETIME' ? 'calendar-panel-datetime' : '' }">
+        <rs-choose-date-year class="{ this.type === 'DATETIME' ? 'calendar-border' : '' }" if={ showYear || showDateTime
+          } dateopt={ dateOpt } type={ type }></rs-choose-date-year>
+        <rs-choose-date-month if={ showMonth } dateopt={ dateOpt }></rs-choose-date-month>
+        <rs-choose-date-time if={ showTime || showDateTime } showSecond={ isShowSecond } data={ dateTimeList } dateopt={
+          dateOpt } type={ type }></rs-choose-date-time>
+      </div>
+    </div>
+    <div class="calendar-footer">
+      <span class="calendar-footer-btn">
+        <a class="calendar-btn btn-clear" role="button" onclick={ clearInput }>清空</a>
+        <a class="calendar-btn btn-sure" role="button" onclick={ save }>确定</a>
+      </span>
+    </div>
+  </div>
+  <script>
+    import '../sass/rs-choose-date.sass'
+    import utils from '../js/utils.js'
+    import '../tags/rs-choose-date-year.html'
+    import '../tags/rs-choose-date-month.html'
+    import '../tags/rs-choose-date-time.html'
+
+    this.showDateTime = false //控制组件显示隐藏
+    this.showYear = false
+    this.showMonth = false
+    this.showTime = false
+    let self = this
+
+    this.getSplitValue = (value) => {
+      value = value.includes('T') ? new Date(value).format('yyyy-MM-dd: hh:mm:ss') : value
+      let dateList = null, timeList = null
+      if (this.type !== 'TIME') {
+        dateList = this.type === 'DATETIME' ? value.split(' ')[0].split('-') : value.split('-')
+        timeList = this.type === 'DATETIME' ? value.split(' ')[1].split(':') : null
+      } else {
+        dateList = null
+        timeList = value.split(':')
+      }
+      return { dateList, timeList }
+    }
+
+    /*有数据显示对应的选择按钮无数据显示默认当前的日期*/
+    this.getDefaultValue = (value) => {
+      let splitValList = this.getSplitValue(value)
+      let dateList = splitValList.dateList,
+        timeList = splitValList.timeList
+      if (['TIME', 'DATETIME'].includes(this.type)) this.processTimeData()
+      this.dateOpt = this.getDateOpt(dateList, timeList)
+    }
+
+    // 十分秒整合到一个集合里，循环展示
+    this.processTimeData = () => {
+      this.hourList = utils.hourList()
+      this.minuteList = utils.minuteList()
+      this.secondList = utils.secondList()
+      this.dateTimeList = [{
+        'name': 'hour'
+      }, {
+        'name': 'minute'
+      }, {
+        'name': 'second'
+      }]
+      let title = ['时', '分', '秒']
+      for (let i = 0; i < this.dateTimeList.length; i++) {
+        this.dateTimeList[i]['list'] = this[`${this.dateTimeList[i].name}List`]
+        this.dateTimeList[i]['show'] = true
+        this.dateTimeList[i]['title'] = title[i]
+        if (i === this.dateTimeList.length - 1) this.dateTimeList[i]['show'] = this.isShowSecond
+      }
+    }
+
+    this.getDateOpt = (dateList, timeList) => {
+      let date = new Date()
+      let timeAll = {},
+        dateOpt = {}
+      if (dateList) {
+        dateOpt = {
+          year: Number(dateList[0]) || date.getFullYear(),
+          month: Number(dateList[1]) - 1 || date.getMonth(),
+          date: Number(dateList[2]) || date.getDate(),
+          selectYear: Number(dateList[0]) || date.getFullYear(),
+          selectMonth: Number(dateList[1]) - 1 || date.getMonth(),
+          selectDate: Number(dateList[2]) || date.getDate(),
+          curYear: date.getFullYear(),
+          curMonth: date.getMonth(),
+          curDate: date.getDate(),
+        }
+      }
+      if (timeList) {
+        timeAll = {
+          hour: timeList[0] || '00',
+          minute: timeList[1] || '00',
+          second: timeList[2] || '00',
+          selectHour: timeList[0] || '00',
+          selectMinute: timeList[1] || '00',
+          selectSecond: timeList[2] || '00',
+        }
+      }
+      for (const key in timeAll) {
+        dateOpt[key] = timeAll[key]
+      }
+      return dateOpt
+    }
+
+    // 切换年月
+    this.chooseDate = (name) => {
+      if (!name) return
+      let dateName = name.slice(4)
+      let lowerName = dateName.replace(dateName[0], dateName[0].toLowerCase())
+      name === `prev${dateName}` ? this.dateOpt[lowerName]-- : this.dateOpt[lowerName]++
+      this.dateOpt[`select${dateName}`] = this.dateOpt[lowerName]
+      if (['year', 'month'].includes(lowerName)) this.processMonth(this.dateOpt.selectMonth)
+      if (['DATE', 'DATETIME'].includes(this.type)) this.updateHtml()
+    }
+
+    this.on('mount', () => {
+      this.elemWrap = this.root.querySelector('.calendar')
+      utils.attr(this.elemWrap, 'isShow', 'off')
+      this.elemWrap.style = 'display:none'
+      this.initEvent()
+    })
+
+    this.init = (opts) => {
+      this.cb = opts.cb
+      this.type = opts.type
+      this.isShowSecond = opts.showsecond
+      let value = opts.riotValue
+      if (!value && this.type === 'DATETIME') {
+        value = new Date().format('yyyy-MM-dd hh:mm:ss')
+      }
+      this.getDefaultValue(value)
+      if (this.type === 'DATETIME') this.showDateTime = true
+      if (this.type === 'DATE') this.showYear = true
+      if (this.type === 'MONTH') this.showMonth = true
+      if (['TIME', 'DATETIME'].includes(this.type)) this.showTime = true
+    }
+
+    this.init(opts)
+
+    this.dateInput = (dateList, timeList) => {
+      if (dateList) {
+        this.dateOpt.year = Number(dateList[0])
+        this.dateOpt.month = Number(dateList[1]) - 1
+        this.dateOpt.date = this.type === 'MONTH' ? null : Number(dateList[2])
+        this.dateOpt.selectYear = this.dateOpt.year
+        this.dateOpt.selectMonth = this.dateOpt.month
+        this.dateOpt.selectDate = this.dateOpt.date
+      }
+      if (timeList) {
+        this.dateOpt.hour = timeList[0]
+        this.dateOpt.minute = timeList[1]
+        this.dateOpt.second = timeList[2]
+        this.dateOpt.selectHour = this.dateOpt.hour
+        this.dateOpt.selectMinute = this.dateOpt.minute
+        this.dateOpt.selectSecond = this.dateOpt.second
+      }
+    }
+
+    this.stopPropagation = (e) => {
+      e.stopPropagation()
+    }
+
+    this.initEvent = () => {
+      let parentRoot = this.elemWrap.parentNode.parentNode.parentNode
+      parentRoot.addEventListener(
+        'click',
+        function(e) {
+          utils.fadeOut(self.elemWrap)
+        },
+        false
+      )
+    }
+
+    this.handleTbody = (calendarTbody, currentTag) => {
+      calendarTbody.addEventListener(
+        'click',
+        function(e) {
+          e.stopPropagation()
+          let target = e.target
+          if (utils.hasClass(target, 'calendar-month')) {
+            self.handleSelectMonth(target)
+          } else if (utils.hasClass(target, 'calendar-date')) {
+            self.handleSelectDay(target, calendarTbody, currentTag)
+          } else if (utils.hasClass(target, 'precise-wrapper-list')) {
+            self.handleScroll(target)
+          }
+        }
+      )
+    }
+
+    this.handleSelectDay = (target, tbody, currentTag) => {
+      var parentElem = target.parentNode
+      this.dateOpt.date = parseInt(target.innerHTML)
+      this.dateOpt.selectDate = this.dateOpt.date
+      if (utils.hasClass(parentElem, 'calendar-next-month-btn-day')) {
+        this.dateOpt.month++
+      } else if (utils.hasClass(parentElem, 'calendar-last-month-cell')) {
+        this.dateOpt.month--
+      }
+      tbody.innerHTML = currentTag.getTbodyTemplate()
+    }
+
+    /*type为Month选择月份*/
+    this.handleSelectMonth = (target) => {
+      this.getRemoveSelect()
+      target.parentNode.classList.add('calendar-month-cell-select')
+      this.dateOpt.month = Number(target.getAttribute('value'))
+      this.dateOpt.selectMonth = this.dateOpt.month
+    }
+
+    this.handleScroll = (target) => {
+      this.handleSelectTime(target)
+      let index = Number(target.innerHTML)
+      let targetHeight = target.offsetHeight
+      let viewHeight = target.parentNode.parentNode.clientHeight
+      target.parentNode.parentNode.scrollTop = targetHeight*index - viewHeight/2 +100 + targetHeight/2
+    }
+
+    /*选择时间*/
+    this.handleSelectTime = (target) => {
+      let name = target.parentNode.getAttribute('name')
+      let elePrecise = this.elemWrap.querySelector(`.precise-wrapper-${name}`)
+      let eleWrapList = elePrecise && elePrecise.children
+      eleWrapList = Array.from(eleWrapList)
+      let elePreciseSelect = this.elemWrap.querySelector('.precise-wrapper-list-select')
+      eleWrapList.forEach(el => {
+        elePreciseSelect && el.classList.remove('precise-wrapper-list-select')
+      })
+      target.classList.add('precise-wrapper-list-select')
+      this.dateOpt[name] = target.innerHTML
+      this.dateOpt[`select${name[0].toUpperCase()}${name.slice(1)}`] = this.dateOpt[name]
+    }
+
+    this.updateHtml = () => {
+      let dataOpt = this.dateOpt
+      let dateTimeList = this.dateTimeList
+      //展示当月的日历格式
+      let currentTag, currentTimeTag
+      if (['DATE', 'DATETIME', 'MONTH'].includes(this.type)) {
+        currentTag = this.tags[`rs-choose-date-${this.type === 'MONTH' ? 'month' : 'year'}`]
+        currentTag.root.querySelector('.calendar-tbody').innerHTML =  currentTag.getTbodyTemplate(dataOpt)
+      }
+      if (['TIME', 'DATETIME'].includes(this.type)) {
+        currentTimeTag = this.tags[`rs-choose-date-time`]
+        currentTimeTag.root.querySelector('.precise-wrapper').innerHTML =  currentTimeTag.getTbodyTimeTemplate(dataOpt,dateTimeList)
+        currentTimeTag.initTimePosition()
+      }
+
+    }
+
+    this.openPanel = (target) => {
+      if (utils.attr(this.elemWrap, 'isShow') == 'off') {
+        utils.show(this.elemWrap)
+      } else {
+        this.parent.checkDate()
+        utils.fadeOut(this.elemWrap)
+        let value = this.parent.root.querySelector('.calendar-select').value
+        if (value) {
+          this.getDefaultValue(value)
+          this.updateHtml()
+        }
+      }
+    }
+    /*获取需要给输入框赋值value*/
+    this.getInputVal = () => {
+      let dateObj = {
+        year: this.dateOpt.selectYear,
+        month: this.dateOpt.selectMonth + 1,
+        date: this.dateOpt.selectDate,
+        hour: this.dateOpt.selectHour,
+        minute: this.dateOpt.selectMinute,
+        second: this.dateOpt.selectSecond,
+      }
+      let date = `${dateObj.year}-${utils.PrefixZero(dateObj.month, 2)}-${utils.PrefixZero(dateObj.date,
+            2)}`
+      let time = this.isShowSecond ? `${dateObj.hour}:${dateObj.minute}:${dateObj.second}` :
+        `${dateObj.hour}:${dateObj.minute}`
+      const INPUTVALUE = {
+        DATETIME: `${date} ${time}`,
+        DATE: date,
+        MONTH: `${dateObj.year}-${utils.PrefixZero(dateObj.month, 2)}`,
+        TIME: time
+      }
+      return INPUTVALUE[this.type]
+    }
+
+    this.processMonth = (newVal) => {
+      if (0 <= newVal && newVal <= 11) {
+        this.dateOpt.month = newVal
+      } else {
+        newVal > 11 ? this.dateOpt.year++ : this.dateOpt.year--
+        this.dateOpt.month = newVal > 11 ? 0 : 11
+        this.dateOpt.selectYear = this.dateOpt.year
+      }
+      this.dateOpt.selectMonth = this.dateOpt.month
+    }
+    /*type为DATETIME执行清空输入框*/
+    this.clearInput = () => {
+      let date = new Date()
+      this.getRemoveSelect()
+      this.dateOpt.year = date.getFullYear()
+      this.dateOpt.month = date.getMonth()
+      this.dateOpt.date = date.getDate()
+      this.dateOpt.selectYear = date.getFullYear()
+      this.dateOpt.selectMonth = date.getMonth()
+      this.dateOpt.selectDate = date.getDate()
+      this.dateOpt.hour = '00'
+      this.dateOpt.minute = '00'
+      this.dateOpt.second = '00'
+      this.dateOpt.selectHour = '00'
+      this.dateOpt.selectMinute = '00'
+      this.dateOpt.selectSecond = '00'
+      this.updateHtml()
+      this.cb('')
+    }
+
+    /*去掉选中状态*/
+    this.getRemoveSelect = () => {
+      if (['DATETIME', 'DATE'].includes(this.type)) {
+        let eleSelectDate = this.elemWrap.querySelector('.calendar-selected-date')
+        eleSelectDate && eleSelectDate.classList.remove('calendar-selected-date')
+      }
+      if (['TIME', 'DATETIME'].includes(this.type)) {
+        let elemHour = null, elemMinute = null, elemSecond = null, elemList = null
+        let hourTag = this.elemWrap.querySelector(`.precise-wrapper-hour`)
+        let minuteTag = this.elemWrap.querySelector(`.precise-wrapper-minute`)
+        let secondTag = this.elemWrap.querySelector(`.precise-wrapper-second`)
+        elemHour = Array.from(hourTag.children)
+        elemMinute = Array.from(minuteTag.children)
+        elemSecond = secondTag && Array.from(secondTag.children) || []
+        elemList = elemHour.concat(elemMinute).concat(elemSecond)
+        elemList.forEach(el => {
+          let elemWrapSelect = this.elemWrap.querySelector('.precise-wrapper-list-select')
+          elemWrapSelect && el.classList.remove('precise-wrapper-list-select')
+        })
+      }
+      if (this.type === 'MONTH') {
+        let elemMonthList = []
+        let elemMonth = Array.from(this.elemWrap.querySelector(`.calendar-tbody`).children)
+        for (let i = 0; i < elemMonth.length; i++) {
+          let elemMonthChild = Array.from(elemMonth[i].children)
+          for (let j = 0; j < elemMonthChild.length; j++) {
+            elemMonthList.push(elemMonthChild[j])
+          }
+        }
+        elemMonthList.forEach(el => {
+          this.elemWrap.querySelector('.calendar-month-cell-select') && el.classList.remove(
+            'calendar-month-cell-select')
+        })
+      }
+    }
+
+    this.save = () => {
+      let value = this.getInputVal()
+      this.parent.checkDate(value)
+      this.cb(value)
+      utils.fadeOut(this.elemWrap)
+      let fieldsetElement = this.parent.root.querySelector('.choose-date')
+      fieldsetElement.classList.remove('choose-date-line')
+      let target = this.parent.root.querySelector('input')
+      typeof this.parent.modifycb === 'function' && this.parent.modifycb(value, target)
+    }
+  </script>
+</rs-choose-date>

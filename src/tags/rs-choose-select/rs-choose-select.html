@@ -1,0 +1,109 @@
+<rs-choose-select>
+  <div class="choose-select-warp">
+    <ul>
+      <li each={ row, index in rows } class={ getSpecial(row, 'active') }>
+        <input id={ 'check' + index + tableName + name + desc + idx} 
+          checked={ getSpecial(row, 'checked') }  
+          type="checkbox" onchange={ choose } 
+          key={ row[name] }>
+        <label for={ 'check' + index + tableName + name + desc + idx}>{ row[desc] }</label>
+      </li>
+    </ul>
+  </div>
+
+  <script>
+    import './rs-choose-select.sass'
+
+    this.getSpecial = (row, text) => {
+      let key = row[this.name] + ''
+      let isSpecial = this.chooseResult.get(key) ? text : ''
+      return isSpecial
+    }
+
+    /*
+      *choose select的选择结果函数，将结果返回到传过来的cb中
+      *warn：type为RADIO 为单选，type为CHECKBOX 为3选2 4选3...等等，type为其它时，为正常select；默认为单选
+    */
+    this.choose = (evt) => {
+      const target = evt.target.parentElement
+      const curClass = target.classList.toggle('active')
+      const {item} = evt
+      const key = evt.currentTarget.getAttribute('key')
+      this.dealChoose(item, key)
+      this.cb && this.cb instanceof Function ? this.cb(item, this.parentDealResult, this.name, this.chooseResult) : console.warn('cb in not function')
+      if (this.isShowPopup) {
+        typeof this.parent.showPopup === 'function' && this.parent.showPopup()
+      }
+    }
+
+    /*处理结果的函数*/
+    this.dealChoose = (result, key) => {
+      console.log(result, key,this.rows, this.name)
+      let row = result.row
+      let inputs = this.root.querySelectorAll('input')
+      if (this.type === 'RADIO') {
+        if (this.chooseResult.get(key)) {
+          this.chooseResult.delete(key)
+        } else {
+          this.chooseResult.clear()
+          this.chooseResult.set(key, row)
+        }
+        for (let i = 0; i < inputs.length; i++) {
+          let inputKey = inputs[i].getAttribute('key')
+          if (key !== inputKey) {
+            inputs[i].checked = false
+            inputs[i].parentElement.classList.remove('active')
+          }
+        }
+      } else if (this.type === 'CHECKBOX') {
+        this.chooseResult.get(key) ? this.chooseResult.delete(key) : this.chooseResult.set(key,row)
+        if (this.chooseResult.size == this.rows.length) {
+          this.chooseResult.clear()
+          for (let i = 0; i < inputs.length; i++) {
+            inputs[i].checked = false
+            inputs[i].parentElement.classList.remove('active')
+          }
+        }
+      } else {
+        this.chooseResult.get(key) ? this.chooseResult.delete(key) : this.chooseResult.set(key,row)
+      }
+    }
+
+    /*传到父组件得处理结果的函数*/
+    this.parentDealResult = (result) => {
+      let row = result
+      let key = row[this.name] + ''
+      this.chooseResult.get(key) ? this.chooseResult.delete(key) : ''
+      let inputs = this.root.querySelectorAll('input')
+      for (let i = 0; i < inputs.length; i++) {
+        let inputKey = inputs[i].getAttribute('key')
+        if (key == inputKey) {
+          inputs[i].checked = false
+          inputs[i].parentElement.classList.remove('active')
+        }
+      }
+    }
+
+    /*实时更新rows*/
+    this.updateList = (rows, lists) => {
+      this.rows = rows
+      this.update()
+    }
+
+    /*初始化函数*/
+    this.init = (opts) => {
+      const {message} = opts
+      this.rows = message.rows
+      this.desc = message.desc
+      this.cb = message.cb
+      this.name = message.name === 'staff_idORr' ? message.desc : message.name
+      this.tableName = message.tableName
+      this.type = opts.type
+      this.isShowPopup = opts.isshowpopup
+      this.idx= message.index || '' // 工作面传感器索引
+      this.chooseResult = message.chooseResult
+    }
+    
+    this.init(opts)
+  </script>
+</rs-choose-select>

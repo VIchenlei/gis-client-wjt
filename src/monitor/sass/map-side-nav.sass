@@ -1,0 +1,68 @@
+@import '../../style/defs'
+
+map-side-nav
+    display: flex
+    flex-flow: column nowrap
+    flex: auto
+    overflow-y: auto
+    overflow-x: hidden
+    span
+        height: 0.48rem
+        display: flex !important
+        justify-content: center
+        align-items: center 
+        &.active
+            border-left: 2px solid #3399ff
+        .icon
+            border-left: 0px
+            background-image: url('/img/icon.png')
+            background-size: 2.81rem 3.32rem
+            &:nth-child(1)
+                @include wh(0.224rem,0.224rem)
+            &.active
+                background-image: url('/img/icon.png')
+                background-size: 2.81rem 3.32rem
+    .icon-bus-vehicle
+        background-position: -0.03rem -0.45rem
+        &.active
+            background-position: -0.03rem -0.7rem
+    .icon-person
+        background-position: -0.27rem -0.45rem
+        &.active
+            background-position: -0.27rem -0.7rem
+    .icon-area-staff
+        background-position: -0.51rem -0.45rem
+        &.active
+            background-position: -0.51rem -0.7rem
+    .icon-job-staff
+        background-position: -0.77rem -0.45rem
+        &.active
+            background-position: -0.77rem -0.7rem
+    .icon-hoist
+        background-position: -1.02rem -0.45rem
+        &.active
+            background-position: -1.02rem -0.7rem
+    .icon-crane
+        background-position: -1.26rem -0.45rem
+        &.active
+            background-position: -1.26rem -0.7rem
+    .icon-megaphone-1
+        background-position: -1.5rem -0.45rem
+        &.active
+            background-position: -1.5rem -0.7rem
+    .icon-cogs
+        background-position: -1.73rem -0.45rem
+        &.active
+            background-position: -1.73rem -0.7rem
+    .icon-help-car
+        background-position: -1.99rem -0.45rem
+        &.active
+            background-position: -1.99rem -0.7rem
+    .icon-traffic-light
+        background-position: -2.24rem -0.45rem
+        &.active
+            background-position: -2.24rem -0.7rem
+    .icon-reader
+        background-position: -5.248rem -0.45rem
+        &.active
+            background-position: -5.248rem -0.7rem

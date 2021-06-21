@@ -1,0 +1,33 @@
+@import '../../style/defs.sass'
+.basic-search
+  background: $color-white
+  box-shadow: 0 1px 3px 1px rgba(0,0,0,0.30)
+  padding: 0.08rem
+  .basic-search-wrap
+    width: inherit
+    max-width: 6rem
+    .condition
+      width: 49%
+      display: inline-block
+      .tips
+        position: absolute
+        @include wh(100%,auto)
+        text-align: center
+        padding: .08rem 0
+        margin: 0
+        background: $color-light-grey
+      .rs-select
+        position: absolute
+        width: 100%
+    .search
+      position: relative
+      height: 0.22rem
+      width: 47%
+      max-width: 1.88rem
+      .search-button
+        background: rgba(0,153,255,0.10)
+        border: 1px solid $color-main
+        color: $font-main
+        border-radius: 2px
+        position: absolute
+        right: 0.04rem

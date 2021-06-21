@@ -1,0 +1,46 @@
+<map-side-nav>
+  <span each={ item in listSwitcher } id={ item.name } ref={ item.name } class="hint--right {chargeisHide(item.name)}" aria-label={ item.label } onclick={ switchItem }>
+    <span ref={ item.name + '_svg' } class="icon {item.iconName}"></span>
+  </span>
+
+  <script>
+    import { TOPIC, TopicDef } from '../js/topic_def.js'
+    import '../sass/map-side-nav.sass'
+
+    this.chargeisHide = (name) => {
+      // if (!opts.papa) return ''
+      // 根据isCheck检查用户进行隐藏具体的list
+      // if ((opts.papa.opts.papa.isCheck === 1 || xdata.isCheck === 1) && name === 'staffByLevel') return 'hide'
+      return ''
+    }
+
+    this.switchItem = (evt) => {
+      let listName = evt.currentTarget.getAttribute('id')
+      if (listName && listName !== this.currentList.name) {
+        this.papa.switchToItem(listName)
+        this.setActiveItem(this.currentList)
+        this.currentList = TopicDef[listName]
+        this.setActiveItem(this.currentList)
+      }
+
+      this.papa.showPanel()
+    }
+
+    this.setActiveItem = (currentList) => {
+      this.refs[currentList.name] && this.refs[currentList.name].classList.toggle('active')
+      this.refs[currentList.name] && this.refs[currentList.name + '_svg'].classList.toggle('active')
+    }
+
+    this.on('mount', () => {
+      this.currentList = TopicDef[TOPIC.VEHICLE_BY_AREA]
+      this.setActiveItem(this.currentList)
+    })
+
+    this.init = (opts) => {
+      this.listSwitcher = Object.values(TopicDef)
+      this.papa = opts.papa
+    }
+
+    this.init(opts)
+  </script>
+</map-side-nav>

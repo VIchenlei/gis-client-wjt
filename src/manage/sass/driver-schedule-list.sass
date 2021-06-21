@@ -1,0 +1,32 @@
+@import '../../style/defs.sass'
+.driver-schedule-list
+  position: relative
+  table
+    font-size: $font-s
+    border-right: 1px solid $color-border
+    height: auto
+    tbody
+      max-height: inherit
+      tr
+        &:hover
+          background: #E2F1FC
+    tr
+      border-bottom: 1px solid $color-border
+      cursor: pointer
+      th, td
+        @include wh(3.2rem,.4rem)
+        line-height: .4rem
+        padding: 0
+        border-left: 1px solid $color-border
+        max-width: 3.2rem
+        .driver-name
+          @include wh(40%,100%)
+          display: inline-block
+        .driver-input
+          width: auto
+          border: none
+          text-align: center
+        .btn-sure, .btn-cancel
+          @include wh(.4rem,.2rem)
+          border-radius: 2px
+          

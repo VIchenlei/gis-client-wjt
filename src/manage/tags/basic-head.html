@@ -1,0 +1,23 @@
+<basic-head  class="basic-head">
+  <div class="title">
+    <span>{opts.dataTitle}</span>
+      <span class="hide" ref="buttons" onclick={ handleDB }>
+        <b class="save" aria-label="保存">
+          <img name="btn-sure" src="/img/store.png">
+        </b>
+        <b class="reset" aria-label="重置">
+          <img name="btn-reset" src="/img/reset.png">
+        </b>
+      </span>
+  </div>
+  <script>
+    import '../sass/basic-head.sass'
+
+    this.handleDB = (evt) => {
+      let name = evt.target.getAttribute('name')
+      typeof this.parent.handleDB === 'function' && this.parent.handleDB(name)
+      name && this.parent.parent.registerGlobalEventHandlers(name)
+      name && this.refs.buttons.classList.add('hide')
+    }
+  </script>
+</basic-head>

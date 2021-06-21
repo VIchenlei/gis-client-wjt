@@ -1,0 +1,65 @@
+@import '../../style/defs.sass'
+.search-title
+  margin-top: .4rem
+  .rs-select-field, .rs-text-field
+    margin-right: .1rem
+    position: relative
+    .rs-select, .popup-list
+      position: absolute
+      width: 100%    
+.summary-title
+  font-size: $font-xs
+  margin-top: .1rem
+.content
+  .content-wp
+    font-size: 10px
+    display: flex
+    margin: .16rem 0
+    &:nth-child(odd)
+      background: #eee
+  .reader
+    background: url('/img/reader.png') no-repeat
+    background-size: .24rem 
+  .readercharge
+    background: url('/img/chargereader.png') no-repeat 
+    background-size: .24rem 
+  .readerdestroy
+    background: url('/img/unnormal.png') no-repeat 
+    background-size: .24rem 
+  .reader_o
+    background: url('/img/readerold.png') no-repeat
+    background-size: .24rem 
+  .reader_ocharge
+    background: url('/img/chargereaderold.png') no-repeat
+    background-size: .24rem 
+  .reader_odestroy
+    background: url('/img/unnormalold.png') no-repeat
+    background-size: .24rem 
+  .reader_s
+    background: url('/img/readersmall.png') no-repeat
+    background-size: .24rem 
+  .reader_scharge
+    background: url('/img/chargereadersmall.png') no-repeat
+    background-size: .24rem 
+  .reader_sdestroy
+    background: url('/img/unnormalsmall.png') no-repeat
+    background-size: .24rem
+  .desc
+    flex: 0 0 2rem
+    @include flex-align-center
+  ul
+    display: flex
+    flex-wrap: wrap
+    li
+      display: flex
+      flex-direction: column
+      align-items: center
+      width: 1.8rem
+      padding: .1rem
+      cursor: pointer
+      i
+        display: flex
+        @include wh(.24rem, .24rem)
+      &.active
+        background: #09f
+        color: #ffffff 

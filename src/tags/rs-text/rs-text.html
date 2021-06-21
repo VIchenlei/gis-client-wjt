@@ -1,0 +1,25 @@
+<rs-text class="rs-text">
+  <i style="background-image: url('/img/{icon}.png');"></i>
+  <input type={inputType} id={idname} placeholder={!bline && placeholder} value={defaultValue} required>
+  <label for={idname} if={bline}>{placeholder}</label>
+  <span class="tips"></span>
+  <span if={!readonly && bline} class="bottom-line"></span>
+
+  <script>
+    /**
+     * dataId: 尽量不要使用
+    */
+    import './rs-text.sass'
+
+    this.init = (opts) => {
+      this.icon = opts.dataIcon || 'search'
+      this.placeholder = opts.dataPlaceholder
+      this.inputType = opts.dataType || 'text'
+      this.idname = opts.dataId
+      this.readonly = opts.readonly
+      this.bline = opts.bline
+      this.defaultValue = opts.dataValue
+    }
+    this.init(opts)
+  </script>
+</rs-text>

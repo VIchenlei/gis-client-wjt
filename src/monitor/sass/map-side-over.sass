@@ -1,0 +1,68 @@
+@import '../../style/defs'
+
+.map-side-over
+  width: 3.9rem
+  display: flex
+  justify-content: center
+  flex: 0 0 1.5rem
+  z-index: 10
+  cursor: pointer
+  border: 1px solid #0099ff
+  box-shadow: 0 1px 6px 1px #009FFF
+  margin-bottom: 10px
+  .over-view-title
+    width: 2.28rem
+    text-align: center
+    position: absolute
+    color: #fff
+    background: url("/img/tixing.png") no-repeat 
+    background-size: 2.28rem 0.48rem
+    letter-spacing: 5px
+    z-index: 2
+  .overview-card
+    width: 50%
+    display: flex
+    align-items: center
+    justify-content: space-around
+    flex-direction: column
+    position: relative
+    border-radius: 5px
+    padding-top: 25px
+    .label-icon
+      fill: #caeaff
+      flex: 0 0 0.48rem
+      height: 0.48rem
+      width: 0.48rem
+      position: absolute
+      left: 0
+    .vehicles, .current-count
+      font-size: 0.15rem
+      @include wh(0.96rem,0.96rem)
+      color: #ffffff
+      border: 2px solid #0167ff
+      padding: .08rem
+      border-radius: 20px
+      box-shadow: 0 0 9px #0167ff
+      text-align: center
+      line-height: 0.8rem
+      font-size: $font-xl
+      .current-count
+        border: 0
+    .text
+      font-size: 12px
+      color: #f0f0f0
+  @media screen and (max-width: $width-medium)
+    position: absolute
+    top: 0.256rem
+    height: 0.48rem
+    height: auto
+    left: 260%
+    background: none
+    .overview-card
+      .vehicles,.current-count
+        width: 0.56rem
+        height: 0.56rem
+        line-height: 0.4rem
+  @media screen and (max-width: $width-medium) and (min-aspect-ratio: 10/8) //(orientation: landscape)
+    width: 2.88rem
+    background: none

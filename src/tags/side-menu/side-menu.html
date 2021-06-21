@@ -1,0 +1,46 @@
+<side-menu>
+    <div class="title" onclick={ toggleItems }>
+        <div class="iconBG">
+            <svg class="icon sidebar-icon">
+                <use xlink:href="/icons/icons.svg#{ icon }"></use>
+            </svg>
+        </div>
+        <span class="sidebar-title-text">{ title }</span>
+    </div>
+    <ul show={ showItems }>
+        <li each={ items } name={ name } class={ name } ref={ name } if={ isShowItem(name, menuID) }>{ getLabel(name,label) }</li>
+    </ul>
+
+    <script>
+        import './side-menu.sass'
+
+        this.isShowItem = (name, menuID) => {
+            if (name === 'dept' && xdata.isCheck === 1) return false
+            let result = xdata.menus.find(item =>{
+                return item.includes(menuID)
+            })
+            if (xdata.hasMenus && !result) return false
+          return true
+        }
+
+        this.getLabel = (name,label) => {
+          if (name === 'dept_ck' && xdata.isCheck === 1) return '部门管理'
+          return label
+        }
+        
+        /*点击 控制显隐函数*/
+        this.toggleItems = (evt) => {
+            this.showItems = !this.showItems
+        }
+ 
+        /*初始化函数*/
+        this.init = (opts) => {
+            this.title = opts.def.title
+            this.items = opts.def.items
+            this.icon = opts.def.icon
+            this.showItems = false
+        }
+        
+        this.init(opts)
+    </script>
+</side-menu>

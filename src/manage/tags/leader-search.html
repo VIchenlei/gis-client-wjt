@@ -1,0 +1,68 @@
+<leader-search>
+  <div>
+    <rs-text-field 
+      data={row} 
+      ref={row.field_name} 
+      data-name={opts.name}>
+    </rs-text-field>
+    <rs-date type='DATE' 
+      ref="search-time">
+    </rs-date>
+ </div>
+  <div class="search">
+    <button class="search-button" onclick={doSearch}>查询</button>
+  </div>
+  <script>
+    import '../sass/leader-search.sass'
+    import '../../tags/rs-text-field/rs-text-field.html'
+    import '../../tags/rs-date/tags/rs-date.html'
+    const needDisplay = `${xdata.isCheck === 1 ? 'and dse.need_display' : ''}`
+
+    //查询领导排班数据
+    this.doSearch = () => {
+      let excerpt = null
+      let staffId = this.refs['staff_id'].refs['staff_id'].getAttribute('data-type')
+      let dateVal = this.refs['search-time'].refs['search-time'].value
+      if (staffId && !dateVal) {
+        excerpt = `and dla.staff_id=${staffId} ${needDisplay}`
+      } else if (dateVal && !staffId) {
+        excerpt = `and duty_date = '${dateVal}' ${needDisplay}`
+      } else if (staffId && dateVal) {
+        excerpt = `and duty_date = '${dateVal}' and dla.staff_id=${staffId} ${needDisplay}`
+      } else {
+        let date = new Date()
+        let year = date.getFullYear()
+        let month = date.getMonth() + 1
+        let startTime = `${year}-${month}-01`
+        let endTime = `${year}-${month + 1}-01`
+        excerpt = `and duty_date >= '${startTime}' and duty_date < '${endTime}' ${needDisplay}`
+      }
+      this.parenTag.getInquireData('leader_scheduling', excerpt)
+    }
+
+    /*获取检索结果集*/
+    this.updateFuzzyDatas = (fuzzyDatas) => {
+      let datas = []
+      let staffs = xdata.metaStore.staffs
+      fuzzyDatas.forEach(data => {
+        datas.push(staffs.get(data.staff_id))
+      })
+      return datas
+    }
+
+    this.init = (opts) => {
+      const datas = this.updateFuzzyDatas(opts.fuzzydatas)
+      this.row = {
+        field_label: '人员',
+        field_name: 'staff_id',
+        field_value: '',
+        field_type: 'SELECT',
+        field_enableNull: true,
+        fuzzy_datas: datas
+      }
+      this.parenTag = opts.parenTag
+    }
+    
+    this.init(opts)
+  </script>
+</leader-search>

@@ -1,0 +1,19 @@
+<user-bar class="user-bar">
+  <span class="usertitle">
+    <span class="icon user-icon"></span>
+    <span>{ username }</span>
+  </span>
+  <user-profile class="user-list"></user-profile>
+  <script>
+    import '../sass/user-bar.sass'
+    import './user-profile.html'
+    
+    this.username = xdata.userName || '尚未登录'
+
+    xbus.on('USERINFO-UPDATE', (userinfo) => {
+      this.username = userinfo.name
+      this.userCName = userinfo.userCName
+      this.update()
+    })
+  </script>
+</user-bar>

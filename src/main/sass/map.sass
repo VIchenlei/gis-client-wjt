@@ -1,0 +1,242 @@
+@import '../../style/defs'
+
+.ol-overviewmap-map
+    width: 3.12rem !important
+    left: 0.208rem !important
+    background: #202020 !important
+    border: 2px solid #48aaff !important
+    height: 1.44rem !important
+
+.ol-overviewmap button
+    position: absolute !important
+    bottom: 13px !important
+
+.ol-overviewmap:not(.ol-collapsed) button
+    bottom: 13px !important
+.ol-overviewmap-box
+    border: 2px solid #009fff !important
+.ol-viewport
+    background: url(/img/mapBgnew.png) center center
+    .ol-unselectable
+        display: inline-block !important
+.ol-overviewmap
+    position: absolute !important
+    bottom: -0.08rem !important
+    background: none !important
+    padding: 0 !important
+    @media screen and (min-width: 700px)
+        left: 2.72rem !important
+    @media screen and (min-width: 880px)
+        left: 3.52rem !important
+    @media screen and (min-width: 1000px)
+        left: 4.48rem !important
+    @media screen and (min-width: 1100px)
+        left: 5.36rem !important
+    @media screen and (min-width: 1200px)
+        left: 6.64rem !important
+    @media screen and (min-width: 1300px)
+        left: 8.24rem !important
+    @media screen and (min-width: 1500px)
+        left: 9.68rem !important
+    @media screen and (min-width: 1600px)
+        left: 11.28rem !important
+    @media screen and (min-width: 1800px)
+        left: 12.08‬rem !important
+
+.lightFlash
+    @include wh(20px,20px)
+    background: url(/img/lightflash.gif) no-repeat center center
+    background-size: 16px 16px
+
+
+.mapcontainer
+    flex: 1 1 auto
+    position: relative
+    overflow: hidden
+    display: flex
+    flex-flow: column nowrap
+
+    .map
+        @include wh(100%,100%)
+        display: flex
+        flex: auto
+        .ol-zoom, .ol-control
+            bottom: 0.96rem
+            background: none
+            right: .096rem
+            &:hover
+                background: none
+        .ol-zoom 
+            position: absolute
+            top: 0.48rem
+            right: 0.16rem
+        .ol-overlaycontainer-stopevent
+            position: relative
+            height: 0
+            .ol-attribution
+                display: none !important
+            .ol-zoomslider
+                display: none !important
+            .ol-zoom-in, .ol-zoom-out
+                min-width: 30px
+                position: absolute
+                right: -0.128rem
+                top: -3.52rem
+                width: 0.32rem
+            .ol-zoom-out
+                top: -1.28rem
+        .ol-rotate
+            position: absolute
+            top: -3.552rem
+            height: 0.4rem
+            bottom: 0 
+            right: 0.008rem
+            button
+                min-width: 0.32rem
+                height: 0.32rem
+                border-radius: 0.16rem
+                width: 0.16rem
+                background: rgba(255,255,255,.5)
+            img
+                @include wh(80%,80%)
+        @media screen and (max-width: $width-medium) and (orientation: landscape)
+            .ol-rotate
+                 top: 0.48rem
+        .ol-mouse-position
+            position: fixed
+            right: 15%
+            z-index: 99
+            top: 102.5%
+
+    .map-info
+        position: absolute
+        text-align: right
+        width: 400px
+        top: calc(100% - 50px)
+        left: 5px
+        height: 36px
+        background: rgba(0, 0, 0, 0.7)
+
+        color: #FFF
+        padding: 5px 10px
+        border-radius: 2px
+        display: none
+
+
+.map-canvas, .grid-canvas
+    flex: auto
+    @include wh(100%,100%)
+    overflow: hidden
+    display: flex
+    flex-flow: column nowrap
+    @media screen and (max-width: $width-medium) and (orientation: landscape)
+        justify-content: inherit
+    .yellow,.red,.green
+        color: #000
+        padding: 4px 5px
+        border-radius: 5px
+        font-size: 0.08rem
+    .yellow
+        background: #e1e828
+    .red
+        background: #ec625a
+    .green
+        background: #27ca41
+
+    #css_animation, #css_animation_alarm
+        @include wh(50px,50px)
+        border-radius: 25px
+        transform: scale(0)
+        animation: myfirst 3s
+        animation-iteration-count: infinite
+
+    #css_animation
+        background: rgba(255, 255, 255, 0.9)
+    #css_animation_alarm
+        background: rgba(255, 0, 0, 0.9)
+    @keyframes myfirst
+        to
+            transform: scale(2)
+            background: rgba(0, 0, 0, 0)
+
+.tooltip
+    position: relative
+    background: rgba(0, 0, 0, 0.5)
+    border-radius: 4px
+    color: white
+    padding: 4px 8px
+    opacity: 0.7
+    white-space: nowrap
+
+.tooltip-measure
+    opacity: 1
+    font-weight:bold
+    &:before
+        border-top: 6px solid rgba(0, 0, 0, 0.5)
+        border-right: 6px solid transparent
+        border-left: 6px solid transparent
+        content: ""
+        position: absolute
+        bottom: -6px
+        margin-left: -7px
+        left: 50%
+.tooltip-antenna
+    opacity: 1
+    font-weight:bold
+    &:before
+        border-top: 6px solid rgba(0, 0, 0, 0.5)
+        border-right: 6px solid transparent
+        border-left: 6px solid transparent
+        content: ""
+        position: absolute
+        bottom: -6px
+        margin-left: -7px
+        left: 50%
+.tooltip-static
+    background: white
+    color: black
+    border: 1px solid #0099ff
+    &:before
+        border-top: 6px solid rgba(0, 0, 0, 0.5)
+        border-top-color: #ffcc33
+        border-right: 6px solid transparent
+        border-left: 6px solid transparent
+        content: ""
+        position: absolute
+        bottom: -6px
+        margin-left: -7px
+        left: 50%
+.tooltip-radius
+    @include wh(45px,20px)
+    font:12px/20px
+
+.deletebox
+    position: relative
+    background: rgba(0, 0, 0, 0.5)
+    padding: 0 4px 2px 4px
+    opacity: 0.7
+    white-space: nowrap
+
+.deletebox-static
+    background-color: white
+    color: red
+    font-weight: bold
+    cursor: pointer
+
+.tooltip-help
+    @include wh(100px,30px)
+    position: absolute
+    font-size: 0.128rem
+    border: 1px solid #09f
+    background: #f5f5f5
+    text-align: center
+    padding-top: 5px
+
+.tooltip-help-change
+    @include wh(150px,40px)
+    text-align: left
+
+.tooltip-help-end
+    width: 80px
+
+

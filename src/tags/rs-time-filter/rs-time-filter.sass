@@ -1,0 +1,68 @@
+@import '../../style/defs.sass'
+
+.rs-time-filter
+  .rs-time-filter-top
+    display: flex
+    margin-right: 0.176rem
+    margin-top: 5px
+    fieldset
+      display: flex
+      @include wh(2rem, 0.48rem)
+      margin-right: 0.13rem
+      border: 1px solid $color-border
+      border-radius: 5px
+      position: relative
+      legend
+        height: 0.17rem
+        color: #666666
+        line-height: 0.17rem
+        margin-left: 8px
+        white-space: nowrap
+        padding: 0 2px
+      select
+        width: 99%
+        height: 0.25rem
+        appearance: none 
+        //background: url("../images/sel-bg.png") no-repeat 170px center
+        color: #666
+        outline: none
+        border: none
+        font-size: $font-xs
+        padding-left: 0.10rem
+        background-color: #eeeeee
+    .label-title
+      padding-top: 10px
+      min-width: 0.64rem
+      white-space: nowrap
+    .rs-is-focus
+      border: 2px solid #0099FF
+      legend
+        color: #0099FF
+    .rs-date
+      margin-right: 0.176rem
+      height: 0.48rem
+      .choose-date
+        margin-top: 0
+        margin-right: 0
+        .calendar
+          top: 0.6rem
+    input[type="datetime-local"]
+      width: 1.76rem
+    input[type="datetime-local"]::-webkit-calendar-picker-indicator
+      display: none
+    input[type="datetime-local"]::-webkit-inner-spin-button
+      display: none
+    input[type="datetime-local"]::-webkit-clear-button
+      display:none
+    input[type="date"],input[type="month"]
+      width: 1.44rem
+  .rs-time-filter-bottom
+    margin-top: 5px
+    .rs-date
+      margin-right: 0.176rem
+      height: 0.48rem
+      .choose-date
+        margin-top: 0
+        margin-right: 0
+        .calendar
+          top: 0.6rem

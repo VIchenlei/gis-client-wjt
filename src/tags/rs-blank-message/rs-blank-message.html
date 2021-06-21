@@ -1,0 +1,22 @@
+<rs-blank-message>
+    <span>
+      <!-- <svgicon icon="{iconName}"></svgicon>
+       -->
+       <svg class="icon icon-close">
+         <use xlink:href="/icons/icons.svg#{iconName}"></use>
+        </svg>
+    </span>
+    <span> {message} </span>
+
+  <script>
+    import './rs-blank-message.sass'
+    
+    /*初始化函数*/
+    this.init = (opts) => {
+      this.iconName = opts.icon || 'icon-direction-1'
+      this.message = opts.message || '没有相关数据，请确认后再试。'
+    }
+
+    this.init(opts)
+  </script>
+</rs-blank-message>

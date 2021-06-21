@@ -1,0 +1,26 @@
+@import '../../style/defs.sass'
+.basic-list
+  width: 100%
+  padding: .1rem
+  background: $color-white
+  .title
+    @include flex-between-center
+    padding: .1rem
+    background: $color-grey-xs
+  .rs-table-icon-btn 
+    padding: 0.06rem 0
+    overflow: auto
+    table
+      font-size: $font-s
+      tbody
+        max-height: inherit
+        tr
+          &:hover
+            background: #E2F1FC
+        .active
+          background: #E2F1FC
+      tr
+        border-bottom: 1px solid $color-border
+        cursor: pointer
+        th, td
+          padding: .1rem .05rem

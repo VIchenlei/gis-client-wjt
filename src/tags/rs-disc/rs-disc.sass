@@ -1,0 +1,18 @@
+@import '../../style/defs'
+.disc-wrap
+  display: inline-block
+  position: relative
+  .canvas
+    vertical-align: middle
+    cursor: pointer
+  .circle
+    @include wh(.3rem, .3rem)
+    @include absolute-left-top(50%, 50%, 1)
+    border-radius: 50%
+    background: #F1F2F3
+    box-shadow: 0 3px 7px 2px rgba(0,0,0,0.20)
+    margin-top: -.15rem
+    margin-left: -.15rem
+    user-select: none
+    img
+      @include wh(100%, 100%)

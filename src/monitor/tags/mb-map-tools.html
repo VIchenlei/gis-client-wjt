@@ -1,0 +1,116 @@
+<mb-map-tools onclick={stopPropagation} class="mb-map-tools hide-on-pc">
+  <div class="tool-switcher" onclick={ toggleExpand } if={ isFold }>
+    <svg class="icon"><use xlink:href="/icons/icons.svg#icon-hammer"></use></svg>
+  </div>
+  <div class="tool-panel" if={ !isFold }>
+    <span each={ items } ref={ name } class="tool-item { class }" onclick={ switchItem }>
+      <svg class="icon tool-icon">
+        <use xlink:href="/icons/icons.svg#{iconName}"></use>
+      </svg>
+      <span>{ cont }</span>
+    </span>
+  </div>
+
+  <script>
+    import { ToolItems, ToolEvtName } from '../js/map_tools_def.js'
+    import '../sass/mb-map-tools.sass'
+    
+    this.mixin('EventMixin')
+
+    this.toggleExpand = (evt) => {
+      this.open()
+    }
+
+    this.saveState = (name, state) => {
+      for (let i = 0, len = this.items.length; i < len; i++) {
+        let item = this.items[i]
+        if (item.name === name) {
+          item.class = state ? 'active' : ''
+          break
+        }
+      }
+    }
+
+    // 一键取消定位
+    this.cancelAllLocating = () => {
+      let keys = xdata.locateStore.getInArray()
+      if (keys.length > 0) {
+        window.cardStopLocating({ cards: keys })
+      }
+      let areas = Array.from(xdata.locateStore.locateAreas.keys())
+      if (areas.length > 0) {
+        let message = {
+          type: 'type',
+          mapType: 'MONITOR',
+          isVisible: false,
+          mapID: xdata.metaStore.defaultMapID,
+          areas: areas
+        }
+        xbus.trigger('MAP-SHOW-AREA', message)
+      }
+    }
+
+    this.switchItem = (evt) => {
+      let target = evt.currentTarget
+      let opName = target.getAttribute('ref')
+
+      if (opName === 'reset') {
+        xbus.trigger('MAP-RESET-POS', { mapID: this.mapID })
+        this.isFold = true
+        this.update()
+      } else {
+        if (opName !== 'alarm' || opName !== 'location') target.classList.toggle('active')
+        
+        let state = target.classList.contains('active')
+        this.saveState(opName, state)
+
+        let eventName = null
+        let message = null
+        if (opName === 'area_1') {
+          message = {
+            mapID: this.mapID,
+            mapType: this.mapType,
+            isVisible: state,
+            visiblearea: opName
+          }
+        } else if (opName === 'location') {
+          this.cancelAllLocating()
+          return
+        } else {
+          message = {
+            mapID: this.mapID,
+            symbolType: opName,
+            mapType: this.mapType,
+            isVisible: state
+          }
+        }
+        if (ToolEvtName.hasOwnProperty(opName)) {
+          eventName = ToolEvtName[opName]
+        } else {
+          eventName = `MAP-SHOW-${opName.toLocaleUpperCase()}`
+        }
+        xbus.trigger(eventName, message)
+      }
+
+      evt.preventUpdate = true
+    }
+
+    this.open = () => {
+      this.isFold = false
+    }
+
+    xbus.on('HIDE-ALL-POPUP', () => {
+      this.isFold = true
+      this.update()
+    })
+
+    this.init = (otps) => {
+      this.items = [...ToolItems]
+      this.isFold = true
+      this.mapID = this.parent.mapID
+      this.mapType = this.parent.mapType
+    }
+
+    this.init(opts)
+  </script>
+</mb-map-tools>

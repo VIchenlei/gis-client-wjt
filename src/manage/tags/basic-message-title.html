@@ -1,0 +1,463 @@
+<basic-message-title class="rs-basic-message-title">
+  <span>
+    <!-- <img src="" alt=""> -->
+    <span>{ title }</span>
+  </span>
+  <div>
+    <span class="hint--bottom-left" aria-label="批量删除" onclick={ doDelete }>
+      <svg class="icon">
+        <use xlink:href="./icons/icons.svg#icon-delete"></use>
+      </svg>
+    </span>
+    <span class="hint--bottom-left" aria-label="批量导入/出" onclick={ showImportList }>
+      <svg class="icon">
+        <use xlink:href="./icons/icons.svg#icon-import"></use>
+      </svg>
+    </span>
+  </div>
+  <basic-message-import class="basic-message-import hide" menus={ menus } cb={ importOrExport }></basic-message-import>
+  <script>
+    import '../sass/basic-message-title.sass'
+    import '../tags/basic-message-import.html'
+    import { getRows, composeUpdateDBReq, messageTip, editDetail } from '../../js/utils/utils.js'
+    import { allMt, anyMt, childTag, askFileMsg, allMsg, anyMsg } from '../../manage/js/basic-message-def.js'
+    import { checkCertification } from '../js/utils.js'
+    import importDef from '../../tags/rs-batch-process/import_def.js'
+    import searchList from '../js/basic_search_def.js'
+    import '../../tags/rs-import-file-dialog/tags/rs-import-file-dialog.html'
+
+    const type = 'warning'
+    this.isRepeat = false
+    this.staffTip = []
+    this.cardTip = []
+    let basicMsgImportTag = null
+
+    this.on('mount', () => {
+      basicMsgImportTag = this.root.querySelector('.basic-message-import')
+    })
+    /*打开、关闭导入导出列表*/
+    this.showImportList = () => {
+      basicMsgImportTag.classList.toggle('hide')
+    }
+
+    this.importOrExport = (name, opName) => {
+      this.name = name
+      const names = ['staff_staff_extend', 'staff_extend', 'dat_credentials_staff', 'vehicle_vehicle_extend', 'dat_credentials_vehicle', 'dat_device_power', 'dat_power_levels'] // 导入
+      names.includes(name) ? this.import(name) : this.askFile(name, opName)
+      basicMsgImportTag.classList.add('hide')
+    }
+
+    this.import = (name) => {
+      let isCheck = xdata.isCheck === 1 ? true : false
+      if (importDef[name]) {
+        this.def = importDef[name]
+      } else if (['dat_credentials_staff', 'dat_credentials_vehicle'].includes(name)) {
+        this.def = childTag[name]
+      } else if (['staff_staff_extend', 'vehicle_vehicle_extend'].includes(name)) {
+        this.def = isCheck ? anyMt[name] : allMt[name]
+      } else {
+        this.def = xdata.metaStore.defs[name]
+      }
+      let rows = getRows(null, this.def, this.maxid)
+      let msg = {
+        cmd: 'IMPORT-DATA',
+        def: this.def,
+        rows: rows,
+        cb: this.importCb,
+        parenTag: this.parenTag
+      }
+      this.showImportFileDialog(msg)
+    }
+
+    this.importCb = (type, msg) => {
+      switch (type) {
+        case 'check':
+          return this.checkName(msg)
+          break
+        case 'show':
+          this.showTip(msg)
+          break
+        case 'import':
+          return this.doImport(msg)
+          break
+        case 'delete':
+          this.resetData()
+          break
+      }
+    }
+
+    this.checkName = (msg) => {
+      const {labels, names, fileData} = msg
+      if (['dat_device_power', 'dat_power_levels'].includes(this.name)) {
+        let name = labels[names.indexOf('name')]
+        if (!name) return false
+        let storeName = this.name
+        let fileDataName = this.fileData.map(item => item[name])
+        let table = null
+        table = Array.from(xdata.metaStore.data[storeName].values()) 
+        !this.isRepeat && fileDataName.length > 0 && fileDataName.forEach(it => {
+          this.isRepeat = table && Array.from(table.values()).some(item => item.name === it)
+        })
+      } else {
+        const staff = labels[names.indexOf('staff_id')]
+        const card = labels[names.indexOf('card_id')]
+        this.isRepeat = this.judgeStaffRept(staff, card, fileData)
+      }
+      
+      return this.isRepeat
+    }
+
+    this.judgeStaffRept = (staff, card, fileData) => {
+      let staffs = xdata.metaStore.data.staff
+      let extend = xdata.metaStore.data.staff_extend
+      fileData && fileData.forEach(data => {
+        let staffID = data[staff]
+        let card_id = data[card]
+        if (staffID && card_id) {
+          let cardID = data[card] && data[card].toString()
+          if (cardID.length < 10) cardID = `001${cardID.padStart(10,0)}`
+          if (cardID.length >= 11 && cardID.length <= 12) cardID = `${cardID.padStart(13,0)}`
+          if (staffs && staffs.get(staffID)) this.staffTip.push(staffID)
+          if (xdata.metaStore.getCardBindObjectInfo(cardID)) this.cardTip.push(card_id)
+        }
+      })
+      if (this.staffTip.length > 0 || this.cardTip.length > 0) return true
+      return false
+    }
+
+    this.showTip = (msg) => {
+      if (['dat_device_power', 'dat_power_levels'].includes(this.name)) {
+        const xmsg = `存在重复${this.tips}！`
+        return messageTip(xmsg, 'warning')
+      } else {
+        let content = ''
+        if (this.staffTip.length > 0) content += `员工编号为${this.staffTip.join(',')}的已在系统中注册，`
+        if (this.cardTip.length > 0) content += `卡号为${this.cardTip.join(',')}的卡已被绑定，`
+        content += '是否继续批量导入操作？'
+        let self = this
+        if (this.activePanel) this.activePanel.unmount(true)
+        this.activePanel = riot.mount('rs-dialog', {
+          content: content,
+          tips: '提示：继续执行会将原数据覆盖！',
+          cb: msg.currentTag.doImportData
+        })[0]
+      }
+    }
+
+    this.checkLampNo = (value, staffID) => {
+      const reg = /^[A-Za-z\d]{2}\-\d{3}$/
+      if (reg.test(value) && value) {
+        const staffs = xdata.metaStore.staffs && Array.from(xdata.metaStore.staffs.values())
+        const obj = staffs && staffs.find(item => item.staff_id !== staffID && item.lampNo === value)
+        if (obj) return '灯架号已存在'
+      } 
+      if (!reg.test(value)) {
+        return '灯架号请输入数字、字母或-'
+      }
+    }
+
+    this.completeFiled = (fieldName, msg) => {
+      const {def, rows} = msg
+      const {fields} = def
+      const {names, labels, types, enableNull} = fields
+      let fieldLabel = labels[names.indexOf(fieldName)]
+      let fieldNull = enableNull[names.indexOf(fieldName)]
+      let fieldValue = rows[fieldLabel]
+      if (!fieldNull && !fieldValue) {
+        const enterInput = {
+          name: (function () {
+            return `${rows['员工编号']}`
+          })(),
+          certification: (function () {
+            return 0
+          })(),
+          birthday: (function () {
+            return null
+          })(),
+          vehicle_type_id: (function () {
+            const vehicleType = xdata.metaStore.data.vehicle_type && xdata.metaStore.data.vehicle_type.get(1)
+            return vehicleType && vehicleType.name
+          })(),
+        }
+        fieldValue = enterInput[fieldName]
+      }
+      return fieldValue
+    }
+
+    this.doImport = (msg) => {
+      const isControl = xdata.isControl
+      const {def, name, currentTag, rows} = msg
+      const {fields} = def
+      const {names, labels, types, enableNull} = fields
+      const fieldCount = names.length
+      this.tableName = currentTag.tableName
+      this.countOK = 0
+      this.countFail = 0
+      
+      let sqlMsg = {}
+      let sql = null
+      let keyValue = null
+      let cardID = null
+      let notifyCard = null // 通知采集卡号
+      let detail = ''
+      let preDetail = ''
+      let cards = xdata.metaStore.data.card
+      let staffs = xdata.metaStore.data.staff
+
+      name.split('/').forEach(item => {
+        let fields = ''
+        let values = ''
+        let cardReq = null
+        let devicePowerSql  = null
+        for (let j = 0; j < fieldCount; j++) {
+          let fieldName = names[j]
+          let fieldLabel = labels[names.indexOf(fieldName)]
+          let fieldNull = enableNull[names.indexOf(fieldName)]
+          let fieldValue = rows[fieldLabel]
+          let textValue = fieldValue
+          let tips = ''
+          if (!isControl && !['card_id', 'staff_id', 'vehicle_id'].includes(fieldName)) {
+            fieldValue = this.completeFiled(fieldName, msg)
+            textValue = fieldValue
+          } else if (fieldName === 'card_id') {
+            fieldValue = fieldValue.toString()
+            let fieldTypeId = name === 'vehicle/vehicle_extend' ? 2 : 1
+            let title = name === 'vehicle/vehicle_extend' ? '车辆' : '人员'
+
+            if (!fieldValue && !fieldNull) return messageTip(`${title}编号为${rows[`${title}编号`]}的${fieldLabel}错误`)
+            
+            fieldValue = fieldValue.length <= 10 ? `00${fieldTypeId}${fieldValue.padStart(10,0)}` : `${fieldValue.padStart(13,0)}`
+            let ident = Number(fieldValue.substring(3))
+
+            if (!cards || !cards.get(fieldValue)) {
+              cardReq = `REPLACE into dat_card (card_id, card_type_id, ident, state_id) VALUES (${fieldValue}, ${fieldTypeId}, ${ident}, 0)`
+              sqlMsg['card_sql'] = cardReq
+              notifyCard = fieldValue
+            }
+            cardID = fieldValue
+          } else if (fieldName === 'lampNo' && fieldValue) {
+            let staffID = rows['员工编号'] ? rows['员工编号'] : rows['员工']
+            let lampTips = this.checkLampNo(fieldValue, staffID)
+            tips = lampTips ? `员工编号为${staffID}的${lampTips}` : ''
+            if (tips) return messageTip(tips, type)
+          } else if (fieldName === 'birthday') {
+            if (fieldValue && typeof fieldValue !== 'string') {
+              fieldValue = new Date(fieldValue).getTime() - fieldValue.getTimezoneOffset() * 60 * 1000
+            }
+            fieldValue = fieldValue ? new Date(fieldValue).format('yyyy-MM-dd') : fieldValue
+            if (/^NaN/.test(fieldValue)) return messageTip(`员工编号为${rows['员工编号']}的${fieldLabel}错误`, type)
+          } else if (fieldName === 'certification') {
+            let certificationTips = checkCertification(fieldValue, rows['员工编号'])
+            tips = fieldValue ? (certificationTips ? certificationTips : '')  : `员工编号为${rows['员工编号']}的身份证不能为空`
+            tips = certificationTips && fieldValue ? `员工编号为${rows['员工编号']}的${tips}` : tips
+            if (tips) return messageTip(tips, type)
+          } else if (fieldName === 'vehicle_type_id' && !fieldValue) {
+            return messageTip(`${rows['类型']}类型不存在`, type)
+          }
+          fieldValue = currentTag.formatFieldValue(types[j], fieldValue, fieldName)
+
+          if (!isControl && ['card_id', 'staff_id', 'vehicle_id'].includes(fieldName)) { 
+            if (!fieldValue && rows['员工编号'] && !fieldNull) {
+              tips = `员工编号为${rows['员工编号']}的${fieldLabel}错误`
+              return messageTip(tips, type)
+            }
+          } else if (isControl) {
+            if (!fieldValue && rows['员工编号'] && !fieldNull) {
+              tips = `员工编号为${rows['员工编号']}的${fieldLabel}错误`
+              return messageTip(tips, type)
+            }
+          }
+          
+          if (this.tableName === 'dat_power_levels' && fieldName === 'device_power_id') {
+            //导入多电路电源，电源编号不存在，导入电源设备
+            let devicePower = xdata.metaStore.data.device_power
+            if (!devicePower || !devicePower.get(fieldValue)) {
+              devicePowerSql = `REPLACE into dat_device_power (device_power_id, power_model) VALUES (${fieldValue}, "B-${fieldValue}")`
+              sqlMsg['devicePower'] = devicePowerSql
+            }     
+          }
+          if (xdata.metaStore.defs[item].fields.names.includes(fieldName) && (fieldValue || fieldValue === 0)) {
+            if (j === 0) {
+              keyValue = fieldValue
+            } else {
+              fields += ','
+              values += ','
+            }
+            fields += fieldName
+            values += fieldValue
+          }
+          detail = editDetail(fieldName, textValue, detail, item, `${item}_extend`)
+        }
+        if (item === 'staff') {
+          fields += ',sex_id'
+          values += `,${1}`
+          let staffID = rows['员工编号'] && Number(rows['员工编号'])
+          let staff = staffs.get(staffID)
+          if (staff) {
+            let pic = staff && staff.pic
+            fields += ',pic'
+            values += `,'${pic}'`
+          }
+        }
+
+        if (item === 'staff' || item === 'staff_extend') {
+          fields += ',user_id'
+          values += `,'${xdata.userName}'`
+        }
+
+        sql = `REPLACE into dat_${item} (${fields}) VALUES(${values})`
+        sqlMsg[`${item}`] = sql
+      })
+      let { opType, oldRow } = this.judgeKeyValue(keyValue)
+      let topicName = ['dat_device_power', 'dat_power_levels'].includes(this.name) ? this.name : `complex_data_${/vehicle/.test(def.name)? 'vehicle':'staff'}`
+      let req = composeUpdateDBReq(opType, topicName, keyValue, sqlMsg)
+      if (cardID) req.data['notify'] = `${keyValue};${cardID}`
+      if (notifyCard) req.data['notifyCard'] = notifyCard
+      req.data['detail'] = this.concatDetail(detail, opType, oldRow, names, labels)
+      req.data['user_id'] = xdata.userName
+      req['import'] = 'importfile'
+      if (Object.keys(sqlMsg).length === 0) return
+      if (keyValue) {
+        if (['dat_device_power', 'dat_power_levels', 'dat_credentials_vehicle', 'dat_credentials_staff', 'staff_extend'].includes(this.name)) {
+          return req
+        } else {
+          if (cardID) return req
+        }
+      }
+    }
+
+    this.resetData = () => {
+      this.staffTip = []
+      this.cardTip = []
+    }
+
+    // 修改type
+    this.judgeKeyValue = (fieldValue) => {
+      let tablename = this.tableName.slice(4)
+      let objects = xdata.metaStore.data[tablename]
+      objects = !objects ? xdata.metaStore.data[`${/staff/.test(this.def.name)? 'staff':'vehicle'}_extend`] : objects
+      fieldValue = parseInt(fieldValue, 10)
+      let oldRow = objects.get(fieldValue)
+      if (oldRow) {
+        return {
+          opType: 'UPDATE',
+          oldRow: oldRow
+        }
+      }
+      return {
+        opType: 'INSERT',
+        oldRow: oldRow
+      }
+    }
+
+    this.getAskFileSql = (name, def) => {
+      let sql = ''
+      if (askFileMsg[name]) {
+        sql = askFileMsg[name].sql
+        if (name === 'staff') {
+          let except = xdata.isCheck === 1 ? 'd.dept_id_ck, ' : 'd.dept_id, d.dept_id_ck,'
+          sql = sql.replace('{exprString}', except)
+        } 
+
+        // 按检索结果批量导出
+        let searchDiff = ''
+        let inputs = this.parent.root.querySelectorAll('.text-field-input')
+        inputs.forEach(input => {
+          let idname = input.getAttribute('idname')
+          let search = searchList.find(search => search.field_name === idname)
+          if (!search) return false
+          let value = idname === 'dept' ? input.getAttribute('data-type') : input.value
+          if (idname === 'dept') {
+            let deptID = xdata.depts && !value ? xdata.depts.join(',') : value
+            searchDiff += deptID ? ` and ${search.name} in (${deptID})` : ''
+          } else {
+            searchDiff += value ? ` and ${search.name} = '${value}'` : ''
+          }
+        })
+        const needDisplay = `${xdata.isCheck === 1 ? 'and d.need_display' : ''}`
+        sql = sql.replace('{diffDepts}', searchDiff).replace('{needDisplay}', needDisplay)
+      } else {
+        if (name === 'device_power') {
+          sql = `SELECT device_power_id,power_model,power_number,reted_supply_voltage,dr.name AS device_id,ddp.device_type_id,ddp.ip,install_date,power_limit,temperature_limit,ddp.map_id,ddp.area_id,ddp.x, ddp.Y,ddp.z FROM dat_device_power ddp LEFT JOIN dat_reader dr ON dr.reader_id=ddp.device_id ORDER BY device_power_id;`
+        } else {
+          let names = def.fields.names
+          let fstring = names.join(',')
+          let keyIndex = def.fields.names[def.keyIndex]
+          sql =  `select ${fstring} from ${def.table} order by ${keyIndex};`
+        }
+      }
+      return sql
+    }
+
+    this.askFile = (name, opName) => {
+      window.xhint.close()
+      window.xhint.showLoading()
+      const def = xdata.metaStore.defs[name]
+      let sqlString = this.getAskFileSql(name, def)
+      console.log(sqlString)
+      let reptTime = new Date().getTime()
+      let title = askFileMsg[name] ? askFileMsg[name].title : def.label
+      let isCheck = xdata.isCheck === 1 ? true : false
+      let labels = askFileMsg[name] ? (isCheck ? anyMsg[name].table.labels : allMsg[name].table.labels) : def.fields.labels
+      let names = askFileMsg[name] ? (isCheck ? anyMsg[name].table.names : allMsg[name].table.names) : def.fields.names
+      let types = askFileMsg[name] ? (isCheck ? anyMsg[name].table.types : allMsg[name].table.types) : def.fields.types
+      let msg = {
+        cmd: 'file',
+        exprList: [],
+		    name: name,
+		    labels: labels,
+		    title: title,
+		    namesInShort: names,
+		    types: types,
+		    fileType: opName,
+        reptIndex: reptTime,
+        sql: sqlString,
+        userName: xdata.userName
+      }
+		  xbus.trigger('REPT-FETCH-FILE', msg)
+    }
+
+    /*打开导入对话框*/
+    this.showImportFileDialog = (msg) => {
+      if (this.importFileDialog) this.importFileDialog.unmount(true)
+      this.importFileDialog = riot.mount('rs-import-file-dialog', msg)[0]
+    }
+
+    //全选删除
+    this.doDelete = () => {
+      typeof this.parent.deleteChoose === 'function' && this.parent.deleteChoose()
+    }
+
+    this.concatDetail = (detail, opType, oldRow, names, labels) => {
+      const TABLENAME = {
+        'staff_staff_extend': `staff_extend${xdata.isCheck === 1 ? '_ck' : ''}`,
+        'vehicle_vehicle_extend': 'vehicle_extend',
+        'dat_credentials_staff': 'credentials_staff',
+        'dat_credentials_vehicle': 'credentials_vehicle',
+        'dat_device_power': 'device_power',
+        'dat_power_levels': 'power_levels'
+      }
+      let name = TABLENAME[this.name] ? TABLENAME[this.name] : this.name
+      if (opType === 'UPDATE') {
+        let preDetail = ''
+        for (let i = 0; i < names.length; i++) {
+          let fieldName = names[i]
+          let fieldLabel = labels[names.indexOf(fieldName)]
+          let fieldValue = oldRow[fieldName]
+          preDetail = editDetail(fieldName, fieldValue, preDetail, name)
+        }
+        return preDetail + '->' + detail
+      }
+      return detail
+    }
+
+    this.init = (opts) => {
+      let msg = opts.data
+      this.title = msg.title
+      this.menus = msg.menus
+      this.parenTag = msg.parenTag
+    }
+
+    this.init(opts)
+  </script>
+</basic-message-title>

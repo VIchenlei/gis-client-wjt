@@ -1,0 +1,16 @@
+@import '../../style/defs'
+
+.page-main
+  @include wh(100%, 100%)
+  font-size: $font-m
+  @include flex-column
+  .sp-main
+    position: relative
+    @include wh(100%, 100%)
+    .sub-page
+      position: absolute
+      display: flex
+      flex-flow: row nowrap
+      @include wh(100%, 100%)
+      transform: translate3d(0px, 0px, 0px)
+      

@@ -1,0 +1,26 @@
+@import '../../style/defs.sass'
+
+.rept-table
+  .op-panel
+    display: flex
+    background: none
+    justify-content: space-between
+    padding: 0
+    font-size: 0.18rem
+    font-weight: 900
+    margin: 20px 0
+  .rs-table-icon-btn
+    overflow-y: auto
+    table
+      font-size: $font-s
+      tbody,thead
+        max-height: none
+        tr
+          border-bottom: 1px solid $color-border
+          th, td
+            padding: .1rem 0
+          .islink
+            color: #009fff
+            text-decoration: underline
+      thead tr th
+        white-space: normal

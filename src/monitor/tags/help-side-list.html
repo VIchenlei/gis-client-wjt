@@ -1,0 +1,110 @@
+<help-side-list class="group-list-container grey-scroll help-side-list">
+    <div class="group-list group-list-title">
+        <span>姓名</span>
+        <span>呼救时间</span>
+        <span>地图</span>
+        <span>操作</span>
+    </div>
+    <div each={ row in list } class="hm-item">
+        <p>
+            <span class="hm-label">{ row.name }</span>
+            <span class="hm-time">{ new Date(row.cur_time).format('MM-dd hh:mm') }</span>
+            <span class="hm-map">{ xdata.metaStore.getNameByID('map_id', row.map_id) }</span>
+            <span></span>
+            <span class="btn" data-id={ row.obj_id } data-type={ row.cur_time } onclick={ settled }>处理</span>
+        </p>
+        <p class="hm-pos" data-id={ row.obj_id } onclick={ locate }><img class="ticon" src="../img/location.png">{ xdata.metaStore.getPositionDesc(row.lmid, row.lmdirect, row.lmdistance) ? xdata.metaStore.getPositionDesc(row.lmid, row.lmdirect, row.lmdistance) : '' }</p>
+    </div>
+    <div if={ !list || list.length <= 0 } data-is="rs-blank-message" message="没有相关记录。" class="rs-blank-message"></div>
+    <script>
+        import '../../tags/rs-blank-message/rs-blank-message.html'
+        import '../sass/help-side-list.sass'
+
+        xbus.on('HELPME-LIST-CHANGED', () => {
+            this.list = xdata.helpmeStore.hms.size > 0 ? Array.from(xdata.helpmeStore.hms.values()) : null
+            this.update()
+        })
+
+        this.judgeTime = (evt) => {
+            let target = evt.currentTarget
+            let time = parseInt(target.getAttribute('data-type'), 10)
+            let now = new Date().getTime()
+            let timediff = 1 * 60 * 1000
+            let diff = now - time
+            return diff > timediff
+        }
+
+        this.stopHelp = () => {
+            let id = this.id
+            window.cardStopLocating({
+                cards: [id],
+                type: 'HELP'
+            })
+
+            // 向采集发送数据
+            let helpme = xdata.helpmeStore.hms.get(id)
+            if (!helpme) return
+            let msg = {
+                cmd: 'helpme_done',
+                version: '1.0.0.1',
+                data: {
+                    id: id,
+                    event_id: Number(helpme.event_id),
+                    status: 1,
+                    user_id: xdata.userName
+                }
+            }
+            xbus.trigger('HELPME-DONE-REQ', msg)
+        }
+
+        this.settled = (evt) => {
+            let self = this
+            let ispush = this.judgeTime(evt)
+            this.id = evt.currentTarget.getAttribute('data-id')
+            if (!ispush) {
+                window.xMessage.open({
+                    type: 'error',
+                    message: '请确认此人是否已经安全升井！'
+                })
+                return
+            } else {
+                if (this.activePanel) this.activePanel.unmount(true)
+                this.activePanel = riot.mount('rs-dialog', {
+                    content: '请确认此人是否已经安全升井！',
+                    cb: this.stopHelp
+                })[0]
+            }
+        }
+
+        this.doInsert = (current) => {
+            var date = new Date().format('yyyy-MM-dd hh:mm:ss')
+            let eventField = [current.event_id, 1, 24, 9, current.obj_id, current.map_id, current.area_id, current.x, current.y, current.limit_value, current.cur_value, `"${date}"`, `"${xdata.metaStore.gstore.userName}"`]
+            let values = eventField.join()
+            let sql = `INSERT into his_event_data VALUES(${values})`
+            let msg = {
+                cmd: 'update',
+                data: {
+                    op: 'INSERT',
+                    sql: sql
+                }
+            }
+            xbus.trigger('META-UPDATE-DB', { req: msg })
+        }
+
+        this.locate = (evt) => {
+            let target = evt.currentTarget
+            let id = target.getAttribute('data-id')
+            window.cardStartLocating({
+                cards: [id],
+                type: 'HELP'
+            })
+        }
+
+        this.init = (opts) => {
+            this.list = xdata.helpmeStore.hms.size > 0 ? Array.from(xdata.helpmeStore.hms.values()) : null
+            this.id = null
+        }
+
+        this.init(opts)
+    </script>
+</help-side-list>

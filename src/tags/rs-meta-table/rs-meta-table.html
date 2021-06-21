@@ -1,0 +1,307 @@
+<rs-meta-table>
+  <div data-is="rs-batch-process" 
+    name={ name }
+    key={ key } 
+    data-msg={ opts } 
+    class="rs-batch-process">
+  </div>
+  <rs-fuzzy-search class="fuzzy" 
+    if={ !isFuzzySearch } 
+    message={ message }>
+  </rs-fuzzy-search>
+  <div data-is="rs-table-icon-btn" 
+    rows={ subRows } 
+    key={ key } 
+    fields={ opts.def.fields }
+    hidetds={ hidetds } 
+    operate="true" 
+    isdeleteicon={ isDeleteIcon }
+    isCheckbox='true'
+    selectall={selectall} 
+    selectallname={selectallname} 
+    showtitle='true'
+    locate={getLocate()}>
+  </div>
+  <div class="pagination" 
+    data-is="rs-pagination" 
+    totalpage={ totalPage} 
+    pageindex={ pageIndex } 
+    tablename={ name } 
+    if={totalPage>1}>
+  </div>
+  <div if={ !hasdata } 
+    data-is="rs-blank-message" 
+    message="没有符合条件的记录！请确认您的查询条件后再试。" 
+    class="rs-blank-message">
+  </div>
+  <script>
+    import '../rs-meta-table/rs-meta-table.sass'
+    import '../rs-batch-process/rs-batch-process.html'
+    import '../rs-fuzzy-search/rs-fuzzy-search.html'
+    import '../rs-table/tags/rs-table-icon-btn.html'
+    import '../rs-blank-message/rs-blank-message.html'
+    import '../rs-pagination/rs-pagination.html'
+    import '../../manage/tags/leader-search.html'
+    import '../rs-disc/rs-disc.html'
+    import { getRows, getMessage, initPagination, copySubRows, clone, getDisPlayList, compare } from '../../js/utils/utils.js'
+    import fuzzySearch from '../../js/def/fuzzy_search.js'
+    const self = this
+    let rsTableTag = null
+    this.keyValue = null
+    let searchKeppStatus = false // 是否检索，新增、编辑保留当前状态
+
+    this.getLocate = () => {
+      return this.parenTag.commentFn instanceof Function && this.parenTag.commentFn({name: this.name}, 'getLocate')
+    }
+
+    // 操作批量删除后重置全选数据
+    this.resetSelect = () => {
+      rsTableTag && (rsTableTag.refs[`#selectAll${this.name}`].checked = false)
+      this.selectInputs = new Map()
+      this.checked  = false 
+      this.notChecked = new Map() 
+      this.isSelectAll = false
+      this.update()
+    }
+
+    // 全选
+    this.handleSelectAll = (handleID, checked) => {
+      this.checked = checked
+      this.isSelectAll = checked
+      this.rows.forEach(item => this.checked ? this.selectInputs.set(item[this.key], true) : this.selectInputs.delete(item[this.key]))
+    }
+
+    // 选中单个
+    this.handleSelect = (data, checked) => {
+      let key = data[this.key]
+      checked ? this.selectInputs.set(key, true) : this.selectInputs.delete(key)
+      if (this.isSelectAll) {
+        this.checked = !checked ? false : this.checked
+        !checked ? this.notChecked.set(key, true) : this.notChecked.delete(key)
+        if (this.notChecked.size === 0) this.checked = true
+        this.update()
+      }
+      let selectAll = this.tags['rs-table-icon-btn'].refs[this.selectallname]
+      selectAll && (selectAll.checked = this.checked)
+    }
+
+    // 是否选中状态
+    this.isChecked = (data) => {
+      return this.selectInputs.get(data)
+    }
+
+    // 新增
+    this.insert = () => {
+      let rows = getRows(null, opts.def, opts.maxid)
+      let msg = getMessage('INSERT', rows, opts.def, opts.maxid)
+      this.parenTag.trigger('META-INSERT-ROW', msg)
+    }
+
+    // 编辑
+    this.edit = (data) => {
+      this.keyValue = data[this.key]
+      let rows = getRows({row: data}, opts.def, opts.maxid)
+      let msg = getMessage('UPDATE', rows, opts.def, opts.maxid)
+      this.parenTag.trigger('META-UPDATE-ROW', msg)
+    }
+
+    this.delete = (target, data) => {
+      this.keyValue = data[this.key]
+      let rows = getRows({row: data}, opts.def, opts.maxid)
+      let msg = getMessage('DELETE', rows, opts.def, opts.maxid)
+      this.parenTag.trigger('META-DELETE-ROW', msg)
+    }
+
+    // 设置操作中编辑、删除显示隐藏
+    this.setOperate = (msg) => {
+      msg.name = this.name
+      msg.self = self
+      this.parenTag.commentFn instanceof Function && this.parenTag.commentFn(msg, 'setOperate')
+    }
+
+    this.updateData = (data) => {
+      this.subRows = [data]
+      if (!this.subRows.length > 0) this.hasdata = false
+      this.tags['rs-table-icon-btn'].updateRows(this.subRows)
+      this.rows = this.subRows
+      this.getPages()
+      this.update()
+    }
+
+    this.getAllResult = () => {
+      searchKeppStatus = false
+      let rows = xdata.metaStore.data[this.name] && Array.from(xdata.metaStore.data[this.name].values())
+      if (this.parenTag.commentFn instanceof Function) {
+        const msg = {
+          name: this.name,
+          rows: rows,
+          self: self
+        }
+        rows = this.parenTag.commentFn(msg, 'allResult')
+      }
+      if (!rows) return
+      this.rows = rows
+      this.subRows = copySubRows(this.rows)
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      this.getPages()
+      this.update()
+    }
+
+    // 获取模糊查询选择结果
+    this.getResult = (result) => {
+      if (!result) return this.getAllResult()
+      let data = result.row
+      this.desc = fuzzySearch[this.name].desc
+      searchKeppStatus = true
+      if (this.parenTag.commentFn instanceof Function) {
+        const msg = {
+          name: this.name,
+          data: data,
+          self: self
+        }
+        this.parenTag.commentFn(msg, 'specialData')
+      } else {
+        this.subRows = [data]
+        this.hasdata = !!(this.subRows && this.subRows.length > 0)
+        rsTableTag && rsTableTag.updateRows(this.subRows)
+        let ele = this.tags['rs-fuzzy-search'].refs['searchinput'] 
+        ele.value = data[this.desc]
+        this.rows = this.subRows
+        this.getPages()
+        this.update()
+      }
+    }
+
+    // 获取检索所需结果集
+    this.getComponentMessage = () => {
+      let name = this.name
+
+      const msg = {
+        rows: this.rows,
+        name: name
+      }
+      let resdata  = this.parenTag.commentFn instanceof Function && this.parenTag.commentFn(msg, 'editSearchData')
+      let ds = xdata.metaStore.data[name] && Array.from(xdata.metaStore.data[name].values())
+      let data = resdata ? (resdata.data ? resdata.data : []) : ds
+      name = resdata ? resdata.name : name
+
+      let fuzzy = fuzzySearch[name]
+      data = getDisPlayList(data, fuzzy.keys, opts.def.table)
+      let typeDef = {
+        name: fuzzy.name,
+        label: fuzzy.label,
+        placeholder: fuzzy.placeholder,
+        cb: this.getResult
+      }
+      let dataSet = {
+        desc: fuzzy.desc,
+        keys: fuzzy.keys,
+        data: data
+      }
+      return {
+        typeDef: typeDef,
+        dataSet: dataSet,
+        needSearchIcon: 'right',
+        type: 'RADIO', //rs-choose-select所需type控制单选、多选
+        isShowPopup: true,
+        dealShowResult: opts.specialParameter.dealShowResult,
+        doClear: true
+      }  
+    }
+
+    this.sortAllRows = (name, type, reverse) => {
+      this.rows = this.rows.sort(compare(name, type , reverse))
+      this.subRows = copySubRows(this.rows, this.pageIndex)
+      return this.subRows
+    }
+
+    // 获取分页数据
+    this.getPages = (pageIndex) => {
+      let pages = initPagination(this.rows, pageIndex)
+      this.total = pages.total
+      this.totalPage = pages.totalPage
+      this.pageIndex = pages.pageIndex
+    }
+
+    this.on('PAGEINDEX-CHANGE', (msg) => {
+      if (msg.name === this.name) {
+        this.pageIndex = msg.pageIndex
+        this.subRows = copySubRows(this.rows, this.pageIndex)
+        rsTableTag && rsTableTag.updateRows(this.subRows)
+        this.update()
+        window.xhint.close()
+      }
+    })
+
+    xbus.on('META-DATA-UPDATE', (msg) => {
+      let data = this.parenTag.commentFn instanceof Function && this.parenTag.commentFn({data: msg, self: self}, 'updateList')
+      if (!data) return
+      let { rows, maxid } = data
+      this.rows = rows
+      opts.maxid = maxid
+      if (searchKeppStatus && this.subRows.length === 1) {
+        let keyValue = this.subRows[0][this.key]
+        let row = xdata.metaStore.data[this.name] && xdata.metaStore.data[this.name].get(keyValue)
+        if (row) {
+          // 检索后编辑、新增展示检索的数据
+          this.rows = [row]
+        } else {
+          this.pageIndex = 0
+          // 检索后删除展示全部数据并清空检索输入框内容
+          this.tags['rs-fuzzy-search'].refs['searchinput'].value = '' 
+        }
+      }
+      
+      this.rows = getDisPlayList(this.rows, this.key, opts.def.table)
+      this.getPages(this.pageIndex)
+      this.subRows = copySubRows(this.rows, this.pageIndex)
+      this.hasdata = !!(this.subRows && this.subRows.length > 0)
+      rsTableTag && rsTableTag.updateRows(this.subRows)
+      if (!this.isFuzzySearch) {
+        this.message = this.getComponentMessage()
+        let rsFzzySearch = this.tags['rs-fuzzy-search']
+        rsFzzySearch && rsFzzySearch.updateSearchDataSet(this.message.dataSet) //更新检索的结果
+      }
+      this.update()
+    })
+
+    this.on('mount', () => {
+      this.root.classList.remove('hide')
+      rsTableTag = this.tags['rs-table-icon-btn']
+      const self = this
+      this.parenTag.setInputValue instanceof Function && this.parenTag.setInputValue(opts, self)
+    })
+
+    this.init = (opts) => {
+      this.name = opts.def.name
+      this.key = opts.def.fields.names[opts.def.keyIndex]
+      this.rows = getDisPlayList(opts.rows, this.key, opts.def.table)
+      this.parenTag = opts.parenTag
+      const specialParameter = opts.specialParameter
+      this.isFuzzySearch = specialParameter.isFuzzySearch || false
+      this.isDeleteIcon = specialParameter.isDeleteIcon || false
+      this.hidetds = specialParameter.hidetds || null
+      this.hasdata = !!(this.rows && this.rows.length > 0) //有无数据
+      if (!this.isFuzzySearch) {
+        this.message = this.getComponentMessage()
+      }
+      if (this.hasdata) {
+        this.getPages(this.pageIndex)
+        this.subRows = copySubRows(this.rows, this.pageIndex) // 初始化显示第一页        
+      }
+      this.selectall = this.parenTag.allCheckedNames && this.parenTag.allCheckedNames.includes(this.name) ? true : false
+      this.isCheckbox = true
+      this.selectallname = `#selectAll${this.name}`
+      this.selectInputs = new Map()
+      this.checked  = false 
+      this.notChecked = new Map() 
+      this.isSelectAll = false
+    }
+
+    this.init(opts)
+
+    this.on('unmount', () => {
+      this.root.classList.add('hide')
+    })
+  </script>
+</rs-meta-table>

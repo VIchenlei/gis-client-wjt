@@ -1,0 +1,125 @@
+@import '../../style/defs'
+
+.monitor-rate-hide
+  width: 0 !important
+  .panel-switcher
+    width: 0.5rem
+    height: 0.65rem
+    border: 1px solid
+    line-height: 0.65rem
+    text-align: center
+    border: 1px solid #0099ff
+    box-shadow: 0 1px 6px 1px #009FFF
+    background-color: #003366
+    top: 0.1rem
+    right: 0.15rem
+monitor-rate
+  position: absolute
+  right: 0
+  width: 3.84rem
+  height: 100%
+  color: #fff
+  display: flex
+  flex-direction: column
+  padding: 10px 10px 10px 0
+  .panel-switcher
+    position: absolute
+    right: 0.1rem
+    top: 0.15rem
+    z-index: 1
+    .icon-caret-left
+      background-image: url('/img/icon.png')
+      background-size: 1.77rem 2.44rem
+      background-position: -0.04rem -1.98rem
+      cursor: pointer
+    .icon-caret-right
+      background-image: url('/img/icon.png')
+      background-size: 1.77rem 2.44rem
+      background-position: -0.04rem -1.7rem
+      cursor: pointer
+  .rate-top-title
+    background: url("/img/tixing.png") no-repeat
+    background-size: 2.28rem 0.208rem
+    position: absolute
+    width: 2.28rem
+    height: 0.208rem
+    font-size: $font-m
+    top: 0
+    text-align: center
+    letter-spacing: 5px
+  .monitor-rate-total
+    border: 1px solid #0099ff
+    box-shadow: 0 1px 6px 1px #009FFF
+    height: 1.6rem
+    display: flex
+    flex-direction: column
+    align-items: center
+    position: relative
+    justify-content: flex-end
+    margin-bottom: 10px
+    .top-alarm
+      display: flex
+      justify-content: center
+      div
+        display: flex
+        flex-direction: column
+        align-items: center
+        width: 25%
+        font-size: .14rem
+        &:nth-child(1),&:nth-child(2)
+          flex: 0 0 0.96rem
+        &:nth-child(3),&:nth-child(4)
+          flex: 0 0 2.56rem
+        span:nth-child(1)
+          opacity: 0.6
+        span:nth-child(2)
+          color: #0167ff
+    .overview-echarts
+      display: flex
+      width: 100%
+      .overviewBD, .overviewWD, .overviewRD
+        position: relative
+        width: 33.3%
+        display: flex
+        flex-direction: column
+        span
+          position: absolute
+          bottom: 0.24rem
+          font-size: .14rem
+          width: 100%
+          text-align: center
+  .monitor-rate-dept
+    font-size: .14rem
+    text-align: center
+    flex: auto
+    border: 1px solid #0099ff
+    box-shadow: 0 1px 6px 1px #009FFF
+    overflow-y: auto
+    overflow-x: hidden
+    background-color: #003366
+    .rate-dept-title-warp
+      display: flex
+      justify-content: center
+      .rate-dept-title
+        background: url("/img/tixing.png") no-repeat
+        background-size: 2.28rem 0.208rem
+        width: 2.28rem
+        height: 0.208rem
+        font-size: $font-m
+        top: 0
+        text-align: center
+        letter-spacing: 5px
+    .rate-dept
+      height: 1.92rem
+      position: relative
+      padding-left: 7px
+      margin-top: 0.1rem
+      .rate-dept_boot
+        canvas
+          top: -23px
+      span
+        position: absolute
+        bottom: 0.05rem
+        left: 1.52rem
+        color: #0082DE
+        font-size: 14px

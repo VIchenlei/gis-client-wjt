@@ -1,0 +1,155 @@
+<rs-splice-input class="rs-splice-input {fieldName}">
+  <div>
+    <span class="text-field-label">
+      <span>{title}</span>
+      <img class="icon" if={fieldName === 'route_planning'} src="/img/jump.png" alt="" onclick={setPersonPath}>
+      <img class="icon" if={fieldName === 'reader_planning'} src="/img/addactive.png" alt="" onclick={addData}>
+    </span>
+    <div class="splice-inner" each={ items, index in lists }>
+      <div each={ row in items } class="splice-inner-box">
+        <rs-text-field
+          if={isShowInput(row)}  
+          data={row} 
+          ref="{row.field_name}{index}" 
+          data-name={tableName} 
+          data-oldvalue= {dealValue(row)} 
+          disabled={opts.disabled}>
+        </rs-text-field>
+        <div
+          if={isShowTime(row)} 
+          data-is="rs-date" 
+          type={row.field_type} 
+          ref="{row.field_name}{index}" 
+          name={row.field_name} 
+          text={row.field_label} 
+          value={row.field_value}  
+          enablenull={row.field_enableNull} 
+          isshowsecond='true' 
+          placeholder={row.field_label} 
+          disabled={opts.disabled}>
+        </div>
+      </div>
+      <span class="delete-box" if={isShowDelIcon()} onclick={deleteData} data-index={index}>
+        <img src="/img/mergeDelete.png" alt="">
+      </span>
+    </div>
+  </div>
+  <script>
+    import './rs-splice-input.sass'
+    import { spliceDef } from './js/splice_string_def.js'
+    import { clone, messageTip } from '../../js/utils/utils.js'
+    import { isShowDelIcon, initSetValue, getInitValue, getInputValue } from './js/rs-splice-input.js'
+    const self = this
+
+    //输入框值展示特殊处理
+    this.dealValue = (row) => {
+      let fieldValue = row.field_value
+      if (row.field_name === 'reader_id') {
+        fieldValue = xdata.metaStore.getNameByID(row.field_name, fieldValue)
+        fieldValue = fieldValue ? fieldValue : ''
+      }
+      return fieldValue
+    }
+
+    this.isShowDelIcon = () => {
+      const { field_name } = opts.data
+      return isShowDelIcon(field_name)
+    }
+
+    this.isShowInput = (row) => {
+      const { field_type } = row
+      if (field_type !== 'TIME') return true
+      return false
+    }
+
+    this.isShowTime = (row) => {
+      const { field_type } = row
+      if (field_type === 'TIME') return true
+      return false
+    }
+
+    // 跳转实时界面定义路线
+    this.setPersonPath = () => {
+      xbus.trigger('DIALOG-SHOW',{isShow: false})
+      const tagMonitor = opts.papa || null
+      if (tagMonitor) {
+        tagMonitor.gotoPage('sp_monitor',null)
+      }
+      let mapType = tagMonitor ? 'MONITOR' : 'MANAGE'
+      const msg = {
+        mapID: xdata.metaStore.defaultMapID,
+        mapType: mapType,
+        isEdit: true,
+        cmd: this.parent.cmd
+      }
+      xbus.trigger('DRAW-ROUTEPLAN', msg)
+    }
+
+    // 执行添加
+    this.addData = () => {
+      let lists = this.lists || []
+      let datas = clone(this.list)
+      lists.push(datas)
+      this.lists = lists
+    }
+
+    // 执行删除
+    this.deleteData = (evt) => {
+      let target = evt.target
+      let nodeName = target.nodeName
+      if (nodeName === 'IMG') {
+        target = target.parentNode
+      }
+      let index = target.dataset.index
+      index = Number(index)
+      this.lists.splice(index,1) 
+      this.update()
+    }
+
+    this.initValue = () => {
+      let lists = []
+      if (this.values) {
+        const fieldName = opts.data.field_name
+        let values = this.values
+        this.lists = getInitValue(values, fieldName, self) // 初始化修改录入框的值
+      }
+    }
+
+    // 拼接数据
+    this.getValue = () => {
+      const fieldName = opts.data.field_name
+      let values = getInputValue(fieldName, self)
+      return values
+    }
+
+    this.getLists = (fieldName) => {
+      let lists = []
+      let rows = spliceDef[fieldName]
+      this.list = rows
+      rows = initSetValue(fieldName, rows)
+      lists.push(rows)
+      return lists
+    }
+
+    this.updateData = (msg) => {
+      this.values = msg.values
+      this.initValue()
+      this.update()
+    }
+
+
+    this.init = (opts) => {
+      const { field_name, field_enableNull, field_value, field_label } = opts.data
+      this.parenTag = this.parent.parenTag
+      this.tableName = opts.dataName
+      this.title = field_label
+      this.fieldName = field_name
+      this.tips = !field_enableNull ? '*' : ''
+      this.lists = this.getLists(field_name)
+      this.values =  field_value
+      this.initValue()
+    }
+
+    this.init(opts)
+  </script>
+</rs-splice-input>
